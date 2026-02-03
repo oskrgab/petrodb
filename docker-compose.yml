@@ -1,0 +1,29 @@
+services:
+  marimo:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: volve-db-marimo
+    user: "${UID:-1000}:${GID:-1000}"
+    environment:
+      - MARIMO_TOKEN_PASSWORD=${MARIMO_TOKEN_PASSWORD:-changeme}
+      - UV_CACHE_DIR=/app/.cache/uv
+      - HOME=/app
+      - XDG_CONFIG_HOME=/app/.config
+      - XDG_CACHE_HOME=/app/.cache
+      - XDG_DATA_HOME=/app/.local/share
+      - MPLCONFIGDIR=/app/.config/matplotlib
+    ports:
+      - "8080:8080"
+    volumes:
+      # Mount the project directory for editing files
+      - .:/app
+      # Shadow host's .venv with container's own venv
+      - /app/.venv
+    networks:
+      cluster-network:
+        ipv4_address: ${MARIMO_IP_ADDRESS}
+
+networks:
+  cluster-network:
+    external: true
