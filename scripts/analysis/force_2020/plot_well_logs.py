@@ -27,8 +27,8 @@ import sys
 from pathlib import Path
 
 import duckdb
-import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
+import matplotlib.pyplot as plt
 import numpy as np
 import polars as pl
 
@@ -76,7 +76,7 @@ def fetch_well_data(
 # Track plotting helpers
 # ---------------------------------------------------------------------------
 def plot_gr_track(ax, depth, gr):
-    """GR track with segment-by-segment yellow-to-green fill."""
+    """GR track with colormap fill using 100 color-index bands."""
     ax.set_xlim(GR_MIN, GR_MAX)
     ax.set_xlabel("GR (API)", fontsize=9)
     ax.xaxis.set_label_position("top")
@@ -84,77 +84,64 @@ def plot_gr_track(ax, depth, gr):
     ax.grid(True, alpha=0.3)
     ax.set_ylabel("Depth (m MD)")
 
-    # Segment fill coloured by GR value
-    cmap = mcolors.LinearSegmentedColormap.from_list("gr", ["#FFD700", "#228B22"])
-    gr_clipped = np.clip(gr, GR_MIN, GR_MAX)
+    span = abs(GR_MIN - GR_MAX)
+    cmap = mcolors.LinearSegmentedColormap.from_list("gr", ["#FFD700", "#006400"])
+    color_index = np.arange(GR_MIN, GR_MAX, span / 100)
 
-    for i in range(len(depth) - 1):
-        avg_gr = (gr_clipped[i] + gr_clipped[i + 1]) / 2
-        colour = cmap(avg_gr / GR_MAX)
-        ax.fill_betweenx(
-            depth[i : i + 2],
-            0,
-            gr_clipped[i : i + 2],
-            color=colour,
-            linewidth=0,
-        )
+    for index in color_index:
+        color = cmap((index - GR_MIN) / span)
+        ax.fill_betweenx(depth, GR_MIN, gr, where=gr >= index, color=color)
 
     ax.plot(gr, depth, color="black", linewidth=0.5)
 
 
 def plot_density_neutron_track(ax, depth, rhob, nphi):
-    """Density + Neutron with crossover fill."""
-    ax.set_xlim(0, 1)
+    """Density + Neutron with crossover fill.
+
+    Each curve is plotted on its own axis in native units. NPHI is mapped
+    into RHOB-axis space only for the fill_betweenx calls.
+    """
+    # Primary axis — RHOB
+    ax.set_xlim(RHOB_MIN, RHOB_MAX)
+    ax.set_xlabel("RHOB (g/cc)", fontsize=9)
+    ax.xaxis.label.set_color("red")
+    ax.xaxis.set_label_position("top")
+    ax.xaxis.tick_top()
+    ax.tick_params(axis="x", labelsize=7, colors="red")
+    ax.spines["top"].set_edgecolor("red")
     ax.grid(True, alpha=0.3)
-    ax.xaxis.set_label_position("top")
-    ax.xaxis.tick_top()
 
-    # Normalize both curves to 0-1 on their respective scales
-    rhob_norm = (rhob - RHOB_MIN) / (RHOB_MAX - RHOB_MIN)
-    nphi_norm = (nphi - NPHI_MIN) / (NPHI_MAX - NPHI_MIN)
+    print(f"NPHI min: {nphi.min()}, max: {nphi.max()}")
 
-    # Custom tick labels showing both scales
-    ticks = np.linspace(0, 1, 5)
-    rhob_labels = np.linspace(RHOB_MIN, RHOB_MAX, 5)
-    nphi_labels = np.linspace(NPHI_MIN, NPHI_MAX, 5)
-
+    # Twin axis for NPHI — reversed: 0.45 left, -0.15 right
     ax2 = ax.twiny()
-    ax.set_xlim(0, 1)
-    ax2.set_xlim(0, 1)
+    ax2.set_xlim(NPHI_MIN, NPHI_MAX)
+    ax2.set_xlabel("NPHI (v/v)", fontsize=9)
+    ax2.xaxis.label.set_color("blue")
+    ax2.spines["top"].set_position(("axes", 1.08))
+    ax2.spines["top"].set_edgecolor("blue")
+    ax2.tick_params(axis="x", labelsize=7, colors="blue")
+    ax2.xaxis.set_ticks_position("top")
+    ax2.xaxis.set_label_position("top")
 
-    ax.set_xticks(ticks)
-    ax.set_xticklabels([f"{v:.2f}" for v in rhob_labels], fontsize=7, color="red")
-    ax.set_xlabel("RHOB (g/cc)", fontsize=9, color="red")
+    # Re-apply after twiny() steals the top position from ax
+    ax.xaxis.set_ticks_position("top")
     ax.xaxis.set_label_position("top")
-    ax.xaxis.tick_top()
 
-    ax2.set_xticks(ticks)
-    ax2.set_xticklabels([f"{v:.2f}" for v in nphi_labels], fontsize=7, color="blue")
-    ax2.set_xlabel("NPHI (v/v)", fontsize=9, color="blue")
+    # Map NPHI into RHOB-axis space for fill_betweenx
+    x = np.array(ax.get_xlim())
+    z = np.array(ax2.get_xlim())
+    nphi_mapped = ((nphi - np.max(z)) / (np.min(z) - np.max(z))) * (np.max(x) - np.min(x)) + np.min(x)
 
-    # Crossover fill
-    ax.fill_betweenx(
-        depth,
-        rhob_norm,
-        nphi_norm,
-        where=nphi_norm > rhob_norm,
-        color="#FFD700",
-        alpha=0.5,
-        label="Sand crossover",
-    )
-    ax.fill_betweenx(
-        depth,
-        rhob_norm,
-        nphi_norm,
-        where=rhob_norm >= nphi_norm,
-        color="#8B4513",
-        alpha=0.5,
-        label="Shale",
-    )
+    # Shale: density to the RIGHT of neutron → green
+    ax.fill_betweenx(depth, rhob, nphi_mapped,
+                     where=rhob >= nphi_mapped, interpolate=True, color="green", alpha=0.5)
+    # Sand/gas crossover: density to the LEFT of neutron → yellow
+    ax.fill_betweenx(depth, rhob, nphi_mapped,
+                     where=rhob <= nphi_mapped, interpolate=True, color="yellow", alpha=0.5)
 
-    ax.plot(rhob_norm, depth, color="red", linewidth=0.8, label="RHOB")
-    ax.plot(nphi_norm, depth, color="blue", linewidth=0.8, label="NPHI")
-    ax.legend(loc="lower left", fontsize=7)
+    ax.plot(rhob, depth, color="red", linewidth=0.8)
+    ax2.plot(nphi, depth, color="blue", linewidth=0.8)
 
 
 def plot_resistivity_track(ax, depth, rdep):
@@ -186,15 +173,19 @@ def create_well_log_plot(
     # Invert depth axis (shared)
     axes[0].invert_yaxis()
 
+    print("Plotting GR track...")
     plot_gr_track(axes[0], depth, gr)
+    print("Plotting Density/Neutron track...")
     plot_density_neutron_track(axes[1], depth, rhob, nphi)
+    print("Plotting Resistivity track...")
     plot_resistivity_track(axes[2], depth, rdep)
 
-    # Remove y-tick labels on tracks 2 and 3
-    axes[1].set_yticklabels([])
-    axes[2].set_yticklabels([])
+    # Show y-tick labels only on the first track
+    axes[1].tick_params(labelleft=False)
+    axes[2].tick_params(labelleft=False)
 
-    plt.tight_layout(rect=[0, 0, 1, 0.97])
+    # Manual layout: leave room at top for double axis header and suptitle
+    fig.subplots_adjust(left=0.08, right=0.97, top=0.84, bottom=0.04, wspace=0.08)
 
     out_path = OUTPUT_DIR / f"{well_name}_logs.png"
     fig.savefig(out_path, dpi=150, bbox_inches="tight")
@@ -202,9 +193,7 @@ def create_well_log_plot(
     return out_path
 
 
-# ---------------------------------------------------------------------------
 # CLI
-# ---------------------------------------------------------------------------
 def main():
     parser = argparse.ArgumentParser(description="Plot FORCE 2020 well logs")
     parser.add_argument("well_name", help="Well name, e.g. 15-9-13")
