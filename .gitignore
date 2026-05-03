@@ -208,6 +208,8 @@ __marimo__/
 
 # DuckDB
 .duckdb/
+database/argentina.duckdb
+database/argentina.duckdb.wal
 
 # Tool cache/config directories (from container)
 .config/
