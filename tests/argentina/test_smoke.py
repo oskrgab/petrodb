@@ -20,6 +20,8 @@ FIXTURES = Path(__file__).parent.parent / "fixtures" / "argentina"
 
 
 def test_pipeline_emits_wells_parquet(tmp_path: Path) -> None:
+    """Fixture has 4 capitulo-iv wells (one orphan) + 2 production-only.
+    All six are emitted in wells.parquet."""
     db_path = tmp_path / "argentina.duckdb"
     out_dir = tmp_path / "parquet"
 
@@ -33,7 +35,41 @@ def test_pipeline_emits_wells_parquet(tmp_path: Path) -> None:
     row_count = con.execute(
         f"SELECT COUNT(*) FROM read_parquet('{wells_parquet}')"
     ).fetchone()[0]
-    assert row_count == 3, f"expected 3 wells in fixture output, got {row_count}"
+    assert row_count == 6, f"expected 6 wells in fixture output, got {row_count}"
+
+    # Spot-check has_production: orphan 1004 false, all others true
+    flags = dict(
+        con.execute(
+            f"SELECT idpozo, has_production "
+            f"FROM read_parquet('{wells_parquet}') ORDER BY idpozo"
+        ).fetchall()
+    )
+    assert flags == {
+        1001: True,
+        1002: True,
+        1003: True,
+        1004: False,
+        1005: True,
+        1006: True,
+    }
+
+    # Dropped admin/audit columns must not appear in the published parquet
+    cols = {
+        row[0]
+        for row in con.execute(
+            f"DESCRIBE SELECT * FROM read_parquet('{wells_parquet}')"
+        ).fetchall()
+    }
+    forbidden = {
+        "geojson",
+        "observaciones",
+        "idusuario",
+        "rectificado",
+        "habilitado",
+        "fechaingreso",
+        "fecha_data",
+    }
+    assert not (cols & forbidden)
 
 
 def test_export_aborts_when_validator_fails(

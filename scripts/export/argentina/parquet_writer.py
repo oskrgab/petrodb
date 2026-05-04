@@ -14,6 +14,4 @@ def write_wells(con: duckdb.DuckDBPyConnection, output_dir: Path) -> None:
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
     target = output_dir / "wells.parquet"
-    con.execute(
-        f"COPY (SELECT * FROM wells) TO '{target}' (FORMAT PARQUET)"
-    )
+    con.execute(f"COPY (SELECT * FROM wells) TO '{target}' (FORMAT PARQUET)")
