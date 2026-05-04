@@ -5,8 +5,9 @@ Two idempotent patches:
 - Root ``README.md``: add an Argentina entry under the ``## Datasets``
   section with a copy-pasteable DuckDB query example.
 - ``parquet/index.html``: add an Argentina tab alongside Volve and FORCE
-  2020, linking to the four published artifacts (``README.md``,
-  ``schema.md``, ``schema.json``, ``schema.sql``).
+  2020, listing the three single-file tables, the partitioned
+  ``monthly_production`` series (manifest + per-year direct downloads),
+  and the schema documents.
 
 Both patches bracket the inserted region with sentinel HTML comments so
 re-running the export replaces the block in place rather than appending
@@ -50,16 +51,18 @@ INDEX_TAB_CONTENT_ANCHOR = "        <footer>"
 # ---------------------------------------------------------------------------
 
 
-def integrate(website_root: Path) -> None:
+def integrate(website_root: Path, years: list[int]) -> None:
     """Idempotently inject the Argentina dataset entry into the static site.
 
     ``website_root`` is the repo root: the directory that contains
-    ``README.md`` and ``parquet/index.html``. Re-running the function on
-    an already-integrated tree produces byte-identical output.
+    ``README.md`` and ``parquet/index.html``. ``years`` is the list of
+    monthly_production hive partitions, used to render the per-year
+    download buttons. Re-running with the same inputs produces
+    byte-identical output.
     """
     website_root = Path(website_root)
     _patch_root_readme(website_root / "README.md")
-    _patch_index_html(website_root / "parquet" / "index.html")
+    _patch_index_html(website_root / "parquet" / "index.html", sorted(years))
 
 
 # ---------------------------------------------------------------------------
@@ -132,8 +135,19 @@ def _index_tab_button_payload() -> str:
 """
 
 
-def _index_tab_content_payload() -> str:
-    return """\
+def _index_tab_content_payload(years: list[int]) -> str:
+    year_buttons = "\n".join(
+        f'                        <a href="argentina/monthly_production/anio={y}/data.parquet"'
+        f' download="monthly_production_{y}.parquet" class="download-button">\n'
+        f'                            <span>{y}</span>\n'
+        f'                            <span class="download-icon">⬇</span>\n'
+        f'                        </a>'
+        for y in years
+    )
+    year_range = (
+        f"{years[0]}–{years[-1]}" if years else "2006–present"
+    )
+    return f"""\
         <!-- Argentina Tab Content -->
         <div id="argentina-tab" class="tab-content">
             <!-- Download Section -->
@@ -141,7 +155,7 @@ def _index_tab_content_payload() -> str:
                 <h2>Download Argentina Files</h2>
                 <p style="margin-bottom: 24px; color: var(--text-secondary);">
                     Monthly production data for ~85,418 oil and gas wells in Argentina
-                    (2006–present). Spanish column names preserved from source.
+                    ({year_range}). Spanish column names preserved from source.
                 </p>
                 <div class="download-grid">
                     <a href="argentina/wells.parquet" class="download-button" download>
@@ -156,11 +170,27 @@ def _index_tab_content_payload() -> str:
                         <span>well_events.parquet</span>
                         <span class="download-icon">⬇</span>
                     </a>
-                    <a href="argentina/monthly_production/" class="download-button">
-                        <span>monthly_production/ (hive-partitioned)</span>
-                        <span class="download-icon">→</span>
+                </div>
+
+                <h3 style="margin-top: 8px; margin-bottom: 12px;">
+                    monthly_production
+                    <span style="font-weight: normal; color: var(--text-secondary); font-size: 0.9em;">(hive-partitioned by year)</span>
+                </h3>
+                <div class="download-grid" style="margin-bottom: 12px;">
+                    <a href="argentina/monthly_production/_files.json" class="download-button">
+                        <span>_files.json &nbsp;·&nbsp; manifest for read_parquet / httpfs</span>
+                        <span class="download-icon">{{}}</span>
                     </a>
                 </div>
+                <details style="margin-bottom: 32px;">
+                    <summary style="cursor: pointer; padding: 8px 0; color: var(--text-secondary); font-family: 'IBM Plex Mono', monospace;">
+                        Download a specific year
+                    </summary>
+                    <div class="download-grid" style="grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 12px; margin-top: 12px; margin-bottom: 0;">
+{year_buttons}
+                    </div>
+                </details>
+
                 <div class="download-grid" style="margin-top: 16px;">
                     <a href="argentina/README.md" class="download-button">
                         <span>README.md</span>
@@ -172,14 +202,14 @@ def _index_tab_content_payload() -> str:
                     </a>
                     <a href="argentina/schema.json" class="download-button">
                         <span>schema.json</span>
-                        <span class="download-icon">{}</span>
+                        <span class="download-icon">{{}}</span>
                     </a>
                     <a href="argentina/schema.sql" class="download-button">
                         <span>schema.sql</span>
                         <span class="download-icon">⌘</span>
                     </a>
                 </div>
-                <p class="file-size">Four tables · Hive-partitioned monthly series · Spanish column names</p>
+                <p class="file-size">Three single-file tables · {len(years)}-year partitioned monthly series · Spanish column names</p>
             </div>
 
             <!-- About Section -->
@@ -279,7 +309,7 @@ result = duckdb.<span class="function">sql</span>(<span class="string">\"\"\"
 """
 
 
-def _patch_index_html(path: Path) -> None:
+def _patch_index_html(path: Path, years: list[int]) -> None:
     original = path.read_text()
 
     button_block = (
@@ -295,7 +325,7 @@ def _patch_index_html(path: Path) -> None:
     )
 
     content_block = (
-        f"{INDEX_TAB_CONTENT_BEGIN}\n{_index_tab_content_payload()}"
+        f"{INDEX_TAB_CONTENT_BEGIN}\n{_index_tab_content_payload(years)}"
         f"{INDEX_TAB_CONTENT_END}\n\n"
     )
     text = _replace_block_or_insert_before(

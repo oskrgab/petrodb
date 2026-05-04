@@ -7,6 +7,7 @@ tree (with a `_files.json` manifest). Finally, idempotently surfaces
 the dataset on the static site via `website_integrator`.
 """
 
+import json
 from pathlib import Path
 
 import duckdb
@@ -44,4 +45,8 @@ def run(
         schema_doc_generator.generate(con, output_dir)
 
     if website_root is not None:
-        website_integrator.integrate(Path(website_root))
+        manifest = json.loads(
+            (output_dir / "monthly_production" / "_files.json").read_text()
+        )
+        years = sorted(int(p.split("=", 1)[1].split("/", 1)[0]) for p in manifest)
+        website_integrator.integrate(Path(website_root), years)
