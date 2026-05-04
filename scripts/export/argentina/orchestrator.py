@@ -10,7 +10,7 @@ from pathlib import Path
 
 import duckdb
 
-from scripts.export.argentina import parquet_writer, validator
+from scripts.export.argentina import parquet_writer, schema_doc_generator, validator
 
 
 def run(db_path: Path, output_dir: Path) -> None:
@@ -24,3 +24,4 @@ def run(db_path: Path, output_dir: Path) -> None:
         parquet_writer.write_well_events(con, output_dir)
         parquet_writer.write_monthly_production(con, output_dir)
         validator.validate_partitions(con, output_dir)
+        schema_doc_generator.generate(con, output_dir)

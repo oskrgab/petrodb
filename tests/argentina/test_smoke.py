@@ -215,6 +215,28 @@ def test_pipeline_emits_wells_parquet(tmp_path: Path) -> None:
         "vida_util",
     }
 
+    # Schema docs — the four documentation deliverables must be published
+    # alongside the parquets and reflect the live schema (no drift).
+    for name in ("schema.md", "schema.json", "schema.sql", "README.md"):
+        assert (out_dir / name).exists(), f"{name} was not generated"
+    schema_payload = json.loads((out_dir / "schema.json").read_text())
+    assert set(schema_payload["tables"]) == {
+        "wells",
+        "well_operator_history",
+        "well_events",
+        "monthly_production",
+    }
+    mp_schema_cols = {
+        c["name"] for c in schema_payload["tables"]["monthly_production"]["columns"]
+    }
+    assert mp_schema_cols == mp_cols, (
+        "schema.json columns drifted from monthly_production parquet"
+    )
+    schema_md = (out_dir / "schema.md").read_text()
+    assert "tef" in schema_md and "vida_util" in schema_md
+    readme = (out_dir / "README.md").read_text()
+    assert "generate_series" in readme and "_files.json" in readme
+
 
 def test_export_aborts_when_validator_fails(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
