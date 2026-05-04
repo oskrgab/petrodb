@@ -1,19 +1,28 @@
 """Unit tests for the Argentina export validator.
 
-Exercises the WKB-parseability, operator-history FK, and well-events
-FK invariants. Later issues add PK uniqueness, additional FK checks,
-date completeness, partition counts.
+Exercises every PRD invariant: WKB-parseability, FK integrity for
+`well_operator_history` / `well_events` / `monthly_production`,
+PK uniqueness on `(idpozo, fecha)`, date-completeness, post-write
+partition-count, and the 50 MB soft warning.
 """
 
 from datetime import date
+from pathlib import Path
 
 import duckdb
 import pytest
 
-from scripts.export.argentina import validator
+from scripts.export.argentina import parquet_writer, validator
 
 VALID_WKB_HEX = "0101000020E61000000000000000405140000000000000C040"
 INVALID_WKB_HEX = "DEADBEEFCAFEBABEDEADBEEFCAFEBABE"
+
+MP_COLUMNS = (
+    "idpozo INTEGER, fecha DATE, "
+    "prod_pet DOUBLE, prod_gas DOUBLE, prod_agua DOUBLE, "
+    "iny_agua DOUBLE, iny_gas DOUBLE, iny_co2 DOUBLE, iny_otro DOUBLE, "
+    "tef DOUBLE, vida_util DOUBLE"
+)
 
 
 def _make_wells_with_geom(
@@ -50,6 +59,7 @@ def _make_wells_with_geom(
         )
         """
     )
+    con.execute(f"CREATE OR REPLACE TABLE monthly_production ({MP_COLUMNS})")
 
 
 def _seed_operator_history(con: duckdb.DuckDBPyConnection, rows: list[tuple]) -> None:
@@ -58,6 +68,20 @@ def _seed_operator_history(con: duckdb.DuckDBPyConnection, rows: list[tuple]) ->
 
 def _seed_well_events(con: duckdb.DuckDBPyConnection, rows: list[tuple]) -> None:
     con.executemany("INSERT INTO well_events VALUES (?, ?, ?, ?, ?)", rows)
+
+
+def _mp_row(idpozo: int, fecha: date) -> tuple:
+    """A monthly_production row with arbitrary measurements."""
+    return (idpozo, fecha, 80.0, 1900.0, 7.0, 0.0, 0.0, 0.0, 0.0, 15.0, 1800.0)
+
+
+def _seed_monthly_production(con: duckdb.DuckDBPyConnection, rows: list[tuple]) -> None:
+    if not rows:
+        return
+    con.executemany(
+        "INSERT INTO monthly_production VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        rows,
+    )
 
 
 def test_validator_passes_on_valid_wkb():
@@ -162,3 +186,156 @@ def test_well_events_fk_passes_when_events_empty():
     con = duckdb.connect()
     _make_wells_with_geom(con, [VALID_WKB_HEX])
     validator.validate(con)
+
+
+# ---- monthly_production FK -------------------------------------------------
+
+
+def test_monthly_production_fk_passes_when_all_idpozos_in_wells():
+    con = duckdb.connect()
+    _make_wells_with_geom(con, [VALID_WKB_HEX, VALID_WKB_HEX])
+    _seed_monthly_production(
+        con,
+        [
+            _mp_row(1, date(2006, 1, 1)),
+            _mp_row(2, date(2006, 1, 1)),
+        ],
+    )
+    validator.validate(con)
+
+
+def test_monthly_production_fk_raises_on_orphan_idpozo():
+    con = duckdb.connect()
+    _make_wells_with_geom(con, [VALID_WKB_HEX])
+    _seed_monthly_production(
+        con,
+        [
+            _mp_row(1, date(2006, 1, 1)),
+            _mp_row(999, date(2006, 1, 1)),
+        ],
+    )
+    with pytest.raises(validator.FKIntegrityError, match="monthly_production"):
+        validator.validate(con)
+
+
+# ---- monthly_production PK uniqueness --------------------------------------
+
+
+def test_monthly_production_pk_passes_on_unique_keys():
+    con = duckdb.connect()
+    _make_wells_with_geom(con, [VALID_WKB_HEX])
+    _seed_monthly_production(
+        con,
+        [
+            _mp_row(1, date(2006, 1, 1)),
+            _mp_row(1, date(2006, 2, 1)),
+        ],
+    )
+    validator.validate(con)
+
+
+def test_monthly_production_pk_raises_on_duplicate_keys():
+    con = duckdb.connect()
+    _make_wells_with_geom(con, [VALID_WKB_HEX])
+    _seed_monthly_production(
+        con,
+        [
+            _mp_row(1, date(2006, 1, 1)),
+            _mp_row(1, date(2006, 1, 1)),
+        ],
+    )
+    with pytest.raises(validator.PKUniquenessError, match="monthly_production"):
+        validator.validate(con)
+
+
+# ---- monthly_production date completeness ---------------------------------
+
+
+def test_monthly_production_date_completeness_passes_on_dense_grid():
+    con = duckdb.connect()
+    _make_wells_with_geom(con, [VALID_WKB_HEX])
+    _seed_monthly_production(
+        con,
+        [
+            _mp_row(1, date(2006, 1, 1)),
+            _mp_row(1, date(2006, 2, 1)),
+            _mp_row(1, date(2006, 3, 1)),
+        ],
+    )
+    validator.validate(con)
+
+
+def test_monthly_production_date_completeness_raises_on_missing_month():
+    """Well 1 has Jan + Mar but no Feb — span is 3 months, count is 2."""
+    con = duckdb.connect()
+    _make_wells_with_geom(con, [VALID_WKB_HEX])
+    _seed_monthly_production(
+        con,
+        [
+            _mp_row(1, date(2006, 1, 1)),
+            _mp_row(1, date(2006, 3, 1)),
+        ],
+    )
+    with pytest.raises(validator.DateCompletenessError):
+        validator.validate(con)
+
+
+def test_monthly_production_date_completeness_passes_on_single_row():
+    """A single-row well has span 1 and count 1 — vacuously dense."""
+    con = duckdb.connect()
+    _make_wells_with_geom(con, [VALID_WKB_HEX])
+    _seed_monthly_production(con, [_mp_row(1, date(2006, 1, 1))])
+    validator.validate(con)
+
+
+# ---- partition counts (post-write) -----------------------------------------
+
+
+def _setup_for_partition_test(
+    con: duckdb.DuckDBPyConnection, rows: list[tuple]
+) -> None:
+    _make_wells_with_geom(con, [VALID_WKB_HEX])
+    _seed_monthly_production(con, rows)
+
+
+def test_partition_count_passes_when_files_match_source(tmp_path: Path):
+    con = duckdb.connect()
+    _setup_for_partition_test(
+        con,
+        [_mp_row(1, date(2006, 1, 1)), _mp_row(1, date(2007, 1, 1))],
+    )
+    parquet_writer.write_monthly_production(con, tmp_path)
+    validator.validate_partitions(con, tmp_path)
+
+
+def test_partition_count_raises_when_partition_file_missing(tmp_path: Path):
+    """Delete one partition file post-write; the validator must catch it."""
+    con = duckdb.connect()
+    _setup_for_partition_test(
+        con,
+        [_mp_row(1, date(2006, 1, 1)), _mp_row(1, date(2007, 1, 1))],
+    )
+    parquet_writer.write_monthly_production(con, tmp_path)
+    (tmp_path / "monthly_production" / "anio=2007" / "data.parquet").unlink()
+    with pytest.raises(validator.PartitionCountError, match="partition count"):
+        validator.validate_partitions(con, tmp_path)
+
+
+def test_partition_count_passes_on_empty_table(tmp_path: Path):
+    """Empty source => 0 partition files; partition root may not even exist."""
+    con = duckdb.connect()
+    _setup_for_partition_test(con, [])
+    parquet_writer.write_monthly_production(con, tmp_path)
+    validator.validate_partitions(con, tmp_path)
+
+
+def test_oversized_partition_emits_warning(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    """Set the threshold low so the fixture trips the soft warning."""
+    con = duckdb.connect()
+    _setup_for_partition_test(con, [_mp_row(1, date(2006, i, 1)) for i in range(1, 13)])
+    parquet_writer.write_monthly_production(con, tmp_path)
+    monkeypatch.setattr(validator, "PARTITION_SIZE_WARN_BYTES", 1)
+    with pytest.warns(UserWarning, match="50 MB Cloudflare headroom"):
+        validator.validate_partitions(con, tmp_path)

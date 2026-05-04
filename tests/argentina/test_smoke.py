@@ -137,6 +137,84 @@ def test_pipeline_emits_wells_parquet(tmp_path: Path) -> None:
         "Extracción Efectiva",
     ]
 
+    # monthly_production — hive-partitioned by anio with a _files.json
+    # manifest. Fixture wells:
+    #   1001/1002/1003: 2006-01..2007-02 (gap-fill Mar-Dec 2006) → 14 rows each
+    #   1005/1006:      2006-01 + 2007-01 (gap-fill Feb-Dec 2006) → 13 rows each
+    #   1004 (orphan):  no production, no rows
+    # Per partition: anio=2006 → 60 rows, anio=2007 → 8 rows. Total 68.
+    mp_root = out_dir / "monthly_production"
+    assert (mp_root / "anio=2006" / "data.parquet").exists()
+    assert (mp_root / "anio=2007" / "data.parquet").exists()
+
+    mp_glob = str(mp_root / "anio=*" / "data.parquet")
+    rows_per_well = dict(
+        con.execute(
+            f"""
+            SELECT idpozo, COUNT(*)
+            FROM read_parquet('{mp_glob}', hive_partitioning = true)
+            GROUP BY idpozo
+            ORDER BY idpozo
+            """
+        ).fetchall()
+    )
+    assert rows_per_well == {1001: 14, 1002: 14, 1003: 14, 1005: 13, 1006: 13}
+
+    rows_per_year = dict(
+        con.execute(
+            f"""
+            SELECT anio, COUNT(*)
+            FROM read_parquet('{mp_glob}', hive_partitioning = true)
+            GROUP BY anio
+            ORDER BY anio
+            """
+        ).fetchall()
+    )
+    assert rows_per_year == {2006: 60, 2007: 8}
+
+    # Within each partition, rows must be sorted by (idpozo, fecha) so
+    # that DuckDB row-group statistics support single-well pruning.
+    file_rows = con.execute(
+        f"""
+        SELECT idpozo, fecha
+        FROM read_parquet('{mp_root}/anio=2006/data.parquet')
+        """
+    ).fetchall()
+    assert file_rows == sorted(file_rows), "anio=2006 partition must be sorted"
+
+    # _files.json manifest lists both partitions in sorted order.
+    import json
+
+    manifest = json.loads((mp_root / "_files.json").read_text())
+    assert manifest == ["anio=2006/data.parquet", "anio=2007/data.parquet"]
+
+    # Source `anio` / `mes` must not be physically stored in the parquet —
+    # `fecha` is the only time column. The hive-partition `anio` column
+    # reappears via directory inference, so we read with hive_partitioning
+    # disabled to inspect the file's actual schema.
+    mp_cols = {
+        row[0]
+        for row in con.execute(
+            f"DESCRIBE SELECT * FROM read_parquet("
+            f"'{mp_root}/anio=2006/data.parquet', hive_partitioning = false)"
+        ).fetchall()
+    }
+    assert "mes" not in mp_cols
+    assert "anio" not in mp_cols
+    assert mp_cols == {
+        "idpozo",
+        "fecha",
+        "prod_pet",
+        "prod_gas",
+        "prod_agua",
+        "iny_agua",
+        "iny_gas",
+        "iny_co2",
+        "iny_otro",
+        "tef",
+        "vida_util",
+    }
+
 
 def test_export_aborts_when_validator_fails(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
