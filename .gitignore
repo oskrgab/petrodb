@@ -225,3 +225,4 @@ data/petrobras_3w/
 .DS_Store
 .gemini/
 data/Argentina
+parquet/petrobras_3w/observations

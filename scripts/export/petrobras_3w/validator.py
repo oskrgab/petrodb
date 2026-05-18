@@ -13,7 +13,12 @@ added. This slice covers:
   NULL otherwise.
 
 `instances` (#20):
-- `instance_id` is unique (rule 1 from CONTEXT.md).
+- `(instance_id, event_class)` is unique (rule 1 from CONTEXT.md).
+  Upstream re-publishes each synthetic instance under several event
+  classes (the 3W toolkit uses the same `SIMULATED_*` / `DRAWN_*` series
+  as labelled training data for multiple anomaly hypotheses), so
+  `instance_id` alone is not unique — only the pair with `event_class`
+  is. The hive partition path encodes the same identity.
 - Every `event_class` exists in `event_types` (rule 4 — FK integrity).
 - `well_kind` is one of `{real, simulated, drawn}`; `well_id` is
   non-NULL iff `well_kind = real` (matches the well-kind contract in
@@ -91,7 +96,7 @@ class UpstreamDatasetVersionError(Exception):
 
 
 class InstancePkError(Exception):
-    """`instances.instance_id` has duplicate rows (rule 1)."""
+    """`instances` has duplicate `(instance_id, event_class)` rows (rule 1)."""
 
 
 class InstanceEventClassFkError(Exception):
@@ -261,16 +266,17 @@ def _validate_instances_pk(con: duckdb.DuckDBPyConnection) -> None:
     duplicate_groups = con.execute(
         """
         SELECT COUNT(*) FROM (
-            SELECT instance_id
+            SELECT instance_id, event_class
             FROM instances
-            GROUP BY instance_id
+            GROUP BY instance_id, event_class
             HAVING COUNT(*) > 1
         )
         """
     ).fetchone()[0]
     if duplicate_groups:
         raise InstancePkError(
-            f"instances has {duplicate_groups} duplicate instance_id value(s)"
+            f"instances has {duplicate_groups} duplicate "
+            f"(instance_id, event_class) tuple(s)"
         )
 
 
@@ -396,19 +402,23 @@ def _validate_wells_id_fk(con: duckdb.DuckDBPyConnection) -> None:
 
 
 def _validate_observations_instance_fk(con: duckdb.DuckDBPyConnection) -> None:
-    """Rule 2: every Observations `instance_id` exists in `instances`."""
+    """Rule 2: every Observations `(instance_id, event_class)` exists in `instances`."""
     orphan_ids = con.execute(
         """
         SELECT COUNT(*) FROM (
-            SELECT DISTINCT instance_id
-            FROM observations
-            WHERE instance_id NOT IN (SELECT instance_id FROM instances)
+            SELECT DISTINCT o.instance_id, o.event_class
+            FROM observations o
+            LEFT JOIN instances i
+              ON i.instance_id = o.instance_id
+             AND i.event_class = o.event_class
+            WHERE i.instance_id IS NULL
         )
         """
     ).fetchone()[0]
     if orphan_ids:
         raise ObservationsInstanceFkError(
-            f"observations references {orphan_ids} instance_id(s) not in instances"
+            f"observations references {orphan_ids} (instance_id, event_class) "
+            f"tuple(s) not in instances"
         )
 
 
@@ -418,10 +428,12 @@ def _validate_observations_row_count(con: duckdb.DuckDBPyConnection) -> None:
         """
         SELECT COUNT(*) FROM instances i
         JOIN (
-            SELECT instance_id, COUNT(*) AS n_obs
+            SELECT instance_id, event_class, COUNT(*) AS n_obs
             FROM observations
-            GROUP BY instance_id
-        ) o ON o.instance_id = i.instance_id
+            GROUP BY instance_id, event_class
+        ) o
+          ON o.instance_id = i.instance_id
+         AND o.event_class = i.event_class
         WHERE o.n_obs <> i.n_rows
         """
     ).fetchone()[0]
@@ -444,9 +456,10 @@ def _validate_observations_timestamp_monotonic(con: duckdb.DuckDBPyConnection) -
         WITH lagged AS (
             SELECT
                 instance_id,
+                event_class,
                 "timestamp" AS ts,
                 LAG("timestamp") OVER (
-                    PARTITION BY instance_id ORDER BY "timestamp"
+                    PARTITION BY instance_id, event_class ORDER BY "timestamp"
                 ) AS prev_ts
             FROM observations
         )
@@ -472,11 +485,10 @@ def _validate_observations_class_domain(con: duckdb.DuckDBPyConnection) -> None:
     bad = con.execute(
         """
         SELECT COUNT(*) FROM observations o
-        JOIN instances i   ON i.instance_id = o.instance_id
-        JOIN event_types et ON et.event_class = i.event_class
+        JOIN event_types et ON et.event_class = o.event_class
         WHERE o.class IS NOT NULL
           AND o.class <> 0
-          AND o.class <> i.event_class
+          AND o.class <> o.event_class
           AND (et.transient_code IS NULL OR o.class <> et.transient_code)
         """
     ).fetchone()[0]
@@ -495,8 +507,7 @@ def _validate_observations_non_transient_class(con: duckdb.DuckDBPyConnection) -
     bad = con.execute(
         """
         SELECT COUNT(*) FROM observations o
-        JOIN instances i ON i.instance_id = o.instance_id
-        WHERE i.event_class IN (3, 4)
+        WHERE o.event_class IN (3, 4)
           AND (o.class >= 100 OR o.class = 0)
         """
     ).fetchone()[0]

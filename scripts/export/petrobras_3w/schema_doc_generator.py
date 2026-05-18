@@ -84,11 +84,15 @@ TABLE_DESCRIPTIONS = {
 PRIMARY_KEYS = {
     "event_types": ("event_class",),
     "wells": ("well_id",),
-    "instances": ("instance_id",),
+    # Synthetic instances (`SIMULATED_*` / `DRAWN_*`) are re-published by
+    # upstream under several event classes, so `instance_id` alone is not
+    # unique — only the `(instance_id, event_class)` pair is. The hive
+    # partition path on `observations/` encodes the same identity.
+    "instances": ("instance_id", "event_class"),
     # Observations PK is logical, not enforceable from a DDL on hive
-    # partitions — `(instance_id, timestamp)` uniquely identifies a row
-    # within the published tree.
-    "observations": ("instance_id", "timestamp"),
+    # partitions — `(event_class, instance_id, timestamp)` uniquely
+    # identifies a row within the published tree.
+    "observations": ("event_class", "instance_id", "timestamp"),
 }
 
 FOREIGN_KEYS: dict[str, tuple[dict, ...]] = {
@@ -106,9 +110,9 @@ FOREIGN_KEYS: dict[str, tuple[dict, ...]] = {
     ),
     "observations": (
         {
-            "column": "instance_id",
+            "column": "(instance_id, event_class)",
             "references_table": "instances",
-            "references_column": "instance_id",
+            "references_column": "(instance_id, event_class)",
         },
         {
             "column": "event_class",

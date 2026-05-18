@@ -246,36 +246,43 @@ def _check_row_count_per_event_class(con: duckdb.DuckDBPyConnection) -> None:
 
 
 def _check_row_count_per_instance(con: duckdb.DuckDBPyConnection) -> None:
-    """Check 2: per-instance row count matches upstream / catalog / pub."""
+    """Check 2: per-instance row count matches upstream / catalog / pub.
+
+    Identity is the `(instance_id, event_class)` pair, not `instance_id`
+    alone — upstream re-publishes each synthetic series under several
+    event-class directories, so grouping by `instance_id` alone would
+    collapse those copies and falsely trip the check.
+    """
     rows = con.execute(
         """
         WITH
         upstream AS (
-            SELECT instance_id, COUNT(*) AS n
-            FROM upstream_obs GROUP BY instance_id
+            SELECT instance_id, event_class, COUNT(*) AS n
+            FROM upstream_obs GROUP BY instance_id, event_class
         ),
         catalog AS (
-            SELECT instance_id, n_rows AS n FROM pub_instances
+            SELECT instance_id, event_class, n_rows AS n FROM pub_instances
         ),
         pub AS (
-            SELECT instance_id, COUNT(*) AS n
-            FROM pub_obs GROUP BY instance_id
+            SELECT instance_id, event_class, COUNT(*) AS n
+            FROM pub_obs GROUP BY instance_id, event_class
         )
         SELECT
             COALESCE(u.instance_id, c.instance_id, p.instance_id) AS instance_id,
+            COALESCE(u.event_class, c.event_class, p.event_class) AS event_class,
             u.n AS upstream_n, c.n AS catalog_n, p.n AS pub_n
         FROM upstream u
-        FULL OUTER JOIN catalog c USING (instance_id)
-        FULL OUTER JOIN pub p USING (instance_id)
+        FULL OUTER JOIN catalog c USING (instance_id, event_class)
+        FULL OUTER JOIN pub p USING (instance_id, event_class)
         WHERE u.n IS DISTINCT FROM c.n
            OR c.n IS DISTINCT FROM p.n
-        ORDER BY instance_id
+        ORDER BY instance_id, event_class
         """
     ).fetchall()
     if rows:
         raise ParityRowCountPerInstanceError(
-            f"per-instance row count diverges for {len(rows)} instance(s); "
-            f"first: {rows[0]}"
+            f"per-instance row count diverges for {len(rows)} "
+            f"(instance_id, event_class) pair(s); first: {rows[0]}"
         )
 
 
@@ -353,7 +360,23 @@ def _quote(identifier: str) -> str:
 def _check_sensor_aggregates(
     con: duckdb.DuckDBPyConnection, sensors: tuple[str, ...]
 ) -> None:
-    """Check 5: per-sensor global SUM/AVG/MIN/MAX/COUNT/NULL match upstream."""
+    """Check 5: per-sensor global value-hash / MIN / MAX / COUNT / NULL match upstream.
+
+    The "did any per-cell value change" check is implemented as
+    `bit_xor(hash(col))` rather than `SUM(col)`. Two reasons SUM is
+    unsuitable here: (1) IEEE 754 `+` is not associative, so DuckDB's
+    parallel tree-reduction scans the two views in different physical
+    orders and produces low-order-bit drift even when every cell byte is
+    identical; (2) the 3W corpus contains float sentinels of magnitude
+    up to ~10^42 (real readings are bounded but the source ships
+    out-of-range outliers verbatim), which overflow any DECIMAL DuckDB
+    can represent (max precision 38). XOR of 64-bit per-cell hashes
+    sidesteps both: order-independent and magnitude-independent. A
+    bit-flip in any cell flips ~32 bits of its hash on average, which
+    changes the XOR aggregate. The hash is filtered to non-NULL rows so
+    NULL handling stays separate from value-change detection (the NULL
+    count is its own column).
+    """
     for col in sensors:
         quoted = _quote(col)
         result = con.execute(
@@ -361,7 +384,7 @@ def _check_sensor_aggregates(
             WITH
             u AS (
                 SELECT
-                    SUM({quoted}) AS s, AVG({quoted}) AS a,
+                    bit_xor(hash({quoted})) FILTER (WHERE {quoted} IS NOT NULL) AS h,
                     MIN({quoted}) AS mn, MAX({quoted}) AS mx,
                     COUNT({quoted}) AS c,
                     COUNT(*) - COUNT({quoted}) AS nl
@@ -369,17 +392,16 @@ def _check_sensor_aggregates(
             ),
             p AS (
                 SELECT
-                    SUM({quoted}) AS s, AVG({quoted}) AS a,
+                    bit_xor(hash({quoted})) FILTER (WHERE {quoted} IS NOT NULL) AS h,
                     MIN({quoted}) AS mn, MAX({quoted}) AS mx,
                     COUNT({quoted}) AS c,
                     COUNT(*) - COUNT({quoted}) AS nl
                 FROM pub_obs
             )
-            SELECT u.s, u.a, u.mn, u.mx, u.c, u.nl,
-                   p.s, p.a, p.mn, p.mx, p.c, p.nl
+            SELECT u.h, u.mn, u.mx, u.c, u.nl,
+                   p.h, p.mn, p.mx, p.c, p.nl
             FROM u, p
-            WHERE u.s  IS DISTINCT FROM p.s
-               OR u.a  IS DISTINCT FROM p.a
+            WHERE u.h  IS DISTINCT FROM p.h
                OR u.mn IS DISTINCT FROM p.mn
                OR u.mx IS DISTINCT FROM p.mx
                OR u.c  IS DISTINCT FROM p.c
@@ -387,11 +409,11 @@ def _check_sensor_aggregates(
             """
         ).fetchall()
         if result:
-            upstream_agg = result[0][:6]
-            pub_agg = result[0][6:]
+            upstream_agg = result[0][:5]
+            pub_agg = result[0][5:]
             raise ParitySensorAggregatesError(
                 f"sensor `{col}` global aggregates diverge: "
-                f"upstream(s,a,mn,mx,c,nl)={upstream_agg}, "
+                f"upstream(h,mn,mx,c,nl)={upstream_agg}, "
                 f"published={pub_agg}"
             )
 
@@ -399,7 +421,11 @@ def _check_sensor_aggregates(
 def _check_sensor_aggregates_by_event_class(
     con: duckdb.DuckDBPyConnection, sensors: tuple[str, ...]
 ) -> None:
-    """Check 6: per-sensor aggregates grouped by `event_class` match exactly."""
+    """Check 6: per-sensor per-event-class value-hash / MIN / MAX / COUNT / NULL match.
+
+    Uses `bit_xor(hash(col))` for the value-change check, for the same
+    reasons documented on `_check_sensor_aggregates`.
+    """
     for col in sensors:
         quoted = _quote(col)
         rows = con.execute(
@@ -408,7 +434,7 @@ def _check_sensor_aggregates_by_event_class(
             u AS (
                 SELECT
                     event_class,
-                    SUM({quoted}) AS s, AVG({quoted}) AS a,
+                    bit_xor(hash({quoted})) FILTER (WHERE {quoted} IS NOT NULL) AS h,
                     MIN({quoted}) AS mn, MAX({quoted}) AS mx,
                     COUNT({quoted}) AS c,
                     COUNT(*) - COUNT({quoted}) AS nl
@@ -418,7 +444,7 @@ def _check_sensor_aggregates_by_event_class(
             p AS (
                 SELECT
                     event_class,
-                    SUM({quoted}) AS s, AVG({quoted}) AS a,
+                    bit_xor(hash({quoted})) FILTER (WHERE {quoted} IS NOT NULL) AS h,
                     MIN({quoted}) AS mn, MAX({quoted}) AS mx,
                     COUNT({quoted}) AS c,
                     COUNT(*) - COUNT({quoted}) AS nl
@@ -426,12 +452,11 @@ def _check_sensor_aggregates_by_event_class(
                 GROUP BY event_class
             )
             SELECT COALESCE(u.event_class, p.event_class) AS event_class,
-                   u.s, u.a, u.mn, u.mx, u.c, u.nl,
-                   p.s, p.a, p.mn, p.mx, p.c, p.nl
+                   u.h, u.mn, u.mx, u.c, u.nl,
+                   p.h, p.mn, p.mx, p.c, p.nl
             FROM u
             FULL OUTER JOIN p USING (event_class)
-            WHERE u.s  IS DISTINCT FROM p.s
-               OR u.a  IS DISTINCT FROM p.a
+            WHERE u.h  IS DISTINCT FROM p.h
                OR u.mn IS DISTINCT FROM p.mn
                OR u.mx IS DISTINCT FROM p.mx
                OR u.c  IS DISTINCT FROM p.c
@@ -447,46 +472,52 @@ def _check_sensor_aggregates_by_event_class(
 
 
 def _check_instance_timestamps(con: duckdb.DuckDBPyConnection) -> None:
-    """Check 7: per-instance MIN/MAX timestamp matches upstream / catalog / pub."""
+    """Check 7: per-instance MIN/MAX timestamp matches upstream / catalog / pub.
+
+    Grouped by `(instance_id, event_class)` for the same reason as
+    `_check_row_count_per_instance` — `instance_id` alone is not unique.
+    """
     rows = con.execute(
         """
         WITH
         upstream AS (
-            SELECT instance_id,
+            SELECT instance_id, event_class,
                    MIN("timestamp") AS min_ts,
                    MAX("timestamp") AS max_ts
             FROM upstream_obs
-            GROUP BY instance_id
+            GROUP BY instance_id, event_class
         ),
         catalog AS (
-            SELECT instance_id, start_ts, end_ts FROM pub_instances
+            SELECT instance_id, event_class, start_ts, end_ts FROM pub_instances
         ),
         pub AS (
-            SELECT instance_id,
+            SELECT instance_id, event_class,
                    MIN("timestamp") AS min_ts,
                    MAX("timestamp") AS max_ts
             FROM pub_obs
-            GROUP BY instance_id
+            GROUP BY instance_id, event_class
         )
         SELECT COALESCE(u.instance_id, c.instance_id, p.instance_id)
                    AS instance_id,
+               COALESCE(u.event_class, c.event_class, p.event_class)
+                   AS event_class,
                u.min_ts AS upstream_min, u.max_ts AS upstream_max,
                c.start_ts AS catalog_start, c.end_ts AS catalog_end,
                p.min_ts AS pub_min, p.max_ts AS pub_max
         FROM upstream u
-        FULL OUTER JOIN catalog c USING (instance_id)
-        FULL OUTER JOIN pub p USING (instance_id)
+        FULL OUTER JOIN catalog c USING (instance_id, event_class)
+        FULL OUTER JOIN pub p USING (instance_id, event_class)
         WHERE u.min_ts IS DISTINCT FROM c.start_ts
            OR u.max_ts IS DISTINCT FROM c.end_ts
            OR u.min_ts IS DISTINCT FROM p.min_ts
            OR u.max_ts IS DISTINCT FROM p.max_ts
-        ORDER BY instance_id
+        ORDER BY instance_id, event_class
         """
     ).fetchall()
     if rows:
         raise ParityInstanceTimestampsError(
-            f"per-instance timestamps diverge for {len(rows)} instance(s); "
-            f"first: {rows[0]}"
+            f"per-instance timestamps diverge for {len(rows)} "
+            f"(instance_id, event_class) pair(s); first: {rows[0]}"
         )
 
 

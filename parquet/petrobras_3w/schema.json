@@ -77,14 +77,14 @@
         },
         {
           "name": "first_ts",
-          "type": "TIMESTAMP",
+          "type": "TIMESTAMP_NS",
           "not_null": false,
           "primary_key": false,
           "hive_partition": false
         },
         {
           "name": "last_ts",
-          "type": "TIMESTAMP",
+          "type": "TIMESTAMP_NS",
           "not_null": false,
           "primary_key": false,
           "hive_partition": false
@@ -129,20 +129,20 @@
         {
           "name": "event_class",
           "type": "INTEGER",
-          "not_null": false,
-          "primary_key": false,
+          "not_null": true,
+          "primary_key": true,
           "hive_partition": false
         },
         {
           "name": "start_ts",
-          "type": "TIMESTAMP",
+          "type": "TIMESTAMP_NS",
           "not_null": false,
           "primary_key": false,
           "hive_partition": false
         },
         {
           "name": "end_ts",
-          "type": "TIMESTAMP",
+          "type": "TIMESTAMP_NS",
           "not_null": false,
           "primary_key": false,
           "hive_partition": false
@@ -205,7 +205,8 @@
         }
       ],
       "primary_key": [
-        "instance_id"
+        "instance_id",
+        "event_class"
       ],
       "foreign_keys": [
         {
@@ -229,27 +230,6 @@
           "not_null": true,
           "primary_key": false,
           "hive_partition": true
-        },
-        {
-          "name": "timestamp",
-          "type": "TIMESTAMP",
-          "not_null": true,
-          "primary_key": true,
-          "hive_partition": false
-        },
-        {
-          "name": "class",
-          "type": "INTEGER",
-          "not_null": false,
-          "primary_key": false,
-          "hive_partition": false
-        },
-        {
-          "name": "state",
-          "type": "INTEGER",
-          "not_null": false,
-          "primary_key": false,
-          "hive_partition": false
         },
         {
           "name": "ABER-CKGL",
@@ -441,6 +421,27 @@
           "hive_partition": false
         },
         {
+          "name": "class",
+          "type": "SMALLINT",
+          "not_null": false,
+          "primary_key": false,
+          "hive_partition": false
+        },
+        {
+          "name": "state",
+          "type": "SMALLINT",
+          "not_null": false,
+          "primary_key": false,
+          "hive_partition": false
+        },
+        {
+          "name": "timestamp",
+          "type": "TIMESTAMP_NS",
+          "not_null": true,
+          "primary_key": true,
+          "hive_partition": false
+        },
+        {
           "name": "instance_id",
           "type": "VARCHAR",
           "not_null": true,
@@ -463,14 +464,15 @@
         }
       ],
       "primary_key": [
+        "event_class",
         "instance_id",
         "timestamp"
       ],
       "foreign_keys": [
         {
-          "column": "instance_id",
+          "column": "(instance_id, event_class)",
           "references_table": "instances",
-          "references_column": "instance_id"
+          "references_column": "(instance_id, event_class)"
         },
         {
           "column": "event_class",

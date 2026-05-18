@@ -17,8 +17,8 @@ CREATE TABLE event_types (
 CREATE TABLE wells (
   well_id INTEGER NOT NULL,
   n_instances BIGINT,
-  first_ts TIMESTAMP,
-  last_ts TIMESTAMP,
+  first_ts TIMESTAMP_NS,
+  last_ts TIMESTAMP_NS,
   n_observations BIGINT,
   PRIMARY KEY (well_id)
 );
@@ -27,9 +27,9 @@ CREATE TABLE instances (
   instance_id VARCHAR NOT NULL,
   well_kind VARCHAR,
   well_id INTEGER,
-  event_class INTEGER,
-  start_ts TIMESTAMP,
-  end_ts TIMESTAMP,
+  event_class INTEGER NOT NULL,
+  start_ts TIMESTAMP_NS,
+  end_ts TIMESTAMP_NS,
   duration_s BIGINT,
   n_rows BIGINT,
   n_rows_warmup_null DOUBLE,
@@ -38,7 +38,7 @@ CREATE TABLE instances (
   n_rows_steady DOUBLE,
   source_file VARCHAR,
   source_url VARCHAR,
-  PRIMARY KEY (instance_id),
+  PRIMARY KEY (instance_id, event_class),
   FOREIGN KEY (event_class) REFERENCES event_types (event_class),
   FOREIGN KEY (well_id) REFERENCES wells (well_id)
 );
@@ -48,9 +48,6 @@ CREATE TABLE instances (
 -- `event_class` lives in the partition path; every other column lives in the file body.
 CREATE TABLE observations (
   event_class INTEGER NOT NULL,
-  timestamp TIMESTAMP NOT NULL,
-  class INTEGER,
-  state INTEGER,
   "ABER-CKGL" DOUBLE,
   "ABER-CKP" DOUBLE,
   "ESTADO-DHSV" DOUBLE,
@@ -78,11 +75,14 @@ CREATE TABLE observations (
   "T-MON-CKP" DOUBLE,
   "T-PDG" DOUBLE,
   "T-TPT" DOUBLE,
+  class SMALLINT,
+  state SMALLINT,
+  timestamp TIMESTAMP_NS NOT NULL,
   instance_id VARCHAR NOT NULL,
   well_id INTEGER,
   well_kind VARCHAR,
-  PRIMARY KEY (instance_id, timestamp),
-  FOREIGN KEY (instance_id) REFERENCES instances (instance_id),
+  PRIMARY KEY (event_class, instance_id, timestamp),
+  FOREIGN KEY ("(instance_id, event_class)") REFERENCES instances ("(instance_id, event_class)"),
   FOREIGN KEY (event_class) REFERENCES event_types (event_class),
   FOREIGN KEY (well_id) REFERENCES wells (well_id)
 );
