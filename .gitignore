@@ -225,4 +225,9 @@ data/petrobras_3w/
 .DS_Store
 .gemini/
 data/Argentina
-parquet/petrobras_3w/observations
+
+# Petrobras 3W published tree — regenerated in CI on every deploy
+# (see .github/workflows/deploy-cloudflare-pages.yml). The pipeline output
+# (catalogs, hive-partitioned Observations, manifest, schema docs, README,
+# license mirror) is never committed; other datasets remain tracked.
+parquet/petrobras_3w/

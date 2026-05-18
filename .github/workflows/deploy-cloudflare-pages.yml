@@ -1,0 +1,90 @@
+name: Deploy to Cloudflare Pages
+
+# Single workflow handles both Cloudflare Pages environments:
+#   - push to `main`   → wrangler --branch main   → production (petrodb.ocortez.com)
+#   - push to `stage`  → wrangler --branch stage  → preview deployment
+# The Cloudflare project is the same for both; the `--branch` arg matches the
+# GitHub ref so the two GH branches map onto the project's two deployments.
+#
+# Trigger: any push to main/stage that touches deployable content — committed
+# datasets under `parquet/`, the 3W pipeline sources (whose outputs are
+# gitignored and rebuilt in CI), or this workflow file. `workflow_dispatch`
+# allows manual redeploys without an empty commit.
+#
+# 3W pipeline re-run is gated by a cache keyed on the 3W source hashes plus
+# the resolved per-branch BASE_URL (so the prod/stage catalogs never share a
+# cache entry): if neither has changed, the previously-generated 3W tree is
+# restored and the deploy goes out without re-running the pipeline.
+
+on:
+  push:
+    branches: [main, stage]
+    paths:
+      - 'parquet/**'
+      - 'scripts/transform/petrobras_3w/**'
+      - 'scripts/export/petrobras_3w/**'
+      - 'scripts/run_pipeline/petrobras_3w/**'
+      - '.github/workflows/deploy-cloudflare-pages.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-cloudflare-pages-${{ github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: github.ref_name == 'main' || github.ref_name == 'stage'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      # Baked into `instances.parquet#source_url` so consumers can round-trip
+      # the catalog to Observations URLs. Per-branch because main and stage
+      # serve from different Cloudflare custom domains; the catalog must
+      # reference the host where its own bytes are reachable.
+      BASE_URL: ${{ github.ref_name == 'main' && vars.BASE_URL_MAIN || vars.BASE_URL_STAGE }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Restore Petrobras 3W generated tree (if sources unchanged)
+        id: cache-3w
+        uses: actions/cache@v4
+        with:
+          path: parquet/petrobras_3w
+          key: >-
+            petrobras-3w-${{ hashFiles(
+              'scripts/transform/petrobras_3w/**',
+              'scripts/export/petrobras_3w/**',
+              'scripts/run_pipeline/petrobras_3w/**'
+            ) }}-${{ env.BASE_URL }}
+
+      - name: Install uv
+        if: steps.cache-3w.outputs.cache-hit != 'true'
+        uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        if: steps.cache-3w.outputs.cache-hit != 'true'
+        run: uv python install 3.12
+
+      - name: Install dependencies
+        if: steps.cache-3w.outputs.cache-hit != 'true'
+        run: uv sync --frozen
+
+      - name: Build Petrobras 3W parquet tree
+        if: steps.cache-3w.outputs.cache-hit != 'true'
+        run: uv run python -m scripts.run_pipeline.petrobras_3w
+
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/wrangler-action@v3
+        with:
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          command: >-
+            pages deploy parquet/
+            --project-name=${{ vars.CLOUDFLARE_PAGES_PROJECT }}
+            --branch=${{ github.ref_name }}
