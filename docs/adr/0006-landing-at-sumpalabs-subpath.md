@@ -1,6 +1,8 @@
 # Serve the petrodb landing at `sumpalabs.com/petrodb` via the sumpalabs umbrella router
 
-**Status:** accepted — refines the landing-host consequence of [ADR-0003](0003-cloudflare-pages-hosting.md) and [ADR-0005](0005-host-parquet-on-huggingface.md)
+**Status:** superseded by [ADR-0007](0007-landing-hosts-independently-of-sumpalabs-apex.md)
+
+> **Superseded — and only ever partially enacted.** Of the three moves below, exactly one shipped: the Pages deploy staged its output under a `/petrodb/` path (commit `5bd0271`). The Pages project's public custom domain was never stripped, and **the sumpalabs umbrella router was never built here and no longer exists anywhere** — [`sumpalabs-landing` ADR-0004](https://github.com/sumpalabs/sumpalabs-landing/blob/main/docs/adr/0004-remove-petrodb-and-umbrella-router.md) deleted `functions/` and `lib/` in full and added a build-output guard test that fails on the literal string `petrodb`. That router never served live traffic (it shipped with a placeholder origin), so `sumpalabs.com/petrodb/` resolved to nothing and nothing was ever indexed there. **Do not rebuild it.** The severance was a business decision about the SumpaLabs namespace, so no `sumpalabs.com` host — apex subpath or subdomain — is available to petrodb. The landing is served at `https://petrodb.ocortez.com/`; see [ADR-0007](0007-landing-hosts-independently-of-sumpalabs-apex.md).
 
 ## Context
 
