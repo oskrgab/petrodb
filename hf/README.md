@@ -24,7 +24,7 @@ FROM 'https://huggingface.co/datasets/sumpalabs/petrodb/resolve/main/<dataset>/.
 ```
 
 The human-facing landing page, per-dataset schema docs, and discovery manifests
-live at **https://sumpalabs.com/petrodb/**.
+live at **https://petrodb.ocortez.com/**.
 
 - `main` — public production deployment
 - `stage` — pre-production validation branch
