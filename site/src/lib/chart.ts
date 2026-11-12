@@ -121,7 +121,12 @@ export function depthTicks(chart: LogChart): Tick[] {
   return ticks;
 }
 
-/** A log strip's first curve laid on its side, for the home page's small preview. */
+/** A curve's header label: its name, then its unit. */
+export function curveName(s: Series): string {
+  return `${s.name}${s.unit ? `, ${s.unit}` : ""}`;
+}
+
+/** A log strip's first curve laid on its side, for the home page's catalogue spark. */
 export function sparkOf(chart: LogChart): SeriesChart {
   return {
     kind: "lines",

@@ -85,7 +85,7 @@ export function loadGlances(id: string): Glance[] {
   }));
 }
 
-/** The home page previews a Dataset with its first Glance, drawn left to right. */
+/** The home page catalogue draws a spark from a Dataset's first Glance, left to right. */
 function spark(chart: Chart | undefined): SeriesChart | null {
   if (!chart) return null;
   return chart.kind === "log" ? sparkOf(chart) : chart;

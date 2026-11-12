@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { depthTicks, intervalBox, logPath, toneVar } from "$lib/chart";
+  import { curveName, depthTicks, intervalBox, logPath, toneVar } from "$lib/chart";
   import type { LogChart } from "$lib/types";
   import CurveHeader from "./CurveHeader.svelte";
 
@@ -15,7 +15,6 @@
   const columns = $derived(
     `2.75rem repeat(${chart.tracks.length}, minmax(0, 1fr))${chart.column ? " 4.25rem" : ""}`,
   );
-  const curveName = (s: { name: string; unit?: string }) => `${s.name}${s.unit ? `, ${s.unit}` : ""}`;
 </script>
 
 <div class="strip" role="img" aria-label={label}>

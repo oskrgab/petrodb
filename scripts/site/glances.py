@@ -281,6 +281,7 @@ FORCE_LITHOLOGY: dict[int, tuple[str, str]] = {
 
 FORCE_LOG_STEP_M = 5
 
+# The 5 below is FORCE_LOG_STEP_M; _lithology_runs relies on the two matching.
 FORCE_LOG_SQL = """\
 SELECT floor(DEPTH_MD / 5) * 5 AS depth_m,
        avg(GR)   AS gamma_ray_api,

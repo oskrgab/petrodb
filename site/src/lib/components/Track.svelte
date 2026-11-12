@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { scaleOf, toneVar, xTicks } from "$lib/chart";
+  import { curveName, scaleOf, toneVar, xTicks } from "$lib/chart";
   import type { Chart } from "$lib/types";
   import CurveHeader from "./CurveHeader.svelte";
   import LogStrip from "./LogStrip.svelte";
@@ -14,7 +14,6 @@
   const ticks = $derived(chart.kind === "log" ? [] : xTicks(chart));
   const categories = $derived(chart.kind === "log" ? [] : chart.x.values.map(String));
   const num = (n: number) => n.toLocaleString("en-US");
-  const curveName = (s: { name: string; unit?: string }) => `${s.name}${s.unit ? `, ${s.unit}` : ""}`;
 </script>
 
 {#if chart.kind === "log"}
