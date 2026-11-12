@@ -3,7 +3,6 @@
   "name": "Petrobras 3W",
   "holds": "Labelled sensor recordings of normal operation and nine kinds of anomaly in offshore wells: real, simulated and hand-drawn.",
   "grain": "second, one file per Instance",
-  "covers": "2,228 Instances, 40 real wells, 2011–2023",
   "ready": true,
   "generated": true,
   "petroviz": null,
@@ -60,6 +59,5 @@
     "name": "CC BY 4.0",
     "url": "https://creativecommons.org/licenses/by/4.0/",
     "note": "Credit Petrobras and the 3W project when you use it."
-  },
-  "size": "2,228 files"
+  }
 }

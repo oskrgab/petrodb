@@ -1,6 +1,8 @@
 <script lang="ts">
-  import { scaleOf, toneVar, xTicks } from "$lib/chart";
+  import { curveName, scaleOf, toneVar, xTicks } from "$lib/chart";
   import type { Chart } from "$lib/types";
+  import CurveHeader from "./CurveHeader.svelte";
+  import LogStrip from "./LogStrip.svelte";
   import Plot from "./Plot.svelte";
 
   /*
@@ -9,12 +11,14 @@
    */
   let { chart, label }: { chart: Chart; label: string } = $props();
 
-  const ticks = $derived(xTicks(chart));
-  const categories = $derived(chart.x.values.map(String));
+  const ticks = $derived(chart.kind === "log" ? [] : xTicks(chart));
+  const categories = $derived(chart.kind === "log" ? [] : chart.x.values.map(String));
   const num = (n: number) => n.toLocaleString("en-US");
 </script>
 
-{#if chart.kind === "bars"}
+{#if chart.kind === "log"}
+  <LogStrip {chart} {label} />
+{:else if chart.kind === "bars"}
   <div
     class="bars"
     role="img"
@@ -30,11 +34,7 @@
     {#each chart.series as s}
       {@const scale = scaleOf(chart, s)}
       <div class="track">
-        <div class="curve label" style={`--tone: ${toneVar(s.tone)}`}>
-          <span class="num">{num(scale.min)}</span>
-          <span class="name">{s.name}{s.unit ? `, ${s.unit}` : ""}</span>
-          <span class="num">{num(scale.max)}</span>
-        </div>
+        <CurveHeader name={curveName(s)} min={scale.min} max={scale.max} tone={s.tone} />
         <div class="rows" style={`grid-template-rows: repeat(${categories.length}, 1fr)`}>
           {#each s.values as v, i}
             <div class="row">
@@ -56,11 +56,7 @@
   <div class="track">
     {#if chart.kind === "stacked"}
       <!-- Stacked bands share one scale: state it once, then name each band. -->
-      <div class="curve label scale">
-        <span class="num">{num(chart.min ?? 0)}</span>
-        <span class="name">{chart.unit}</span>
-        <span class="num">{num(chart.max ?? 1)}</span>
-      </div>
+      <CurveHeader name={chart.unit ?? ""} min={chart.min ?? 0} max={chart.max ?? 1} />
       <div class="bands label">
         {#each chart.series as s}
           <span class="band" style={`--tone: ${toneVar(s.tone)}`}>{s.name}</span>
@@ -69,11 +65,7 @@
     {:else}
       {#each chart.series as s}
         {@const scale = scaleOf(chart, s)}
-        <div class="curve label" style={`--tone: ${toneVar(s.tone)}`}>
-          <span class="num">{num(scale.min)}</span>
-          <span class="name">{s.name}{s.unit ? `, ${s.unit}` : ""}</span>
-          <span class="num">{num(scale.max)}</span>
-        </div>
+        <CurveHeader name={curveName(s)} min={scale.min} max={scale.max} tone={s.tone} />
       {/each}
     {/if}
     {#if chart.spans?.length}
@@ -100,21 +92,6 @@
     border: 1px solid var(--ink);
     background: var(--surface);
     min-width: 0;
-  }
-
-  /* One header row per curve: scale ends either side of its name, over a rule in its colour. */
-  .curve {
-    display: flex;
-    justify-content: space-between;
-    align-items: baseline;
-    gap: 0.75rem;
-    padding: 0.3rem 0.6rem 0.25rem;
-    border-bottom: 3px solid var(--tone);
-    color: var(--ink);
-  }
-
-  .curve.scale {
-    border-bottom: 1px solid var(--rule);
   }
 
   .bands {
@@ -158,19 +135,6 @@
 
   .key.strong::before {
     background: color-mix(in srgb, var(--accent) 28%, transparent);
-  }
-
-  .curve + .curve {
-    border-top: 1px solid var(--rule);
-  }
-
-  .name {
-    text-align: center;
-    font-weight: 600;
-  }
-
-  .curve .num {
-    color: var(--ink-2);
   }
 
   .plot {

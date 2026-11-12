@@ -1,24 +1,32 @@
-"""Compute the Landing's Glances and file listings (ADR-0010).
+"""Compute the Landing's Glances, Dataset facts and file listings (ADR-0010).
 
 A Glance is a small finding about one Dataset, shown on the Landing as a chart
 next to the query that produces it. This command runs each Glance's query with
 DuckDB and writes the result as JSON under ``site/data/<dataset>/``; the site
-build reads those files and never touches parquet.
+build reads those files and never touches parquet. Next to the Glances it
+writes ``facts.json`` (the catalogue's "Covers" text and byte size, both
+computed from the data) and, for a Dataset on disk, ``files.json``.
 
 The SQL a visitor sees is the SQL that ran here, with one substitution: the
 data host. Queries are written against ``{base}``; they execute against the
-local ``parquet/`` tree when the Dataset is committed there, and are published
-with the Hugging Face resolve base in its place.
+local ``parquet/`` tree when the Dataset is on disk there, and against the
+public host otherwise. They are published with the Hugging Face resolve base.
 
-Run from the repo root after re-exporting a Dataset::
+Each export pipeline runs this for its Dataset as its last step. By hand, from
+the repo root::
 
-    uv run -m scripts.site.glances
+    uv run -m scripts.site.glances [dataset ...]          # regenerate
+    uv run -m scripts.site.glances --check [dataset ...]  # fail if stale
 """
 
 from __future__ import annotations
 
+import argparse
 import json
 import math
+import re
+import sys
+import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable
@@ -32,6 +40,8 @@ OUT_ROOT = REPO_ROOT / "site" / "data"
 # The host visitors query. Must equal `CANONICAL_HF_BASE` in
 # `scripts/deploy/retarget_data_urls.py`.
 PUBLIC_BASE = "https://huggingface.co/datasets/oskrgab/petrodb/resolve/main"
+# The same files, listed with their sizes by the Hugging Face Hub API.
+PUBLIC_TREE = "https://huggingface.co/api/datasets/oskrgab/petrodb/tree/main"
 
 Rows = list[tuple[Any, ...]]
 
@@ -46,8 +56,24 @@ class Glance:
     build: Callable[[Rows], dict[str, Any]]
     # Optional hand-written equivalent for Polars users.
     polars: str | None = None
-    # Datasets rebuilt in CI are not on disk; query the public host instead.
-    remote: bool = False
+
+
+@dataclass(frozen=True)
+class Facts:
+    """How a Dataset's catalogue "Covers" text is computed: one query, one row."""
+
+    dataset: str
+    sql: str
+    covers: Callable[[tuple[Any, ...]], str]
+
+
+def on_disk(dataset: str) -> bool:
+    return (PARQUET_ROOT / dataset).is_dir()
+
+
+def _base(dataset: str) -> str:
+    """Query the local tree when the Dataset is on disk, the public host otherwise."""
+    return str(PARQUET_ROOT) if on_disk(dataset) else PUBLIC_BASE
 
 
 def _nice_max(value: float) -> float:
@@ -72,6 +98,7 @@ def _r(value: float | None, digits: int = 3) -> float | None:
 VOLVE_FIELD_SQL = """\
 SELECT date_trunc('month', date) AS month,
        sum(oil_volume)   AS oil_sm3,
+       sum(gas_volume)   AS gas_sm3,
        sum(water_volume) AS water_sm3
 FROM '{base}/volve/daily_production.parquet'
 GROUP BY month
@@ -87,6 +114,7 @@ monthly = (
     .group_by(pl.col("date").dt.truncate("1mo").alias("month"))
     .agg(
         pl.col("oil_volume").sum().alias("oil_sm3"),
+        pl.col("gas_volume").sum().alias("gas_sm3"),
         pl.col("water_volume").sum().alias("water_sm3"),
     )
     .sort("month")
@@ -98,20 +126,24 @@ def _volve_field(rows: Rows) -> dict[str, Any]:
     rows = [r for r in rows if r[1] is not None]
     months = [r[0].strftime("%Y-%m") for r in rows]
     oil = [r[1] / 1e3 for r in rows]
-    water = [r[2] / 1e3 for r in rows]
+    gas = [(r[2] or 0.0) / 1e6 for r in rows]
+    water = [(r[3] or 0.0) / 1e3 for r in rows]
     peak = max(range(len(oil)), key=oil.__getitem__)
     # First month after which water exceeds oil in every remaining month.
     crossover = next(
         i for i in range(peak, len(oil))
         if all(w > o for w, o in zip(water[i:], oil[i:]))
     )
+    # Gas and oil are both in Sm³; the ratio is the field's producing GOR.
+    gas_per_oil = sum(gas) * 1e6 / (sum(oil) * 1e3)
     top = _nice_max(max(max(oil), max(water)))
     return {
         "takeaway": (
             f"Oil peaked at {oil[peak]:.0f} thousand Sm³ a month in "
-            f"{rows[peak][0]:%B %Y}. From {rows[crossover][0]:%B %Y} the field "
-            "produced more water than oil every month until production "
-            f"stopped in {rows[-1][0]:%Y}."
+            f"{rows[peak][0]:%B %Y}. Gas came with it, about "
+            f"{gas_per_oil:.0f} Sm³ of gas for every Sm³ of oil. From "
+            f"{rows[crossover][0]:%B %Y} the field produced more water than "
+            f"oil every month until production stopped in {rows[-1][0]:%Y}."
         ),
         "chart": {
             "kind": "lines",
@@ -119,8 +151,70 @@ def _volve_field(rows: Rows) -> dict[str, Any]:
             "series": [
                 {"name": "Oil", "unit": "thousand Sm³ / month", "tone": "oil",
                  "min": 0, "max": top, "values": [_r(v, 2) for v in oil]},
+                {"name": "Gas", "unit": "million Sm³ / month", "tone": "gas",
+                 "min": 0, "max": _nice_max(max(gas)), "values": [_r(v, 2) for v in gas]},
                 {"name": "Water", "unit": "thousand Sm³ / month", "tone": "water",
                  "min": 0, "max": top, "values": [_r(v, 2) for v in water]},
+            ],
+        },
+    }
+
+
+VOLVE_WELLS_SQL = """\
+SELECT w.wellbore_name AS well,
+       coalesce(sum(d.oil_volume), 0) / 1e6             AS oil_million_sm3,
+       coalesce(sum(d.water_injection_volume), 0) / 1e6 AS water_injected_million_sm3
+FROM '{base}/volve/daily_production.parquet' AS d
+JOIN '{base}/volve/wells.parquet' AS w USING (npd_wellbore_code)
+GROUP BY well
+ORDER BY oil_million_sm3 DESC;"""
+
+VOLVE_WELLS_POLARS = """\
+import polars as pl
+
+daily = pl.scan_parquet("{base}/volve/daily_production.parquet")
+wells = pl.scan_parquet("{base}/volve/wells.parquet")
+
+by_well = (
+    daily.join(wells, on="npd_wellbore_code")
+    .group_by(pl.col("wellbore_name").alias("well"))
+    .agg(
+        (pl.col("oil_volume").sum() / 1e6).alias("oil_million_sm3"),
+        (pl.col("water_injection_volume").sum() / 1e6).alias("water_injected_million_sm3"),
+    )
+    .sort("oil_million_sm3", descending=True)
+    .collect()
+)"""
+
+
+def _volve_wells(rows: Rows) -> dict[str, Any]:
+    wells = [str(r[0]) for r in rows]
+    oil = [float(r[1] or 0.0) for r in rows]
+    injected = [float(r[2] or 0.0) for r in rows]
+    total = sum(oil)
+    top_two_share = (oil[0] + oil[1]) / total
+    no_oil = [i for i, v in enumerate(oil) if v == 0]
+    takeaway = (
+        f"{wells[0]} and {wells[1]} produced {top_two_share:.0%} of the field's "
+        f"{total:.1f} million Sm³ of oil."
+    )
+    if no_oil:
+        takeaway += (
+            f" {' and '.join(wells[i] for i in no_oil)} produced none and injected "
+            f"{sum(injected[i] for i in no_oil):.1f} million Sm³ of water to "
+            "hold up reservoir pressure."
+        )
+    return {
+        "takeaway": takeaway,
+        "chart": {
+            "kind": "bars",
+            "x": {"type": "category", "values": wells},
+            "series": [
+                {"name": "Oil produced", "unit": "million Sm³", "tone": "oil",
+                 "min": 0, "max": _nice_max(max(oil)), "values": [_r(v, 2) for v in oil]},
+                {"name": "Water injected", "unit": "million Sm³", "tone": "water",
+                 "min": 0, "max": _nice_max(max(injected)),
+                 "values": [_r(v, 2) for v in injected]},
             ],
         },
     }
@@ -209,7 +303,7 @@ def _argentina_basin(rows: Rows) -> dict[str, Any]:
     oil_share_of_second = oil[gas_second] / sum(oil)
     return {
         "takeaway": (
-            f"Totals for 2006 to 2025. {basins[0]} and {basins[1]} produced "
+            f"Totals across all years. {basins[0]} and {basins[1]} produced "
             f"{top_two:.0%} of the oil. Gas is a different map: {basins[gas_leader]} "
             f"leads, and {basins[gas_second]} ranks second with only "
             f"{oil_share_of_second:.0%} of the oil."
@@ -262,30 +356,137 @@ def _argentina_active(rows: Rows) -> dict[str, Any]:
 # FORCE 2020
 # --------------------------------------------------------------------------
 
-FORCE_GR_SQL = """\
+# FORCE_2020_LITHOFACIES_LITHOLOGY codes, as listed in the dataset's schema.md.
+# The key names the colour token (`--lith-<key>`) the site draws the class in.
+FORCE_LITHOLOGY: dict[int, tuple[str, str]] = {
+    30000: ("sandstone", "Sandstone"),
+    65000: ("shale", "Shale"),
+    65030: ("sandstone-shale", "Sandstone/Shale"),
+    70000: ("limestone", "Limestone"),
+    70032: ("chalk", "Chalk"),
+    74000: ("dolomite", "Dolomite"),
+    80000: ("marl", "Marl"),
+    86000: ("anhydrite", "Anhydrite"),
+    88000: ("halite", "Halite"),
+    90000: ("coal", "Coal"),
+    93000: ("basement", "Basement"),
+    99000: ("tuff", "Tuff"),
+}
+
+FORCE_LOG_STEP_M = 5
+
+# The 5 below is FORCE_LOG_STEP_M; _lithology_runs relies on the two matching.
+FORCE_LOG_SQL = """\
 SELECT floor(DEPTH_MD / 5) * 5 AS depth_m,
-       avg(GR) AS gamma_ray_api
+       avg(GR)   AS gamma_ray_api,
+       avg(RHOB) AS bulk_density_g_cm3,
+       -- the lithology code most samples in each 5 m step carry
+       mode(FORCE_2020_LITHOFACIES_LITHOLOGY) AS lithology
 FROM '{base}/force_2020/wells/15-9-13.parquet'
 GROUP BY depth_m
 ORDER BY depth_m;"""
 
 
-def _force_gr(rows: Rows) -> dict[str, Any]:
-    rows = [r for r in rows if r[1] is not None]
-    depth = [r[0] for r in rows]
+def _lithology_runs(depth: list[float], codes: list[int | None]) -> list[dict[str, Any]]:
+    """Merge consecutive depth steps of one lithology into top/base intervals."""
+    runs: list[dict[str, Any]] = []
+    for i, code in enumerate(codes):
+        base = depth[i + 1] if i + 1 < len(depth) else depth[i] + FORCE_LOG_STEP_M
+        key = FORCE_LITHOLOGY[code][0] if code is not None else None
+        if runs and runs[-1]["key"] == key:
+            runs[-1]["base"] = base
+        else:
+            runs.append({"top": depth[i], "base": base, "key": key})
+    return [r for r in runs if r["key"] is not None]
+
+
+def _force_log(rows: Rows) -> dict[str, Any]:
+    depth = [float(r[0]) for r in rows]
     gr = [r[1] for r in rows]
+    rhob = [r[2] for r in rows]
+    codes = [r[3] for r in rows]
+    runs = _lithology_runs(depth, codes)
+    present = {r["key"] for r in runs}
+    classes = [
+        {"key": key, "name": name}
+        for key, name in FORCE_LITHOLOGY.values() if key in present
+    ]
+    thickness: dict[str, float] = {}
+    for r in runs:
+        thickness[r["key"]] = thickness.get(r["key"], 0.0) + r["base"] - r["top"]
+    logged = sum(thickness.values())
+    shale = thickness.get("shale", 0.0) / logged
+    bottom = depth[-1] + FORCE_LOG_STEP_M
     return {
         "takeaway": (
-            f"Gamma ray in well 15/9-13 from {depth[0]:,.0f} m to "
-            f"{depth[-1]:,.0f} m, averaged every 5 m. High readings mark "
-            "shale; low readings mark cleaner sand and carbonate."
+            f"Well 15/9-13 from {depth[0]:,.0f} m to {bottom:,.0f} m, averaged "
+            f"in {FORCE_LOG_STEP_M} m steps, beside the interpreted lithology. "
+            f"Shale fills {shale:.0%} of it: high gamma ray marks shale, "
+            "low readings mark the sandstone and limestone beds."
         ),
         "chart": {
-            "kind": "lines",
-            "x": {"type": "depth", "values": depth},
+            "kind": "log",
+            "depth": {"unit": "m", "min": depth[0], "max": bottom, "values": depth},
+            "tracks": [
+                {"series": [
+                    {"name": "Gamma ray", "unit": "gAPI", "tone": "ink", "min": 0,
+                     "max": 150, "values": [_r(v, 1) for v in gr]},
+                ]},
+                {"series": [
+                    {"name": "Bulk density", "unit": "g/cm³", "tone": "oil",
+                     "min": 1.4, "max": 2.9, "values": [_r(v, 3) for v in rhob]},
+                ]},
+            ],
+            "column": {"name": "Lithology", "classes": classes, "intervals": runs},
+        },
+    }
+
+
+FORCE_MANIFEST_SQL = """\
+SET VARIABLE wells = (
+    SELECT list('{base}/force_2020/wells/' || path)
+    FROM read_json('{base}/force_2020/wells/_files.json') AS manifest(path)
+);
+"""
+
+_LITHOLOGY_CASE = "\n".join(
+    f"           WHEN {code} THEN '{name}'" for code, (_, name) in FORCE_LITHOLOGY.items()
+)
+
+# Opening all 108 files at once can draw HTTP 429 from Hugging Face's rate
+# limit; DuckDB's default of 3 retries is not always enough to ride it out.
+FORCE_MIX_SQL = """\
+SET http_retries = 8;   -- 108 files: ride out Hugging Face rate limits
+""" + FORCE_MANIFEST_SQL + f"""
+SELECT CASE FORCE_2020_LITHOFACIES_LITHOLOGY
+{_LITHOLOGY_CASE}
+       END AS lithology,
+       count(*) * 100 / sum(count(*)) OVER () AS percent_of_samples,
+       count(DISTINCT WELL) AS wells
+FROM read_parquet(getvariable('wells'))
+GROUP BY lithology
+ORDER BY percent_of_samples DESC;"""
+
+
+def _force_mix(rows: Rows) -> dict[str, Any]:
+    names = [r[0] for r in rows]
+    share = [r[1] for r in rows]
+    wells = [r[2] for r in rows]
+    rare = [n for n, s in zip(names, share) if s < 1]
+    return {
+        "takeaway": (
+            f"{names[0]} makes up {share[0]:.0f}% of all samples and appears in "
+            f"{wells[0]} of the 108 wells. {len(rare)} of the {len(names)} "
+            "lithology classes are under 1% of the samples each."
+        ),
+        "chart": {
+            "kind": "bars",
+            "x": {"type": "category", "values": names},
             "series": [
-                {"name": "Gamma ray", "unit": "API", "tone": "ink", "min": 0,
-                 "max": _nice_max(max(gr)), "values": [_r(v, 1) for v in gr]},
+                {"name": "Samples", "unit": "%", "tone": "ink",
+                 "min": 0, "max": _nice_max(max(share)), "values": [_r(v, 2) for v in share]},
+                {"name": "Wells", "unit": "of 108", "tone": "oil",
+                 "min": 0, "max": 108, "values": wells},
             ],
         },
     }
@@ -394,18 +595,22 @@ def _w3_by_class(rows: Rows) -> dict[str, Any]:
 GLANCES: list[Glance] = [
     Glance("volve", "field-rates", "A field's whole life in one query",
            VOLVE_FIELD_SQL, _volve_field, polars=VOLVE_FIELD_POLARS),
+    Glance("volve", "cumulative-oil", "Most of the oil came from two wells",
+           VOLVE_WELLS_SQL, _volve_wells, polars=VOLVE_WELLS_POLARS),
     Glance("argentina", "oil-by-resource", "Shale took over Argentina's oil",
            ARGENTINA_RESOURCE_SQL, _argentina_resource),
     Glance("argentina", "basins", "Two basins for oil, a third for gas",
            ARGENTINA_BASIN_SQL, _argentina_basin),
     Glance("argentina", "producing-wells", "More oil from fewer wells",
            ARGENTINA_ACTIVE_SQL, _argentina_active),
-    Glance("force_2020", "gamma-ray", "A well log, top to bottom",
-           FORCE_GR_SQL, _force_gr),
+    Glance("force_2020", "log-strip", "A well log, top to bottom",
+           FORCE_LOG_SQL, _force_log),
+    Glance("force_2020", "lithology-mix", "Mostly shale, and a long tail",
+           FORCE_MIX_SQL, _force_mix),
     Glance("petrobras_3w", "hydrate-pressure", "An anomaly as the sensors saw it",
-           W3_HYDRATE_SQL, _w3_hydrate, remote=True),
+           W3_HYDRATE_SQL, _w3_hydrate),
     Glance("petrobras_3w", "instances-by-class", "Real, simulated and hand-drawn",
-           W3_BY_CLASS_SQL, _w3_by_class, remote=True),
+           W3_BY_CLASS_SQL, _w3_by_class),
 ]
 
 
@@ -415,16 +620,51 @@ GLANCES: list[Glance] = [
 
 # The Petrobras 3W page groups its Observation files by Event class. The page
 # is built only where the 3W tree exists, but the names are committed so the
-# build never needs to read parquet.
+# build never needs to read parquet rows.
 W3_EVENT_CLASSES_SQL = """\
 SELECT event_class, description
 FROM '{base}/petrobras_3w/event_types.parquet'
 ORDER BY event_class;"""
 
 
-def w3_event_classes() -> list[dict[str, Any]]:
-    rows = duckdb.sql(W3_EVENT_CLASSES_SQL.format(base=PUBLIC_BASE)).fetchall()
-    return [{"event_class": c, "description": d} for c, d in rows]
+# --------------------------------------------------------------------------
+# Dataset facts: the catalogue's "Covers" column
+# --------------------------------------------------------------------------
+
+VOLVE_FACTS_SQL = """\
+SELECT (SELECT count(*) FROM '{base}/volve/wells.parquet'),
+       year(min(date)), year(max(date))
+FROM '{base}/volve/daily_production.parquet';"""
+
+ARGENTINA_FACTS_SQL = ARGENTINA_MANIFEST_SQL + """
+SELECT (SELECT count(*) FROM '{base}/argentina/wells.parquet'),
+       min(anio), max(anio)
+FROM read_parquet(getvariable('monthly_production'), hive_partitioning = true);"""
+
+FORCE_FACTS_SQL = """\
+SET VARIABLE wells = (
+    SELECT list('{base}/force_2020/wells/' || path)
+    FROM read_json('{base}/force_2020/wells/_files.json') AS manifest(path)
+);
+SELECT count(DISTINCT WELL) FROM read_parquet(getvariable('wells'));"""
+
+W3_FACTS_SQL = """\
+SELECT (SELECT count(*) FROM '{base}/petrobras_3w/instances.parquet'),
+       count(*), year(min(first_ts)), year(max(last_ts))
+FROM '{base}/petrobras_3w/wells.parquet';"""
+
+FACTS: list[Facts] = [
+    Facts("volve", VOLVE_FACTS_SQL,
+          lambda r: f"{r[0]:,} wells, {r[1]}–{r[2]}"),
+    Facts("force_2020", FORCE_FACTS_SQL,
+          lambda r: f"{r[0]:,} wells"),
+    Facts("argentina", ARGENTINA_FACTS_SQL,
+          lambda r: f"{r[0]:,} wells, {r[1]}–{r[2]}"),
+    Facts("petrobras_3w", W3_FACTS_SQL,
+          lambda r: f"{r[0]:,} Instances, {r[1]:,} real wells, {r[2]}–{r[3]}"),
+]
+
+DATASETS = [f.dataset for f in FACTS]
 
 
 # --------------------------------------------------------------------------
@@ -476,10 +716,33 @@ def list_files(dataset: str) -> list[dict[str, Any]] | None:
 # --------------------------------------------------------------------------
 
 
+def _query(sql: str, dataset: str) -> Rows:
+    return duckdb.connect().execute(sql.format(base=_base(dataset))).fetchall()
+
+
+def published_bytes(dataset: str) -> int:
+    """Total size of a Dataset's parquet files as published on Hugging Face.
+
+    For a Dataset whose tree is not on disk (Petrobras 3W is rebuilt in CI).
+    The Hub API lists 1,000 entries a page and links the next one.
+    """
+    total = 0
+    url: str | None = f"{PUBLIC_TREE}/{dataset}?recursive=true"
+    while url:
+        with urllib.request.urlopen(url) as response:
+            entries = json.load(response)
+            link = response.headers.get("Link") or ""
+        total += sum(
+            e["size"] for e in entries
+            if e["type"] == "file" and e["path"].endswith(".parquet")
+        )
+        found = re.search(r'<([^>]+)>;\s*rel="next"', link)
+        url = found.group(1) if found else None
+    return total
+
+
 def run_glance(glance: Glance) -> dict[str, Any]:
-    base = PUBLIC_BASE if glance.remote else str(PARQUET_ROOT)
-    con = duckdb.connect()
-    rows = con.execute(glance.sql.format(base=base)).fetchall()
+    rows = _query(glance.sql, glance.dataset)
     built = glance.build(rows)
     out = {
         "id": glance.id,
@@ -493,23 +756,82 @@ def run_glance(glance: Glance) -> dict[str, Any]:
     return out
 
 
-def _write(path: Path, payload: Any) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, ensure_ascii=False, indent=1) + "\n")
-    print(f"wrote {path.relative_to(REPO_ROOT)}")
+def _dump(payload: Any) -> str:
+    return json.dumps(payload, ensure_ascii=False, indent=1) + "\n"
 
 
-def main() -> None:
-    by_dataset: dict[str, list[dict[str, Any]]] = {}
-    for glance in GLANCES:
-        by_dataset.setdefault(glance.dataset, []).append(run_glance(glance))
-    for dataset, glances in by_dataset.items():
-        _write(OUT_ROOT / dataset / "glances.json", glances)
-        files = list_files(dataset)
-        if files is not None:
-            _write(OUT_ROOT / dataset / "files.json", files)
-    _write(OUT_ROOT / "petrobras_3w" / "event_classes.json", w3_event_classes())
+def build(dataset: str) -> dict[str, str]:
+    """Everything the command writes for one Dataset: file name -> JSON text."""
+    out: dict[str, str] = {}
+    glances = [run_glance(g) for g in GLANCES if g.dataset == dataset]
+    if glances:
+        out["glances.json"] = _dump(glances)
+    files = list_files(dataset)
+    if files is not None:
+        out["files.json"] = _dump(files)
+    facts = next(f for f in FACTS if f.dataset == dataset)
+    out["facts.json"] = _dump({
+        "covers": facts.covers(_query(facts.sql, dataset)[0]),
+        "bytes": (sum(t["bytes"] for t in files) if files is not None
+                  else published_bytes(dataset)),
+    })
+    if dataset == "petrobras_3w":
+        out["event_classes.json"] = _dump([
+            {"event_class": c, "description": d}
+            for c, d in _query(W3_EVENT_CLASSES_SQL, dataset)
+        ])
+    return out
+
+
+def write(dataset: str, out_root: Path = OUT_ROOT) -> None:
+    """Regenerate one Dataset's committed output. Each export pipeline's last step."""
+    for name, text in build(dataset).items():
+        path = out_root / dataset / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text)
+        print(f"wrote {path}")
+
+
+def stale(dataset: str, out_root: Path = OUT_ROOT) -> list[str]:
+    """Names of the committed files that differ from what the command produces now."""
+    return [
+        name for name, text in build(dataset).items()
+        if not (out_root / dataset / name).is_file()
+        or (out_root / dataset / name).read_text() != text
+    ]
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(prog="python -m scripts.site.glances")
+    parser.add_argument("datasets", nargs="*", metavar="dataset",
+                        help=f"any of {', '.join(DATASETS)}; default all")
+    parser.add_argument("--check", action="store_true",
+                        help="write nothing; exit 1 if committed output is stale")
+    args = parser.parse_args(argv)
+    unknown = sorted(set(args.datasets) - set(DATASETS))
+    if unknown:
+        parser.error(f"unknown dataset: {', '.join(unknown)}")
+    datasets = args.datasets or DATASETS
+
+    if not args.check:
+        for dataset in datasets:
+            write(dataset)
+        return 0
+
+    failed = False
+    for dataset in datasets:
+        if not on_disk(dataset):
+            print(f"skip {dataset}: parquet/{dataset} is not on disk, nothing to compare")
+            continue
+        names = stale(dataset)
+        if names:
+            failed = True
+            print(f"stale {dataset}: {', '.join(names)}; "
+                  f"run `uv run -m scripts.site.glances {dataset}`")
+        else:
+            print(f"ok {dataset}")
+    return 1 if failed else 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

@@ -106,7 +106,7 @@
       <dt>Only the bytes you need</dt>
       <dd>
         Query engines read Parquet over the network a piece at a time. Ask for one well out of
-        85,000 and a few hundred kilobytes travel, not the whole table.
+        tens of thousands and a few hundred kilobytes travel, not the whole table.
       </dd>
     </div>
     <div>

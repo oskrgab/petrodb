@@ -1,7 +1,21 @@
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { sparkOf } from "$lib/chart";
 import { bytes } from "$lib/format";
-import type { Chart, Column, DatasetSummary, Glance, InstanceGroup, Query, Snippet, Table, Upstream } from "$lib/types";
+import type {
+  Chart,
+  Column,
+  DatasetSummary,
+  Glance,
+  GuideStep,
+  InstanceGroup,
+  Query,
+  SeriesChart,
+  Snippet,
+  Table,
+  TableFile,
+  Upstream,
+} from "$lib/types";
 import { highlight } from "./highlight";
 import { listTree, type TreeTable } from "./tree";
 
@@ -16,6 +30,9 @@ const CANONICAL_BASE = "https://huggingface.co/datasets/oskrgab/petrodb/resolve/
  * branch's Hugging Face base, so a `stage` build names `/resolve/stage/` (ADR-0005).
  */
 export const DATA_BASE = (process.env.BASE_URL || CANONICAL_BASE).replace(/\/+$/, "");
+
+/** The Hugging Face repository behind DATA_BASE, for addresses pinned to a commit. */
+export const DATA_REPO = DATA_BASE.replace(/\/resolve\/[^/]+$/, "");
 
 /** Catalogue order on the home page. */
 export const DATASET_IDS = ["volve", "force_2020", "argentina", "petrobras_3w"];
@@ -49,7 +66,7 @@ function listFiles(id: string): TreeTable[] | null {
   return listings.get(id) ?? null;
 }
 
-// Listing 3W reads 2,228 footers; the home page and the Dataset page both ask.
+// Listing 3W reads 2,228 footers; build each listing once.
 const listings = new Map<string, TreeTable[] | null>();
 
 /**
@@ -78,8 +95,18 @@ function sqlToPython(sql: string): string {
   return `import duckdb\n\ndf = duckdb.sql("""\n${body}\n""").df()`;
 }
 
+/**
+ * `{base}` is the data base and `{repo}` its repository, for addresses pinned to
+ * a commit. Glances arrive already written against CANONICAL_BASE.
+ */
+function fill(text: string): string {
+  return text
+    .replaceAll("{base}", DATA_BASE)
+    .replaceAll(CANONICAL_BASE, DATA_BASE)
+    .replaceAll("{repo}", DATA_REPO);
+}
+
 function snippets(q: { sql: string; python?: string; polars?: string }): Snippet[] {
-  const fill = (code: string) => code.replaceAll("{base}", DATA_BASE).replaceAll(CANONICAL_BASE, DATA_BASE);
   const sql = fill(q.sql);
   const python = q.python ? fill(q.python) : sqlToPython(sql);
   const out: Snippet[] = [
@@ -104,23 +131,30 @@ export function loadGlances(id: string): Glance[] {
   }));
 }
 
+/** The home page catalogue draws a spark from a Dataset's first Glance, left to right. */
+function spark(chart: Chart | undefined): SeriesChart | null {
+  if (!chart) return null;
+  return chart.kind === "log" ? sparkOf(chart) : chart;
+}
+
 export function loadSummary(id: string): DatasetSummary {
   const meta = readJson<Record<string, any>>(resolve(DATA_ROOT, id, "dataset.json"));
   if (!meta) throw new Error(`No dataset.json for ${id}`);
-  const ready = Boolean(meta.ready) && treeOnDisk(id, meta);
-  const files = ready ? listFiles(id) : null;
+  // Computed from the data by scripts/site/glances.py; never typed by hand.
+  const facts = readJson<{ covers: string; bytes: number }>(resolve(DATA_ROOT, id, "facts.json"));
+  if (!facts) throw new Error(`No facts.json for ${id}: run \`uv run -m scripts.site.glances ${id}\``);
   const glances = readJson<RawGlance[]>(resolve(DATA_ROOT, id, "glances.json"));
   return {
     id,
     name: meta.name,
     holds: meta.holds,
     grain: meta.grain,
-    covers: meta.covers,
-    size: files ? bytes(files.reduce((sum, t) => sum + t.bytes, 0)) : (meta.size ?? ""),
-    ready,
+    covers: facts.covers,
+    size: bytes(facts.bytes),
+    ready: Boolean(meta.ready) && treeOnDisk(id, meta),
     petroviz: meta.petroviz,
     licence: meta.licence,
-    spark: glances?.[0]?.chart ?? null,
+    spark: spark(glances?.[0]?.chart),
   };
 }
 
@@ -187,6 +221,33 @@ export function loadTables(id: string): Table[] {
   });
 }
 
+interface RawGuideStep {
+  id: string;
+  title: string;
+  body: string[];
+  sql: string;
+  python?: string;
+  polars?: string;
+  /** Why a variant is absent, by language. */
+  missing?: Partial<Record<Snippet["lang"], string>>;
+}
+
+/** The "Query the data" guide, steps in teaching order. */
+export function loadGuide(): { intro: string[]; steps: GuideStep[] } {
+  const raw = readJson<{ intro: string[]; steps: RawGuideStep[] }>(resolve(DATA_ROOT, "guide.json"));
+  if (!raw) throw new Error("No guide.json");
+  return {
+    intro: raw.intro.map(fill),
+    steps: raw.steps.map((s) => ({
+      id: s.id,
+      title: s.title,
+      body: s.body.map(fill),
+      snippets: snippets(s),
+      missing: Object.values(s.missing ?? {}),
+    })),
+  };
+}
+
 export function loadDataset(id: string) {
   const meta = readJson<Record<string, any>>(resolve(DATA_ROOT, id, "dataset.json"));
   if (!meta) throw new Error(`No dataset.json for ${id}`);
@@ -211,7 +272,8 @@ export function loadDataset(id: string) {
     queries,
     tables,
     // The pin the pipeline wrote into schema.json (ADR-0002), never retyped here.
-    upstream: schema?.upstream ?? null,
+    // Other schemas describe their upstream without pinning a release.
+    upstream: schema?.upstream?.git_tag ? schema.upstream : null,
     instances,
     browsed: browsed ?? null,
     dataBase: `${DATA_BASE}/${id}`,

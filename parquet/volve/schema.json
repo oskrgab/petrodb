@@ -3,6 +3,7 @@
   "description": "Equinor Volve production dataset",
   "tables": {
     "daily_production": {
+      "description": "Daily measurements per wellbore, from Equinor's daily production report: hours on stream, pressures, temperatures, choke opening and the volumes produced or injected. One row per `(date, npd_wellbore_code)`. Volumes are in standard cubic metres (Sm\u00b3).",
       "columns": [
         {
           "name": "date",
@@ -10,7 +11,8 @@
           "not_null": true,
           "default_value": null,
           "primary_key": true,
-          "comment": null
+          "comment": null,
+          "description": "Production day (source `DATEPRD`). Stored in the Parquet file as a timestamp at midnight."
         },
         {
           "name": "npd_wellbore_code",
@@ -18,7 +20,8 @@
           "not_null": true,
           "default_value": null,
           "primary_key": true,
-          "comment": null
+          "comment": null,
+          "description": "Wellbore the row belongs to. Joins to `wells`."
         },
         {
           "name": "on_stream_hours",
@@ -26,7 +29,8 @@
           "not_null": false,
           "default_value": null,
           "primary_key": false,
-          "comment": null
+          "comment": null,
+          "description": "Hours the wellbore was producing or injecting that day (`ON_STREAM_HRS`). Up to 25 on the day the clocks go back."
         },
         {
           "name": "avg_downhole_pressure",
@@ -34,7 +38,8 @@
           "not_null": false,
           "default_value": null,
           "primary_key": false,
-          "comment": null
+          "comment": null,
+          "description": "Average pressure at the downhole gauge over the day, in bar (`AVG_DOWNHOLE_PRESSURE`)."
         },
         {
           "name": "avg_dp_tubing",
@@ -42,7 +47,8 @@
           "not_null": false,
           "default_value": null,
           "primary_key": false,
-          "comment": null
+          "comment": null,
+          "description": "Average pressure drop along the production tubing, from the downhole gauge to the wellhead, in bar (`AVG_DP_TUBING`)."
         },
         {
           "name": "avg_annulus_pressure",
@@ -50,7 +56,8 @@
           "not_null": false,
           "default_value": null,
           "primary_key": false,
-          "comment": null
+          "comment": null,
+          "description": "Average pressure in the annulus between tubing and casing, in bar (`AVG_ANNULUS_PRESS`)."
         },
         {
           "name": "avg_wellhead_pressure",
@@ -58,7 +65,8 @@
           "not_null": false,
           "default_value": null,
           "primary_key": false,
-          "comment": null
+          "comment": null,
+          "description": "Average pressure at the wellhead, in bar (`AVG_WHP_P`)."
         },
         {
           "name": "avg_downhole_temperature",
@@ -66,7 +74,8 @@
           "not_null": false,
           "default_value": null,
           "primary_key": false,
-          "comment": null
+          "comment": null,
+          "description": "Average temperature at the downhole gauge, in \u00b0C (`AVG_DOWNHOLE_TEMPERATURE`)."
         },
         {
           "name": "avg_wellhead_temperature",
@@ -74,7 +83,8 @@
           "not_null": false,
           "default_value": null,
           "primary_key": false,
-          "comment": null
+          "comment": null,
+          "description": "Average temperature at the wellhead, in \u00b0C (`AVG_WHT_P`)."
         },
         {
           "name": "avg_choke_size_percent",
@@ -82,7 +92,8 @@
           "not_null": false,
           "default_value": null,
           "primary_key": false,
-          "comment": null
+          "comment": null,
+          "description": "Average production choke opening, as a percentage of fully open (`AVG_CHOKE_SIZE_P`)."
         },
         {
           "name": "avg_choke_unit",
@@ -90,7 +101,8 @@
           "not_null": false,
           "default_value": null,
           "primary_key": false,
-          "comment": null
+          "comment": null,
+          "description": "Unit of `avg_choke_size_percent`: `%`, or NULL on injection rows (`AVG_CHOKE_UOM`)."
         },
         {
           "name": "dp_choke_size",
@@ -98,7 +110,8 @@
           "not_null": false,
           "default_value": null,
           "primary_key": false,
-          "comment": null
+          "comment": null,
+          "description": "Pressure drop across the production choke, in bar (`DP_CHOKE_SIZE`)."
         },
         {
           "name": "oil_volume",
@@ -106,7 +119,8 @@
           "not_null": false,
           "default_value": null,
           "primary_key": false,
-          "comment": null
+          "comment": null,
+          "description": "Oil produced from the wellbore that day, in Sm\u00b3 (`BORE_OIL_VOL`)."
         },
         {
           "name": "gas_volume",
@@ -114,7 +128,8 @@
           "not_null": false,
           "default_value": null,
           "primary_key": false,
-          "comment": null
+          "comment": null,
+          "description": "Gas produced from the wellbore that day, in Sm\u00b3 (`BORE_GAS_VOL`)."
         },
         {
           "name": "water_volume",
@@ -122,7 +137,8 @@
           "not_null": false,
           "default_value": null,
           "primary_key": false,
-          "comment": null
+          "comment": null,
+          "description": "Water produced from the wellbore that day, in Sm\u00b3 (`BORE_WAT_VOL`). A few rows are negative, kept as the source reports them."
         },
         {
           "name": "water_injection_volume",
@@ -130,7 +146,8 @@
           "not_null": false,
           "default_value": null,
           "primary_key": false,
-          "comment": null
+          "comment": null,
+          "description": "Water injected into the wellbore that day, in Sm\u00b3 (`BORE_WI_VOL`). Filled on injection rows and on a handful of production rows."
         },
         {
           "name": "flow_kind",
@@ -138,7 +155,8 @@
           "not_null": false,
           "default_value": null,
           "primary_key": false,
-          "comment": null
+          "comment": null,
+          "description": "Direction of flow that day: `production` or `injection` (`FLOW_KIND`)."
         },
         {
           "name": "well_type",
@@ -146,7 +164,8 @@
           "not_null": false,
           "default_value": null,
           "primary_key": false,
-          "comment": null
+          "comment": null,
+          "description": "Role of the wellbore that day: `OP` oil producer, `WI` water injector (`WELL_TYPE`). Can change over a wellbore's life."
         }
       ],
       "foreign_keys": [
@@ -174,6 +193,7 @@
       ]
     },
     "wells": {
+      "description": "One row per wellbore in the Volve field: its identifiers and the field and facility it belongs to. Seven wellbores, all produced through the M\u00e6rsk Inspirer production unit.",
       "columns": [
         {
           "name": "npd_wellbore_code",
@@ -181,7 +201,8 @@
           "not_null": true,
           "default_value": null,
           "primary_key": true,
-          "comment": null
+          "comment": null,
+          "description": "Wellbore identifier assigned by the Norwegian Offshore Directorate (formerly the Norwegian Petroleum Directorate, NPD). The key every production row joins on."
         },
         {
           "name": "wellbore_code",
@@ -189,7 +210,8 @@
           "not_null": true,
           "default_value": null,
           "primary_key": false,
-          "comment": null
+          "comment": null,
+          "description": "Equinor's wellbore code, prefixed with the country (e.g. `NO 15/9-F-12 H`)."
         },
         {
           "name": "wellbore_name",
@@ -197,7 +219,8 @@
           "not_null": true,
           "default_value": null,
           "primary_key": false,
-          "comment": null
+          "comment": null,
+          "description": "NPD wellbore name (e.g. `15/9-F-12`, a well in block 15/9). Use this to label wells."
         },
         {
           "name": "npd_field_code",
@@ -205,7 +228,8 @@
           "not_null": true,
           "default_value": null,
           "primary_key": false,
-          "comment": null
+          "comment": null,
+          "description": "NPD field identifier. The same value on every row: Volve."
         },
         {
           "name": "npd_field_name",
@@ -213,7 +237,8 @@
           "not_null": true,
           "default_value": null,
           "primary_key": false,
-          "comment": null
+          "comment": null,
+          "description": "Field name: `VOLVE` on every row."
         },
         {
           "name": "npd_facility_code",
@@ -221,7 +246,8 @@
           "not_null": true,
           "default_value": null,
           "primary_key": false,
-          "comment": null
+          "comment": null,
+          "description": "NPD identifier of the facility the wellbore produced through."
         },
         {
           "name": "npd_facility_name",
@@ -229,13 +255,15 @@
           "not_null": true,
           "default_value": null,
           "primary_key": false,
-          "comment": null
+          "comment": null,
+          "description": "Facility the wellbore produced through: the `M\u00c6RSK INSPIRER` jack-up production unit on every row."
         }
       ],
       "foreign_keys": [],
       "indexes": []
     },
     "monthly_production": {
+      "description": "Monthly volumes per wellbore, from Equinor's monthly production report. One row per `(date, npd_wellbore_code)`, where `date` is the first day of the month. Volumes are in standard cubic metres (Sm\u00b3).",
       "columns": [
         {
           "name": "date",
@@ -243,7 +271,8 @@
           "not_null": true,
           "default_value": null,
           "primary_key": true,
-          "comment": null
+          "comment": null,
+          "description": "First day of the month the volumes cover, built from the source `Year` and `Month`. Stored in the Parquet file as a timestamp."
         },
         {
           "name": "npd_wellbore_code",
@@ -251,7 +280,8 @@
           "not_null": true,
           "default_value": null,
           "primary_key": true,
-          "comment": null
+          "comment": null,
+          "description": "Wellbore the row belongs to. Joins to `wells`."
         },
         {
           "name": "on_stream_hours",
@@ -259,7 +289,8 @@
           "not_null": false,
           "default_value": null,
           "primary_key": false,
-          "comment": null
+          "comment": null,
+          "description": "Hours the wellbore was on stream in the month (`On Stream`)."
         },
         {
           "name": "oil_volume_sm3",
@@ -267,7 +298,8 @@
           "not_null": false,
           "default_value": null,
           "primary_key": false,
-          "comment": null
+          "comment": null,
+          "description": "Oil produced in the month, in Sm\u00b3 (`Oil`)."
         },
         {
           "name": "gas_volume_sm3",
@@ -275,7 +307,8 @@
           "not_null": false,
           "default_value": null,
           "primary_key": false,
-          "comment": null
+          "comment": null,
+          "description": "Gas produced in the month, in Sm\u00b3 (`Gas`)."
         },
         {
           "name": "water_volume_sm3",
@@ -283,7 +316,8 @@
           "not_null": false,
           "default_value": null,
           "primary_key": false,
-          "comment": null
+          "comment": null,
+          "description": "Water produced in the month, in Sm\u00b3 (`Water`)."
         },
         {
           "name": "gas_injection_sm3",
@@ -291,7 +325,8 @@
           "not_null": false,
           "default_value": null,
           "primary_key": false,
-          "comment": null
+          "comment": null,
+          "description": "Gas injected in the month, in Sm\u00b3 (`GI`). Empty in every row of the source."
         },
         {
           "name": "water_injection_sm3",
@@ -299,7 +334,8 @@
           "not_null": false,
           "default_value": null,
           "primary_key": false,
-          "comment": null
+          "comment": null,
+          "description": "Water injected in the month, in Sm\u00b3 (`WI`)."
         }
       ],
       "foreign_keys": [
@@ -311,17 +347,17 @@
       ],
       "indexes": [
         {
-          "name": "ix_monthly_wellbore",
-          "unique": 0,
-          "columns": [
-            "npd_wellbore_code"
-          ]
-        },
-        {
           "name": "ix_monthly_date",
           "unique": 0,
           "columns": [
             "date"
+          ]
+        },
+        {
+          "name": "ix_monthly_wellbore",
+          "unique": 0,
+          "columns": [
+            "npd_wellbore_code"
           ]
         }
       ]

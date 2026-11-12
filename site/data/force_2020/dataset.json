@@ -3,14 +3,64 @@
   "name": "FORCE 2020",
   "holds": "Well logs from the Norwegian continental shelf with interpreted lithology, released for a machine-learning competition.",
   "grain": "depth sample, one file per well",
-  "covers": "108 wells",
-  "ready": false,
+  "ready": true,
   "petroviz": {
     "label": "Open the well log viewer",
     "url": "https://petroviz.ocortez.com/logs"
   },
+  "about": [
+    "The FORCE 2020 machine-learning competition asked entrants to predict lithology from wireline logs. Its corpus is 108 wells from the Norwegian North Sea, each sampled about every 15 cm down the hole, with an interpreted lithology label on every sample. PetroDB publishes it as one Parquet file per well, so reading one well fetches one file.",
+    "Columns keep the source log mnemonics: <code>GR</code> is gamma ray, <code>RHOB</code> bulk density, <code>NPHI</code> neutron porosity, <code>RDEP</code> deep resistivity. The lithology is an integer code in <code>FORCE_2020_LITHOFACIES_LITHOLOGY</code>; the <a href=\"schema.md\">schema document</a> names all twelve classes. The <code>dataset</code> column keeps the competition's train and test split. Quote <code>\"GROUP\"</code> in SQL: it is a reserved word."
+  ],
+  "units": [
+    {
+      "column": "DEPTH_MD, X_LOC, Y_LOC, Z_LOC",
+      "unit": "m"
+    },
+    {
+      "column": "GR, SGR",
+      "unit": "gAPI"
+    },
+    {
+      "column": "RHOB",
+      "unit": "g/cm³"
+    },
+    {
+      "column": "NPHI",
+      "unit": "fraction (v/v)"
+    },
+    {
+      "column": "RSHA, RMED, RDEP",
+      "unit": "ohm·m"
+    },
+    {
+      "column": "DTC",
+      "unit": "µs/ft"
+    }
+  ],
+  "queries": [
+    {
+      "id": "one-well",
+      "title": "One well's logs",
+      "why": "Each well is its own file, named after the well with / written as -. Reading one well is one request, with no file list needed.",
+      "sql": "SELECT DEPTH_MD, GR, RHOB, NPHI, RDEP,\n       FORCE_2020_LITHOFACIES_LITHOLOGY AS lithology\nFROM '{base}/force_2020/wells/15-9-13.parquet'\nORDER BY DEPTH_MD;",
+      "polars": "import polars as pl\n\nwell = (\n    pl.scan_parquet(\"{base}/force_2020/wells/15-9-13.parquet\")\n    .select(\"DEPTH_MD\", \"GR\", \"RHOB\", \"NPHI\", \"RDEP\",\n            pl.col(\"FORCE_2020_LITHOFACIES_LITHOLOGY\").alias(\"lithology\"))\n    .sort(\"DEPTH_MD\")\n    .collect()\n)"
+    },
+    {
+      "id": "several-wells",
+      "title": "Several wells at once",
+      "why": "The well files cannot be listed over HTTP, so wells/_files.json lists them. Read it, keep the wells you want, and pass the addresses to DuckDB. Here: the four wells in block 15/9, compared by lithology.",
+      "sql": "SET VARIABLE wells = (\n    SELECT list('{base}/force_2020/wells/' || path)\n    FROM read_json('{base}/force_2020/wells/_files.json') AS manifest(path)\n    WHERE path LIKE '15-9-%'   -- block 15/9\n);\n\nSELECT WELL,\n       FORCE_2020_LITHOFACIES_LITHOLOGY AS lithology,\n       count(*) AS samples,\n       round(avg(GR), 1) AS mean_gr\nFROM read_parquet(getvariable('wells'))\nGROUP BY ALL\nORDER BY WELL, samples DESC;",
+      "python": "import json, urllib.request\nimport duckdb\n\nbase = \"{base}/force_2020/wells/\"\nfiles = json.load(urllib.request.urlopen(base + \"_files.json\"))\nurls = [base + path for path in files if path.startswith(\"15-9-\")]   # block 15/9\n\nmix = duckdb.sql(\"\"\"\n    SELECT WELL,\n           FORCE_2020_LITHOFACIES_LITHOLOGY AS lithology,\n           count(*) AS samples,\n           round(avg(GR), 1) AS mean_gr\n    FROM read_parquet($urls)\n    GROUP BY ALL\n    ORDER BY WELL, samples DESC\n\"\"\", params={\"urls\": urls}).df()",
+      "polars": "import json, urllib.request\nimport polars as pl\n\nbase = \"{base}/force_2020/wells/\"\nfiles = json.load(urllib.request.urlopen(base + \"_files.json\"))\nurls = [base + path for path in files if path.startswith(\"15-9-\")]   # block 15/9\n\nmix = (\n    pl.scan_parquet(urls)\n    .group_by(\"WELL\", pl.col(\"FORCE_2020_LITHOFACIES_LITHOLOGY\").alias(\"lithology\"))\n    .agg(pl.len().alias(\"samples\"), pl.col(\"GR\").mean().round(1).alias(\"mean_gr\"))\n    .sort(\"WELL\", \"samples\", descending=[False, True])\n    .collect()\n)"
+    }
+  ],
+  "source": {
+    "text": "Data from the FORCE 2020 Machine Predicted Lithology competition. The competition's files and code are in its <a href=\"https://github.com/bolgebrygg/Force-2020-Machine-Learning-competition\">GitHub repository</a>; the dataset itself is deposited on Zenodo as <a href=\"https://doi.org/10.5281/zenodo.4351156\"><em>FORCE 2020 Well well log and lithofacies dataset for machine learning competition</em></a>. Cite that record when you use it."
+  },
   "licence": {
-    "name": "Competition terms",
-    "url": "https://xeek.ai/challenges/force-well-logs"
+    "name": "CC BY 4.0",
+    "url": "https://doi.org/10.5281/zenodo.4351156",
+    "note": "As stated on the Zenodo record, which also says the original well log data comes from the Norwegian government under the NLOD 2.0 licence."
   }
 }

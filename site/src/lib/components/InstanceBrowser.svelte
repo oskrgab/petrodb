@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onMount } from "svelte";
   import { bytes, count } from "$lib/format";
   import { filterInstances } from "$lib/instances";
   import type { InstanceGroup } from "$lib/types";
@@ -12,6 +13,9 @@
 
   let eventClass = $state("all");
   let search = $state("");
+  // Without JavaScript the filters could not work, so they appear only once it runs.
+  let live = $state(false);
+  onMount(() => (live = true));
 
   const total = $derived(groups.reduce((sum, g) => sum + g.files.length, 0));
   const shown = $derived(filterInstances(groups, eventClass, search));
@@ -19,24 +23,26 @@
 </script>
 
 <div class="browser">
-  <div class="filters">
-    <label>
-      <span class="fine">Event class</span>
-      <select bind:value={eventClass}>
-        <option value="all">All {groups.length} Event classes</option>
-        {#each groups as g}
-          <option value={String(g.eventClass)}>{g.eventClass} · {g.description} ({g.files.length})</option>
-        {/each}
-      </select>
-    </label>
-    <label>
-      <span class="fine"><code>instance_id</code> contains</span>
-      <input type="search" bind:value={search} placeholder="WELL-00032" autocomplete="off" spellcheck="false" />
-    </label>
-  </div>
-  <p class="fine count" aria-live="polite">
-    {matches === total ? `${count(total)} Instances` : `${count(matches)} of ${count(total)} Instances`}
-  </p>
+  {#if live}
+    <div class="filters">
+      <label>
+        <span class="fine">Event class</span>
+        <select bind:value={eventClass}>
+          <option value="all">All {groups.length} Event classes</option>
+          {#each groups as g}
+            <option value={String(g.eventClass)}>{g.eventClass} · {g.description} ({g.files.length})</option>
+          {/each}
+        </select>
+      </label>
+      <label>
+        <span class="fine"><code>instance_id</code> contains</span>
+        <input type="search" bind:value={search} placeholder="WELL-00032" autocomplete="off" spellcheck="false" />
+      </label>
+    </div>
+    <p class="fine count" aria-live="polite">
+      {matches === total ? `${count(total)} Instances` : `${count(matches)} of ${count(total)} Instances`}
+    </p>
+  {/if}
 
   <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
   <div class="list" tabindex="0" role="region" aria-label="Observation files by Event class">
