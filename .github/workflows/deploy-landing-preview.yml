@@ -1,0 +1,76 @@
+name: Landing preview (Cloudflare Pages)
+
+# A Landing-only Cloudflare Pages preview for every branch other than main and
+# stage that changes the site (issue #54). `deploy-cloudflare-pages.yml` owns
+# main and stage, which also publish the data to Hugging Face.
+#
+# This workflow never authenticates to, or uploads to, Hugging Face: a feature
+# branch has no Hugging Face revision of its own, so its pages name the
+# canonical `main` base (the site's default DATA_BASE) and read the published
+# data. Wrangler's `--branch` makes it a preview deployment, reachable at
+# `<branch>.<project>.pages.dev`. Each deploy uploads the whole build, so asset
+# hashes are never stale across redeploys.
+#
+# The 3W generated tree is not rebuilt here, so the preview carries the schema
+# documents of the committed Datasets only.
+
+on:
+  push:
+    branches-ignore: [main, stage]
+    paths:
+      - 'site/**'
+      - '.github/workflows/deploy-landing-preview.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: landing-preview-${{ github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  preview:
+    if: github.ref_name != 'main' && github.ref_name != 'stage'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      BASE_URL: ${{ vars.BASE_URL_MAIN }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          package_json_file: site/package.json
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: site/pnpm-lock.yaml
+
+      - name: Build the Landing
+        working-directory: site
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm build
+
+      # Same guard as the main/stage deploy: the preview names the `main` base
+      # only, and carries no parquet and no `_files.json` (ADR-0005).
+      - name: Verify no off-branch data host in the built output
+        env:
+          OTHER_BASE: ${{ vars.BASE_URL_STAGE }}
+        run: python3 -m scripts.deploy.check_deploy_tree site/build
+
+      - name: Deploy preview to Cloudflare Pages
+        uses: cloudflare/wrangler-action@v3
+        with:
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          command: >-
+            pages deploy site/build/
+            --project-name=${{ vars.CLOUDFLARE_PAGES_PROJECT }}
+            --branch=${{ github.ref_name }}
