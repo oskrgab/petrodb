@@ -124,7 +124,7 @@ jobs:
       - name: Ensure HF stage branch exists
         if: github.ref_name == 'stage'
         run: >-
-          hf repo branch create oskrgab/petrodb stage
+          hf repos branch create oskrgab/petrodb stage
           --repo-type dataset
           --revision main
           --exist-ok
