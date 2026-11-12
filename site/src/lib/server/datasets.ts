@@ -4,11 +4,20 @@ import { bytes } from "$lib/format";
 import type { Chart, Column, DatasetSummary, Glance, GuideStep, Query, Snippet, Table, TableFile } from "$lib/types";
 import { highlight } from "./highlight";
 
-/** The Hugging Face repository that holds every published file. */
-export const DATA_REPO = "https://huggingface.co/datasets/oskrgab/petrodb";
+/**
+ * The canonical data base: the Hugging Face `main` revision. Glances are written
+ * against it (PUBLIC_BASE in scripts/site/glances.py) and it is the default.
+ */
+const CANONICAL_BASE = "https://huggingface.co/datasets/oskrgab/petrodb/resolve/main";
 
-/** Where visitors read the data from. Mirrors PUBLIC_BASE in scripts/site/glances.py. */
-export const DATA_BASE = `${DATA_REPO}/resolve/main`;
+/**
+ * Where visitors read the data from. The deploy sets `BASE_URL` to the deploying
+ * branch's Hugging Face base, so a `stage` build names `/resolve/stage/` (ADR-0005).
+ */
+export const DATA_BASE = (process.env.BASE_URL || CANONICAL_BASE).replace(/\/+$/, "");
+
+/** The Hugging Face repository behind DATA_BASE, for addresses pinned to a commit. */
+export const DATA_REPO = DATA_BASE.replace(/\/resolve\/[^/]+$/, "");
 
 /** Catalogue order on the home page. */
 export const DATASET_IDS = ["volve", "force_2020", "argentina", "petrobras_3w"];
@@ -51,9 +60,15 @@ function sqlToPython(sql: string): string {
   return `import duckdb\n\ndf = duckdb.sql("""\n${body}\n""").df()`;
 }
 
-/** `{base}` is the data base; `{repo}` the repository, for addresses pinned to a commit. */
+/**
+ * `{base}` is the data base and `{repo}` its repository, for addresses pinned to
+ * a commit. Glances arrive already written against CANONICAL_BASE.
+ */
 function fill(text: string): string {
-  return text.replaceAll("{base}", DATA_BASE).replaceAll("{repo}", DATA_REPO);
+  return text
+    .replaceAll("{base}", DATA_BASE)
+    .replaceAll(CANONICAL_BASE, DATA_BASE)
+    .replaceAll("{repo}", DATA_REPO);
 }
 
 function snippets(q: { sql: string; python?: string; polars?: string }): Snippet[] {
