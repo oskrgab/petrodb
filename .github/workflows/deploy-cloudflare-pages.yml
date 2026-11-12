@@ -5,11 +5,15 @@ name: Deploy (Hugging Face data + Cloudflare landing)
 #     (`*.parquet` + `_files.json`) on a branch matching the GitHub ref. HF
 #     `resolve` URLs honour HTTP Range unconditionally, so DuckDB `httpfs`
 #     consumers get true row-group pushdown (Cloudflare Pages does not).
-#   - Cloudflare Pages carries the landing + schema docs ONLY — no parquet and
-#     no `_files.json` (ADR-0005). The slim staging tree is rsync'd to the
-#     deploy root, so the Pages project's own custom domain serves the landing
-#     at `https://petrodb.ocortez.com/` directly — no router, no subpath
-#     (ADR-0007; petrodb hosts independently of the SumpaLabs apex).
+#   - Cloudflare Pages carries the Landing + schema docs ONLY — no parquet and
+#     no `_files.json` (ADR-0005). The deploy tree is the prerendered SvelteKit
+#     build in `site/build` (ADR-0010), which already carries each Dataset's
+#     schema.md/json/sql + README.md at their existing paths. The Pages
+#     project's own custom domain serves it at `https://petrodb.ocortez.com/`
+#     directly — no router, no subpath (ADR-0007).
+#
+# Every other branch that changes `site/` gets a Landing-only Pages preview
+# from `deploy-landing-preview.yml`, which never touches Hugging Face.
 #
 # Branch → environment mapping is shared by both targets:
 #   - push to `main`   → HF `main` revision + wrangler --branch main   → production (https://petrodb.ocortez.com/)
@@ -17,7 +21,8 @@ name: Deploy (Hugging Face data + Cloudflare landing)
 #
 # Trigger: any push to main/stage that touches deployable content — committed
 # datasets under `parquet/`, the 3W pipeline sources (whose outputs are
-# gitignored and rebuilt in CI), or this workflow file. `workflow_dispatch`
+# gitignored and rebuilt in CI), the site sources, the Glances command, or this
+# workflow file. `workflow_dispatch`
 # allows manual redeploys without an empty commit.
 #
 # 3W pipeline re-run is gated by a cache keyed on the 3W source hashes plus
@@ -36,6 +41,8 @@ on:
       - 'scripts/export/petrobras_3w/**'
       - 'scripts/run_pipeline/petrobras_3w/**'
       - 'scripts/deploy/**'
+      - 'scripts/site/**'
+      - 'site/**'
       - '.github/workflows/deploy-cloudflare-pages.yml'
   workflow_dispatch:
 
@@ -92,9 +99,9 @@ jobs:
         if: steps.cache-3w.outputs.cache-hit != 'true'
         run: uv run python -m scripts.run_pipeline.petrobras_3w
 
-      # Retarget every published data URL — the hand-authored Volve/FORCE tabs
-      # and Argentina/3W integrator blocks in index.html, the per-dataset schema
-      # READMEs, the root README quick-start, and the HF dataset card — to this
+      # Retarget every published data URL — the per-dataset schema READMEs
+      # (which the site build copies into the Landing), the root README
+      # quick-start, and the HF dataset card — to this
       # deploy's per-branch BASE_URL, so a `stage` push ships `…/resolve/stage/…`
       # and a `main` push ships `…/resolve/main/…` (issue #42, ADR-0005). Runs on
       # both the cache-hit and cache-miss paths (the 3W tree is populated either
@@ -156,38 +163,39 @@ jobs:
           --revision ${{ github.ref_name }}
           --commit-message "CI deploy: dataset card from ${{ github.sha }}"
 
-      # --- Cloudflare Pages: publish the slim landing only (ADR-0007) ---------
-      # Stage a subset of the parquet/ tree at the deploy root, so `index.html`
-      # lands at `_site/index.html` and the Pages custom domain serves it at
-      # `https://petrodb.ocortez.com/`. Ship the landing (index.html + svg) and
-      # per-dataset schema docs (schema.md/json/sql + README.md); exclude all
-      # parquet bytes (now on HF, ADR-0005) and every `_files.json` discovery
-      # manifest. `--prune-empty-dirs` drops directories left empty after the
-      # excludes (e.g. observations/).
-      - name: Stage slim Cloudflare landing
-        run: |
-          mkdir -p _site
-          rsync -a --prune-empty-dirs \
-            --exclude '*.parquet' \
-            --exclude '_files.json' \
-            parquet/ _site/
-          echo "Staged tree:"
-          find _site -type f | sort
+      # --- Cloudflare Pages: publish the built Landing (ADR-0007, ADR-0010) --
+      # Build after the retarget pass and the 3W pipeline: the build copies each
+      # Dataset's schema documents from parquet/ into the site, and BASE_URL
+      # sets the data base the pages name (DATA_BASE in the site's loader).
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          package_json_file: site/package.json
 
-      # Belt-and-suspenders acceptance guard (issue #42): every data URL in the
-      # about-to-ship tree must be this deploy's own branch. Fail if the staged
-      # landing/docs or the HF dataset card still name the dev Caddy host or the
-      # *other* branch's resolve base. Catches any surface the retarget pass
-      # missed (e.g. a schema.* file that later gains a data URL).
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: site/pnpm-lock.yaml
+
+      - name: Build the Landing
+        working-directory: site
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm build
+          echo "Deploy tree:"
+          find build -type f -not -path 'build/_app/*' | sort
+
+      # Belt-and-suspenders acceptance guard (issues #42, #54): every data URL in
+      # the about-to-ship tree must be this deploy's own branch, and the tree
+      # must carry no parquet and no `_files.json` (ADR-0005). Fails if the built
+      # Landing or the HF dataset card still names the dev Caddy host or the
+      # *other* branch's resolve base.
       - name: Verify no off-branch data host in the built output
         env:
           OTHER_BASE: ${{ github.ref_name == 'main' && vars.BASE_URL_STAGE || vars.BASE_URL_MAIN }}
-        run: |
-          if grep -rn -e 'dev-petrodb\.ocortez\.com' -e "$OTHER_BASE" _site hf/README.md; then
-            echo "::error::off-branch data host found in built output (expected only $BASE_URL)"
-            exit 1
-          fi
-          echo "OK: all data URLs target $BASE_URL"
+        run: python3 -m scripts.deploy.check_deploy_tree site/build hf/README.md
 
       - name: Deploy to Cloudflare Pages
         uses: cloudflare/wrangler-action@v3
@@ -195,6 +203,6 @@ jobs:
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           command: >-
-            pages deploy _site/
+            pages deploy site/build/
             --project-name=${{ vars.CLOUDFLARE_PAGES_PROJECT }}
             --branch=${{ github.ref_name }}
