@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { bytes } from "$lib/format";
-import type { Chart, Column, DatasetSummary, Glance, Query, Snippet, Table, TableFile } from "$lib/types";
+import type { Chart, Column, DatasetSummary, Glance, GuideStep, Query, Snippet, Table, TableFile } from "$lib/types";
 import { highlight } from "./highlight";
 
 /**
@@ -15,6 +15,9 @@ const CANONICAL_BASE = "https://huggingface.co/datasets/oskrgab/petrodb/resolve/
  * branch's Hugging Face base, so a `stage` build names `/resolve/stage/` (ADR-0005).
  */
 export const DATA_BASE = (process.env.BASE_URL || CANONICAL_BASE).replace(/\/+$/, "");
+
+/** The Hugging Face repository behind DATA_BASE, for addresses pinned to a commit. */
+export const DATA_REPO = DATA_BASE.replace(/\/resolve\/[^/]+$/, "");
 
 /** Catalogue order on the home page. */
 export const DATASET_IDS = ["volve", "force_2020", "argentina", "petrobras_3w"];
@@ -57,8 +60,18 @@ function sqlToPython(sql: string): string {
   return `import duckdb\n\ndf = duckdb.sql("""\n${body}\n""").df()`;
 }
 
+/**
+ * `{base}` is the data base and `{repo}` its repository, for addresses pinned to
+ * a commit. Glances arrive already written against CANONICAL_BASE.
+ */
+function fill(text: string): string {
+  return text
+    .replaceAll("{base}", DATA_BASE)
+    .replaceAll(CANONICAL_BASE, DATA_BASE)
+    .replaceAll("{repo}", DATA_REPO);
+}
+
 function snippets(q: { sql: string; python?: string; polars?: string }): Snippet[] {
-  const fill = (code: string) => code.replaceAll("{base}", DATA_BASE).replaceAll(CANONICAL_BASE, DATA_BASE);
   const sql = fill(q.sql);
   const python = q.python ? fill(q.python) : sqlToPython(sql);
   const out: Snippet[] = [
@@ -164,6 +177,33 @@ export function loadTables(id: string): Table[] {
       files: file?.files ?? [],
     };
   });
+}
+
+interface RawGuideStep {
+  id: string;
+  title: string;
+  body: string[];
+  sql: string;
+  python?: string;
+  polars?: string;
+  /** Why a variant is absent, by language. */
+  missing?: Partial<Record<Snippet["lang"], string>>;
+}
+
+/** The "Query the data" guide, steps in teaching order. */
+export function loadGuide(): { intro: string[]; steps: GuideStep[] } {
+  const raw = readJson<{ intro: string[]; steps: RawGuideStep[] }>(resolve(DATA_ROOT, "guide.json"));
+  if (!raw) throw new Error("No guide.json");
+  return {
+    intro: raw.intro.map(fill),
+    steps: raw.steps.map((s) => ({
+      id: s.id,
+      title: s.title,
+      body: s.body.map(fill),
+      snippets: snippets(s),
+      missing: Object.values(s.missing ?? {}),
+    })),
+  };
 }
 
 export function loadDataset(id: string) {
