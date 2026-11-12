@@ -62,6 +62,6 @@ CREATE INDEX ix_daily_date ON daily_production (date);
 
 CREATE INDEX ix_daily_wellbore ON daily_production (npd_wellbore_code);
 
-CREATE INDEX ix_monthly_wellbore ON monthly_production (npd_wellbore_code);
-
 CREATE INDEX ix_monthly_date ON monthly_production (date);
+
+CREATE INDEX ix_monthly_wellbore ON monthly_production (npd_wellbore_code);

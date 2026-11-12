@@ -1,6 +1,7 @@
 """The Glances command: what it publishes must be runnable by a visitor."""
 
 import json
+from datetime import date
 from pathlib import Path
 
 import pytest
@@ -46,6 +47,41 @@ def test_series_line_up_with_their_axis() -> None:
             chart = glance["chart"]
             for series in chart["series"]:
                 assert len(series["values"]) == len(chart["x"]["values"]), glance["id"]
+
+
+def _glance(dataset: str, glance_id: str) -> glances.Glance:
+    return next(g for g in glances.GLANCES if (g.dataset, g.id) == (dataset, glance_id))
+
+
+def test_volve_field_rates_chart_oil_gas_and_water() -> None:
+    # Oil peaks in month 2; water overtakes oil from month 3 for good.
+    rows = [
+        (date(2008, 1, 1), 100_000.0, 15e6, 0.0),
+        (date(2008, 2, 1), 200_000.0, 30e6, 50_000.0),
+        (date(2008, 3, 1), 80_000.0, 12e6, 90_000.0),
+        (date(2008, 4, 1), 40_000.0, 6e6, 120_000.0),
+    ]
+    built = _glance("volve", "field-rates").build(rows)
+    series = {s["name"]: s for s in built["chart"]["series"]}
+    assert set(series) == {"Oil", "Gas", "Water"}
+    assert series["Gas"]["tone"] == "gas"
+    assert series["Gas"]["values"] == [15, 30, 12, 6]  # million Sm³
+    assert "200 thousand Sm³ a month in February 2008" in built["takeaway"]
+    assert "From March 2008" in built["takeaway"]
+    # 63 million Sm³ of gas over 420 thousand Sm³ of oil.
+    assert "150 Sm³ of gas for every Sm³ of oil" in built["takeaway"]
+
+
+def test_volve_cumulative_oil_ranks_wells_from_the_result() -> None:
+    rows = [("A", 5.0, 0.0), ("B", 3.0, 0.0), ("C", 1.5, 0.0), ("D", 0.5, 1.0), ("E", 0.0, 7.3)]
+    built = _glance("volve", "cumulative-oil").build(rows)
+    chart = built["chart"]
+    assert chart["kind"] == "bars"
+    assert chart["x"]["values"] == ["A", "B", "C", "D", "E"]
+    assert chart["series"][0]["values"] == [5.0, 3.0, 1.5, 0.5, 0.0]
+    assert chart["series"][1]["values"] == [0.0, 0.0, 0.0, 1.0, 7.3]
+    assert "A and B produced 80% of the field's 10.0 million Sm³ of oil" in built["takeaway"]
+    assert "E produced none and injected 7.3 million Sm³ of water" in built["takeaway"]
 
 
 @pytest.mark.parametrize(
