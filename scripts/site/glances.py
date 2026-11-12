@@ -1,24 +1,32 @@
-"""Compute the Landing's Glances and file listings (ADR-0010).
+"""Compute the Landing's Glances, Dataset facts and file listings (ADR-0010).
 
 A Glance is a small finding about one Dataset, shown on the Landing as a chart
 next to the query that produces it. This command runs each Glance's query with
 DuckDB and writes the result as JSON under ``site/data/<dataset>/``; the site
-build reads those files and never touches parquet.
+build reads those files and never touches parquet. Next to the Glances it
+writes ``facts.json`` (the catalogue's "Covers" text and byte size, both
+computed from the data) and, for a Dataset on disk, ``files.json``.
 
 The SQL a visitor sees is the SQL that ran here, with one substitution: the
 data host. Queries are written against ``{base}``; they execute against the
-local ``parquet/`` tree when the Dataset is committed there, and are published
-with the Hugging Face resolve base in its place.
+local ``parquet/`` tree when the Dataset is on disk there, and against the
+public host otherwise. They are published with the Hugging Face resolve base.
 
-Run from the repo root after re-exporting a Dataset::
+Each export pipeline runs this for its Dataset as its last step. By hand, from
+the repo root::
 
-    uv run -m scripts.site.glances
+    uv run -m scripts.site.glances [dataset ...]          # regenerate
+    uv run -m scripts.site.glances --check [dataset ...]  # fail if stale
 """
 
 from __future__ import annotations
 
+import argparse
 import json
 import math
+import re
+import sys
+import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable
@@ -32,6 +40,8 @@ OUT_ROOT = REPO_ROOT / "site" / "data"
 # The host visitors query. Must equal `CANONICAL_HF_BASE` in
 # `scripts/deploy/retarget_data_urls.py`.
 PUBLIC_BASE = "https://huggingface.co/datasets/oskrgab/petrodb/resolve/main"
+# The same files, listed with their sizes by the Hugging Face Hub API.
+PUBLIC_TREE = "https://huggingface.co/api/datasets/oskrgab/petrodb/tree/main"
 
 Rows = list[tuple[Any, ...]]
 
@@ -46,8 +56,24 @@ class Glance:
     build: Callable[[Rows], dict[str, Any]]
     # Optional hand-written equivalent for Polars users.
     polars: str | None = None
-    # Datasets rebuilt in CI are not on disk; query the public host instead.
-    remote: bool = False
+
+
+@dataclass(frozen=True)
+class Facts:
+    """How a Dataset's catalogue "Covers" text is computed: one query, one row."""
+
+    dataset: str
+    sql: str
+    covers: Callable[[tuple[Any, ...]], str]
+
+
+def on_disk(dataset: str) -> bool:
+    return (PARQUET_ROOT / dataset).is_dir()
+
+
+def _base(dataset: str) -> str:
+    """Query the local tree when the Dataset is on disk, the public host otherwise."""
+    return str(PARQUET_ROOT) if on_disk(dataset) else PUBLIC_BASE
 
 
 def _nice_max(value: float) -> float:
@@ -277,7 +303,7 @@ def _argentina_basin(rows: Rows) -> dict[str, Any]:
     oil_share_of_second = oil[gas_second] / sum(oil)
     return {
         "takeaway": (
-            f"Totals for 2006 to 2025. {basins[0]} and {basins[1]} produced "
+            f"Totals across all years. {basins[0]} and {basins[1]} produced "
             f"{top_two:.0%} of the oil. Gas is a different map: {basins[gas_leader]} "
             f"leads, and {basins[gas_second]} ranks second with only "
             f"{oil_share_of_second:.0%} of the oil."
@@ -413,8 +439,48 @@ GLANCES: list[Glance] = [
     Glance("force_2020", "gamma-ray", "A well log, top to bottom",
            FORCE_GR_SQL, _force_gr),
     Glance("petrobras_3w", "hydrate-pressure", "An anomaly as the sensors saw it",
-           W3_HYDRATE_SQL, _w3_hydrate, remote=True),
+           W3_HYDRATE_SQL, _w3_hydrate),
 ]
+
+
+# --------------------------------------------------------------------------
+# Dataset facts: the catalogue's "Covers" column
+# --------------------------------------------------------------------------
+
+VOLVE_FACTS_SQL = """\
+SELECT (SELECT count(*) FROM '{base}/volve/wells.parquet'),
+       year(min(date)), year(max(date))
+FROM '{base}/volve/daily_production.parquet';"""
+
+ARGENTINA_FACTS_SQL = ARGENTINA_MANIFEST_SQL + """
+SELECT (SELECT count(*) FROM '{base}/argentina/wells.parquet'),
+       min(anio), max(anio)
+FROM read_parquet(getvariable('monthly_production'), hive_partitioning = true);"""
+
+FORCE_FACTS_SQL = """\
+SET VARIABLE wells = (
+    SELECT list('{base}/force_2020/wells/' || path)
+    FROM read_json('{base}/force_2020/wells/_files.json') AS manifest(path)
+);
+SELECT count(DISTINCT WELL) FROM read_parquet(getvariable('wells'));"""
+
+W3_FACTS_SQL = """\
+SELECT (SELECT count(*) FROM '{base}/petrobras_3w/instances.parquet'),
+       count(*), year(min(first_ts)), year(max(last_ts))
+FROM '{base}/petrobras_3w/wells.parquet';"""
+
+FACTS: list[Facts] = [
+    Facts("volve", VOLVE_FACTS_SQL,
+          lambda r: f"{r[0]:,} wells, {r[1]}–{r[2]}"),
+    Facts("force_2020", FORCE_FACTS_SQL,
+          lambda r: f"{r[0]:,} wells"),
+    Facts("argentina", ARGENTINA_FACTS_SQL,
+          lambda r: f"{r[0]:,} wells, {r[1]}–{r[2]}"),
+    Facts("petrobras_3w", W3_FACTS_SQL,
+          lambda r: f"{r[0]:,} Instances, {r[1]:,} real wells, {r[2]}–{r[3]}"),
+]
+
+DATASETS = [f.dataset for f in FACTS]
 
 
 # --------------------------------------------------------------------------
@@ -466,10 +532,33 @@ def list_files(dataset: str) -> list[dict[str, Any]] | None:
 # --------------------------------------------------------------------------
 
 
+def _query(sql: str, dataset: str) -> Rows:
+    return duckdb.connect().execute(sql.format(base=_base(dataset))).fetchall()
+
+
+def published_bytes(dataset: str) -> int:
+    """Total size of a Dataset's parquet files as published on Hugging Face.
+
+    For a Dataset whose tree is not on disk (Petrobras 3W is rebuilt in CI).
+    The Hub API lists 1,000 entries a page and links the next one.
+    """
+    total = 0
+    url: str | None = f"{PUBLIC_TREE}/{dataset}?recursive=true"
+    while url:
+        with urllib.request.urlopen(url) as response:
+            entries = json.load(response)
+            link = response.headers.get("Link") or ""
+        total += sum(
+            e["size"] for e in entries
+            if e["type"] == "file" and e["path"].endswith(".parquet")
+        )
+        found = re.search(r'<([^>]+)>;\s*rel="next"', link)
+        url = found.group(1) if found else None
+    return total
+
+
 def run_glance(glance: Glance) -> dict[str, Any]:
-    base = PUBLIC_BASE if glance.remote else str(PARQUET_ROOT)
-    con = duckdb.connect()
-    rows = con.execute(glance.sql.format(base=base)).fetchall()
+    rows = _query(glance.sql, glance.dataset)
     built = glance.build(rows)
     out = {
         "id": glance.id,
@@ -483,22 +572,77 @@ def run_glance(glance: Glance) -> dict[str, Any]:
     return out
 
 
-def _write(path: Path, payload: Any) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, ensure_ascii=False, indent=1) + "\n")
-    print(f"wrote {path.relative_to(REPO_ROOT)}")
+def _dump(payload: Any) -> str:
+    return json.dumps(payload, ensure_ascii=False, indent=1) + "\n"
 
 
-def main() -> None:
-    by_dataset: dict[str, list[dict[str, Any]]] = {}
-    for glance in GLANCES:
-        by_dataset.setdefault(glance.dataset, []).append(run_glance(glance))
-    for dataset, glances in by_dataset.items():
-        _write(OUT_ROOT / dataset / "glances.json", glances)
-        files = list_files(dataset)
-        if files is not None:
-            _write(OUT_ROOT / dataset / "files.json", files)
+def build(dataset: str) -> dict[str, str]:
+    """Everything the command writes for one Dataset: file name -> JSON text."""
+    out: dict[str, str] = {}
+    glances = [run_glance(g) for g in GLANCES if g.dataset == dataset]
+    if glances:
+        out["glances.json"] = _dump(glances)
+    files = list_files(dataset)
+    if files is not None:
+        out["files.json"] = _dump(files)
+    facts = next(f for f in FACTS if f.dataset == dataset)
+    out["facts.json"] = _dump({
+        "covers": facts.covers(_query(facts.sql, dataset)[0]),
+        "bytes": (sum(t["bytes"] for t in files) if files is not None
+                  else published_bytes(dataset)),
+    })
+    return out
+
+
+def write(dataset: str, out_root: Path = OUT_ROOT) -> None:
+    """Regenerate one Dataset's committed output. Each export pipeline's last step."""
+    for name, text in build(dataset).items():
+        path = out_root / dataset / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text)
+        print(f"wrote {path}")
+
+
+def stale(dataset: str, out_root: Path = OUT_ROOT) -> list[str]:
+    """Names of the committed files that differ from what the command produces now."""
+    return [
+        name for name, text in build(dataset).items()
+        if not (out_root / dataset / name).is_file()
+        or (out_root / dataset / name).read_text() != text
+    ]
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(prog="python -m scripts.site.glances")
+    parser.add_argument("datasets", nargs="*", metavar="dataset",
+                        help=f"any of {', '.join(DATASETS)}; default all")
+    parser.add_argument("--check", action="store_true",
+                        help="write nothing; exit 1 if committed output is stale")
+    args = parser.parse_args(argv)
+    unknown = sorted(set(args.datasets) - set(DATASETS))
+    if unknown:
+        parser.error(f"unknown dataset: {', '.join(unknown)}")
+    datasets = args.datasets or DATASETS
+
+    if not args.check:
+        for dataset in datasets:
+            write(dataset)
+        return 0
+
+    failed = False
+    for dataset in datasets:
+        if not on_disk(dataset):
+            print(f"skip {dataset}: parquet/{dataset} is not on disk, nothing to compare")
+            continue
+        names = stale(dataset)
+        if names:
+            failed = True
+            print(f"stale {dataset}: {', '.join(names)}; "
+                  f"run `uv run -m scripts.site.glances {dataset}`")
+        else:
+            print(f"ok {dataset}")
+    return 1 if failed else 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

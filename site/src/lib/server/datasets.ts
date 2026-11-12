@@ -1,11 +1,23 @@
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { bytes } from "$lib/format";
-import type { Chart, Column, DatasetSummary, Glance, Query, Snippet, Table, TableFile } from "$lib/types";
+import type { Chart, Column, DatasetSummary, Glance, GuideStep, Query, Snippet, Table, TableFile } from "$lib/types";
 import { highlight } from "./highlight";
 
-/** Where visitors read the data from. Mirrors PUBLIC_BASE in scripts/site/glances.py. */
-export const DATA_BASE = "https://huggingface.co/datasets/oskrgab/petrodb/resolve/main";
+/**
+ * The canonical data base: the Hugging Face `main` revision. Glances are written
+ * against it (PUBLIC_BASE in scripts/site/glances.py) and it is the default.
+ */
+const CANONICAL_BASE = "https://huggingface.co/datasets/oskrgab/petrodb/resolve/main";
+
+/**
+ * Where visitors read the data from. The deploy sets `BASE_URL` to the deploying
+ * branch's Hugging Face base, so a `stage` build names `/resolve/stage/` (ADR-0005).
+ */
+export const DATA_BASE = (process.env.BASE_URL || CANONICAL_BASE).replace(/\/+$/, "");
+
+/** The Hugging Face repository behind DATA_BASE, for addresses pinned to a commit. */
+export const DATA_REPO = DATA_BASE.replace(/\/resolve\/[^/]+$/, "");
 
 /** Catalogue order on the home page. */
 export const DATASET_IDS = ["volve", "force_2020", "argentina", "petrobras_3w"];
@@ -48,8 +60,18 @@ function sqlToPython(sql: string): string {
   return `import duckdb\n\ndf = duckdb.sql("""\n${body}\n""").df()`;
 }
 
+/**
+ * `{base}` is the data base and `{repo}` its repository, for addresses pinned to
+ * a commit. Glances arrive already written against CANONICAL_BASE.
+ */
+function fill(text: string): string {
+  return text
+    .replaceAll("{base}", DATA_BASE)
+    .replaceAll(CANONICAL_BASE, DATA_BASE)
+    .replaceAll("{repo}", DATA_REPO);
+}
+
 function snippets(q: { sql: string; python?: string; polars?: string }): Snippet[] {
-  const fill = (code: string) => code.replaceAll("{base}", DATA_BASE);
   const sql = fill(q.sql);
   const python = q.python ? fill(q.python) : sqlToPython(sql);
   const out: Snippet[] = [
@@ -77,15 +99,17 @@ export function loadGlances(id: string): Glance[] {
 export function loadSummary(id: string): DatasetSummary {
   const meta = readJson<Record<string, any>>(resolve(DATA_ROOT, id, "dataset.json"));
   if (!meta) throw new Error(`No dataset.json for ${id}`);
-  const files = readJson<RawFiles[]>(resolve(DATA_ROOT, id, "files.json"));
+  // Computed from the data by scripts/site/glances.py; never typed by hand.
+  const facts = readJson<{ covers: string; bytes: number }>(resolve(DATA_ROOT, id, "facts.json"));
+  if (!facts) throw new Error(`No facts.json for ${id}: run \`uv run -m scripts.site.glances ${id}\``);
   const glances = readJson<RawGlance[]>(resolve(DATA_ROOT, id, "glances.json"));
   return {
     id,
     name: meta.name,
     holds: meta.holds,
     grain: meta.grain,
-    covers: meta.covers,
-    size: files ? bytes(files.reduce((sum, t) => sum + t.bytes, 0)) : (meta.size ?? ""),
+    covers: facts.covers,
+    size: bytes(facts.bytes),
     ready: meta.ready,
     petroviz: meta.petroviz,
     licence: meta.licence,
@@ -153,6 +177,33 @@ export function loadTables(id: string): Table[] {
       files: file?.files ?? [],
     };
   });
+}
+
+interface RawGuideStep {
+  id: string;
+  title: string;
+  body: string[];
+  sql: string;
+  python?: string;
+  polars?: string;
+  /** Why a variant is absent, by language. */
+  missing?: Partial<Record<Snippet["lang"], string>>;
+}
+
+/** The "Query the data" guide, steps in teaching order. */
+export function loadGuide(): { intro: string[]; steps: GuideStep[] } {
+  const raw = readJson<{ intro: string[]; steps: RawGuideStep[] }>(resolve(DATA_ROOT, "guide.json"));
+  if (!raw) throw new Error("No guide.json");
+  return {
+    intro: raw.intro.map(fill),
+    steps: raw.steps.map((s) => ({
+      id: s.id,
+      title: s.title,
+      body: s.body.map(fill),
+      snippets: snippets(s),
+      missing: Object.values(s.missing ?? {}),
+    })),
+  };
 }
 
 export function loadDataset(id: string) {
