@@ -34,7 +34,7 @@ globbed (ADR-0004):
 ```python
 import json, urllib.request, duckdb
 
-base = 'https://huggingface.co/datasets/sumpalabs/petrodb/resolve/main/argentina/monthly_production/'
+base = 'https://huggingface.co/datasets/oskrgab/petrodb/resolve/main/argentina/monthly_production/'
 manifest = json.load(urllib.request.urlopen(base + '_files.json'))
 urls = [base + p for p in manifest if p.startswith('anio=2023/')]
 
@@ -42,7 +42,7 @@ result = duckdb.sql(f"""
     SELECT w.cuenca,
            SUM(m.prod_pet) AS oil_m3,
            SUM(m.prod_gas) AS gas_mm3
-    FROM 'https://huggingface.co/datasets/sumpalabs/petrodb/resolve/main/argentina/wells.parquet' w
+    FROM 'https://huggingface.co/datasets/oskrgab/petrodb/resolve/main/argentina/wells.parquet' w
     JOIN read_parquet(?, hive_partitioning = true) m USING (idpozo)
     WHERE m.anio = 2023
     GROUP BY w.cuenca
@@ -71,7 +71,7 @@ Measure the labelled-data balance across the corpus from the catalog alone
 ```python
 import duckdb
 
-base = 'https://huggingface.co/datasets/sumpalabs/petrodb/resolve/main/petrobras_3w'
+base = 'https://huggingface.co/datasets/oskrgab/petrodb/resolve/main/petrobras_3w'
 result = duckdb.sql(f"""
     SELECT
         et.event_class,
@@ -101,12 +101,12 @@ Browse and download files at: **https://dev-petrodb.ocortez.com**
 
 Query directly with DuckDB (no download required):
 
-Data lives on Hugging Face ([`sumpalabs/petrodb`](https://huggingface.co/datasets/sumpalabs/petrodb)); its `resolve` URLs honour HTTP Range so DuckDB fetches only the row groups a query needs.
+Data lives on Hugging Face ([`oskrgab/petrodb`](https://huggingface.co/datasets/oskrgab/petrodb)); its `resolve` URLs honour HTTP Range so DuckDB fetches only the row groups a query needs.
 
 ```python
 import json, urllib.request, duckdb
 
-HF = "https://huggingface.co/datasets/sumpalabs/petrodb/resolve/main"
+HF = "https://huggingface.co/datasets/oskrgab/petrodb/resolve/main"
 conn = duckdb.connect()
 
 # Query Volve production data

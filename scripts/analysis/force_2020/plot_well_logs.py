@@ -41,7 +41,7 @@ import polars as pl
 # `BASE_URL` env var to point at a local Caddy dev host or a frozen HF revision.
 BASE_URL = (
     os.environ.get(
-        "BASE_URL", "https://huggingface.co/datasets/sumpalabs/petrodb/resolve/main"
+        "BASE_URL", "https://huggingface.co/datasets/oskrgab/petrodb/resolve/main"
     ).rstrip("/")
     + "/force_2020/wells"
 )

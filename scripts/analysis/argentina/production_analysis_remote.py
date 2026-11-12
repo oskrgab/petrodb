@@ -20,7 +20,7 @@ This is the SI / remote-Parquet entrypoint. SQL templates and matplotlib
 layout live in `utils.py`, shared with the local DuckDB and imperial
 variants so the four panels render identically across all combinations.
 
-Try it yourself: https://huggingface.co/datasets/sumpalabs/petrodb
+Try it yourself: https://huggingface.co/datasets/oskrgab/petrodb
 Dependencies: duckdb, polars, matplotlib, contextily.
 """
 
@@ -41,7 +41,7 @@ from utils import (
 # the `BASE_URL` env var for a local Caddy dev host or a frozen HF revision.
 BASE_URL = (
     os.environ.get(
-        "BASE_URL", "https://huggingface.co/datasets/sumpalabs/petrodb/resolve/main"
+        "BASE_URL", "https://huggingface.co/datasets/oskrgab/petrodb/resolve/main"
     ).rstrip("/")
     + "/argentina"
 )
@@ -69,7 +69,7 @@ def main() -> None:
                 "Monthly production 2006–2025, four independent DuckDB queries "
                 "against publicly hosted Parquet files"
             ),
-            source_caption="Parquet host: Hugging Face (sumpalabs/petrodb)  ·  Basemap © Esri",
+            source_caption="Parquet host: Hugging Face (oskrgab/petrodb)  ·  Basemap © Esri",
         )
     finally:
         conn.close()

@@ -1,7 +1,7 @@
 name: Deploy (Hugging Face data + Cloudflare landing)
 
 # Single workflow, two publish targets per push to main/stage (ADR-0005):
-#   - Hugging Face dataset `sumpalabs/petrodb` carries the parquet *bytes*
+#   - Hugging Face dataset `oskrgab/petrodb` carries the parquet *bytes*
 #     (`*.parquet` + `_files.json`) on a branch matching the GitHub ref. HF
 #     `resolve` URLs honour HTTP Range unconditionally, so DuckDB `httpfs`
 #     consumers get true row-group pushdown (Cloudflare Pages does not).
@@ -124,7 +124,7 @@ jobs:
       - name: Ensure HF stage branch exists
         if: github.ref_name == 'stage'
         run: >-
-          hf repo branch create sumpalabs/petrodb stage
+          hf repo branch create oskrgab/petrodb stage
           --repo-type dataset
           --revision main
           --exist-ok
@@ -136,7 +136,7 @@ jobs:
       # `hf upload` supports the `--delete` sync semantics.
       - name: Upload parquet bytes to Hugging Face
         run: >-
-          hf upload sumpalabs/petrodb parquet .
+          hf upload oskrgab/petrodb parquet .
           --repo-type dataset
           --revision ${{ github.ref_name }}
           --include '**/*.parquet'
@@ -151,7 +151,7 @@ jobs:
       # root README.md.
       - name: Upload Hugging Face dataset card
         run: >-
-          hf upload sumpalabs/petrodb hf/README.md README.md
+          hf upload oskrgab/petrodb hf/README.md README.md
           --repo-type dataset
           --revision ${{ github.ref_name }}
           --commit-message "CI deploy: dataset card from ${{ github.sha }}"

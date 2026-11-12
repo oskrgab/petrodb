@@ -20,7 +20,7 @@ Range requests so consumers fetch only the row groups a predicate needs.
 ```sql
 INSTALL httpfs; LOAD httpfs;
 SELECT *
-FROM 'https://huggingface.co/datasets/sumpalabs/petrodb/resolve/main/<dataset>/...';
+FROM 'https://huggingface.co/datasets/oskrgab/petrodb/resolve/main/<dataset>/...';
 ```
 
 The human-facing landing page, per-dataset schema docs, and discovery manifests
