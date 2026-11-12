@@ -63,6 +63,16 @@ export interface Query {
   snippets: Snippet[];
 }
 
+/** One step of the "Query the data" guide. */
+export interface GuideStep {
+  id: string;
+  title: string;
+  body: string[];
+  snippets: Snippet[];
+  /** Why a language has no variant here, one sentence each. */
+  missing: string[];
+}
+
 export interface Column {
   name: string;
   type: string;

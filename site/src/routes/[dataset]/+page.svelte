@@ -108,7 +108,8 @@
       {/if}
       <p class="intro">
         Nothing to download. These run against the published files from the DuckDB shell or from
-        Python.
+        Python. New to DuckDB or Parquet? <a href="/query/">Query the data</a> walks through it step
+        by step.
       </p>
       {#each queries as q (q.id)}
         <article class="query">
