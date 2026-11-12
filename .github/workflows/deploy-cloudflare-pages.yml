@@ -112,7 +112,7 @@ jobs:
       # which are gated on the cache miss. hf_xet enables the fast Xet upload
       # backend HF uses for content-addressed storage.
       - name: Install Hugging Face CLI
-        run: pipx install "huggingface_hub[cli,hf_xet]"
+        run: pipx install "huggingface_hub[cli,hf_xet]==2.4.0"
 
       - name: Authenticate Hugging Face CLI
         env:
