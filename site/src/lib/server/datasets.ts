@@ -4,8 +4,17 @@ import { bytes } from "$lib/format";
 import type { Chart, Column, DatasetSummary, Glance, Query, Snippet, Table, TableFile } from "$lib/types";
 import { highlight } from "./highlight";
 
-/** Where visitors read the data from. Mirrors PUBLIC_BASE in scripts/site/glances.py. */
-export const DATA_BASE = "https://huggingface.co/datasets/oskrgab/petrodb/resolve/main";
+/**
+ * The canonical data base: the Hugging Face `main` revision. Glances are written
+ * against it (PUBLIC_BASE in scripts/site/glances.py) and it is the default.
+ */
+const CANONICAL_BASE = "https://huggingface.co/datasets/oskrgab/petrodb/resolve/main";
+
+/**
+ * Where visitors read the data from. The deploy sets `BASE_URL` to the deploying
+ * branch's Hugging Face base, so a `stage` build names `/resolve/stage/` (ADR-0005).
+ */
+export const DATA_BASE = (process.env.BASE_URL || CANONICAL_BASE).replace(/\/+$/, "");
 
 /** Catalogue order on the home page. */
 export const DATASET_IDS = ["volve", "force_2020", "argentina", "petrobras_3w"];
@@ -49,7 +58,7 @@ function sqlToPython(sql: string): string {
 }
 
 function snippets(q: { sql: string; python?: string; polars?: string }): Snippet[] {
-  const fill = (code: string) => code.replaceAll("{base}", DATA_BASE);
+  const fill = (code: string) => code.replaceAll("{base}", DATA_BASE).replaceAll(CANONICAL_BASE, DATA_BASE);
   const sql = fill(q.sql);
   const python = q.python ? fill(q.python) : sqlToPython(sql);
   const out: Snippet[] = [
