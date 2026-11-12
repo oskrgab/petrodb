@@ -306,9 +306,19 @@ GROUP BY t
 ORDER BY t;""" % W3_HYDRATE_INSTANCE
 
 
+W3_HYDRATE_CLASS = 8
+
+
+def _span(name: str, labels: list[Any], code: int) -> dict[str, Any]:
+    """The first and last x index whose label is ``code``."""
+    hits = [i for i, label in enumerate(labels) if label == code]
+    return {"name": name, "from": hits[0], "to": hits[-1]}
+
+
 def _w3_hydrate(rows: Rows) -> dict[str, Any]:
     rows = [r for r in rows if r[1] is not None]
     pressure = [r[1] for r in rows]
+    labels = [r[2] for r in rows]
     labelled = next(i for i, r in enumerate(rows) if r[2])
     before = sum(pressure[:labelled]) / labelled
     hours = (rows[-1][0] - rows[0][0]).total_seconds() / 3600
@@ -327,6 +337,56 @@ def _w3_hydrate(rows: Rows) -> dict[str, Any]:
                  "tone": "gas", "min": 0, "max": _nice_max(max(pressure)),
                  "values": [_r(v, 2) for v in pressure]},
             ],
+            # Each 10-minute bucket carries its highest label, so the
+            # transient code (event + 100) wins the bucket it starts in.
+            "spans": [
+                _span("Transient", labels, W3_HYDRATE_CLASS + 100),
+                _span("Steady", labels, W3_HYDRATE_CLASS),
+            ],
+        },
+    }
+
+
+W3_BY_CLASS_SQL = """\
+SELECT e.description AS event_class,
+       count(*) FILTER (WHERE i.well_kind = 'real')      AS real_wells,
+       count(*) FILTER (WHERE i.well_kind = 'simulated') AS simulated,
+       count(*) FILTER (WHERE i.well_kind = 'drawn')     AS drawn
+FROM '{base}/petrobras_3w/instances.parquet' AS i
+JOIN '{base}/petrobras_3w/event_types.parquet' AS e USING (event_class)
+GROUP BY e.event_class, e.description
+ORDER BY e.event_class;"""
+
+
+def _w3_by_class(rows: Rows) -> dict[str, Any]:
+    classes = [r[0] for r in rows]
+    real, simulated, drawn = ([r[k] for r in rows] for k in (1, 2, 3))
+    total = sum(real) + sum(simulated) + sum(drawn)
+    top = _nice_max(max(real + simulated + drawn))
+    # Row 0 is Normal Operation; the anomalies follow.
+    only_real = [c for c, s, d in zip(classes[1:], simulated[1:], drawn[1:]) if s + d == 0]
+    mostly_sim = max(range(len(rows)), key=simulated.__getitem__)
+    return {
+        "takeaway": (
+            f"{total:,} Instances. Real wells supply {sum(real):,}, "
+            f"{real[0]} of them {classes[0]}. Among the anomalies, "
+            f"{' and '.join(only_real)} {'comes' if len(only_real) == 1 else 'come'} "
+            "only from real wells; "
+            f"{classes[mostly_sim]} is mostly simulated "
+            f"({simulated[mostly_sim]} of {real[mostly_sim] + simulated[mostly_sim] + drawn[mostly_sim]})."
+        ),
+        "chart": {
+            "kind": "bars",
+            "x": {"type": "category", "values": classes},
+            "series": [
+                {"name": name, "unit": "Instances", "tone": tone,
+                 "min": 0, "max": top, "values": values}
+                for name, tone, values in (
+                    ("Real", "oil", real),
+                    ("Simulated", "water", simulated),
+                    ("Drawn", "gas", drawn),
+                )
+            ],
         },
     }
 
@@ -344,7 +404,27 @@ GLANCES: list[Glance] = [
            FORCE_GR_SQL, _force_gr),
     Glance("petrobras_3w", "hydrate-pressure", "An anomaly as the sensors saw it",
            W3_HYDRATE_SQL, _w3_hydrate, remote=True),
+    Glance("petrobras_3w", "instances-by-class", "Real, simulated and hand-drawn",
+           W3_BY_CLASS_SQL, _w3_by_class, remote=True),
 ]
+
+
+# --------------------------------------------------------------------------
+# Lookups
+# --------------------------------------------------------------------------
+
+# The Petrobras 3W page groups its Observation files by Event class. The page
+# is built only where the 3W tree exists, but the names are committed so the
+# build never needs to read parquet.
+W3_EVENT_CLASSES_SQL = """\
+SELECT event_class, description
+FROM '{base}/petrobras_3w/event_types.parquet'
+ORDER BY event_class;"""
+
+
+def w3_event_classes() -> list[dict[str, Any]]:
+    rows = duckdb.sql(W3_EVENT_CLASSES_SQL.format(base=PUBLIC_BASE)).fetchall()
+    return [{"event_class": c, "description": d} for c, d in rows]
 
 
 # --------------------------------------------------------------------------
@@ -428,6 +508,7 @@ def main() -> None:
         files = list_files(dataset)
         if files is not None:
             _write(OUT_ROOT / dataset / "files.json", files)
+    _write(OUT_ROOT / "petrobras_3w" / "event_classes.json", w3_event_classes())
 
 
 if __name__ == "__main__":

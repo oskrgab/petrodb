@@ -1,0 +1,42 @@
+[
+ {
+  "event_class": 0,
+  "description": "Normal Operation"
+ },
+ {
+  "event_class": 1,
+  "description": "Abrupt Increase of BSW"
+ },
+ {
+  "event_class": 2,
+  "description": "Spurious Closure of DHSV"
+ },
+ {
+  "event_class": 3,
+  "description": "Severe Slugging"
+ },
+ {
+  "event_class": 4,
+  "description": "Flow Instability"
+ },
+ {
+  "event_class": 5,
+  "description": "Rapid Productivity Loss"
+ },
+ {
+  "event_class": 6,
+  "description": "Quick Restriction in PCK"
+ },
+ {
+  "event_class": 7,
+  "description": "Scaling in PCK"
+ },
+ {
+  "event_class": 8,
+  "description": "Hydrate in Production Line"
+ },
+ {
+  "event_class": 9,
+  "description": "Hydrate in Service Line"
+ }
+]

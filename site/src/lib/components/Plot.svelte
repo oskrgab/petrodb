@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { linePath, scaleOf, stackPaths, toneVar, xTicks } from "$lib/chart";
+  import { linePath, scaleOf, spanBox, stackPaths, toneVar, xTicks } from "$lib/chart";
   import type { Chart } from "$lib/types";
 
   let { chart, grid = true, label }: { chart: Chart; grid?: boolean; label: string } = $props();
@@ -16,6 +16,11 @@
       <line class="grid" x1={t.at} x2={t.at} y1="0" y2="100" />
     {/each}
   {/if}
+
+  {#each chart.spans ?? [] as s, i}
+    {@const at = spanBox(chart, s)}
+    <rect class="span" class:strong={i > 0} x={at.x} width={at.width} y="0" height="100" />
+  {/each}
 
   {#if chart.kind === "stacked"}
     {#each stackPaths(chart) as d, i}
@@ -41,6 +46,16 @@
     stroke: var(--grid);
     stroke-width: 1;
     vector-effect: non-scaling-stroke;
+  }
+
+  /* Labelled stretches sit behind the curves: the first faint, later ones stronger. */
+  .span {
+    fill: var(--accent-soft);
+  }
+
+  .span.strong {
+    fill: var(--accent);
+    fill-opacity: 0.28;
   }
 
   .line {

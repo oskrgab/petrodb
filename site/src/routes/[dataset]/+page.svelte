@@ -1,11 +1,13 @@
 <script lang="ts">
   import { onMount } from "svelte";
+  import InstanceBrowser from "$lib/components/InstanceBrowser.svelte";
   import Snippet from "$lib/components/Snippet.svelte";
   import Track from "$lib/components/Track.svelte";
   import { approx, bytes, count } from "$lib/format";
 
   let { data } = $props();
-  const { summary, about, units, source, glances, queries, tables, dataBase } = $derived(data);
+  const { summary, about, units, source, glances, queries, tables, upstream, instances, browsed, dataBase } =
+    $derived(data);
 
   const sections = [
     { id: "overview", label: "Overview" },
@@ -63,6 +65,12 @@
         <div><dt class="fine">Covers</dt><dd>{summary.covers}</dd></div>
         <div><dt class="fine">Rows</dt><dd class="num">{approx(totalRows)}</dd></div>
         <div><dt class="fine">Size</dt><dd class="num">{bytes(totalBytes)} in {tables.length} tables</dd></div>
+        {#if upstream}
+          <div>
+            <dt class="fine">Upstream release</dt>
+            <dd><code>{upstream.git_tag}</code>, dataset version {upstream.dataset_version}</dd>
+          </div>
+        {/if}
         <div>
           <dt class="fine">Licence</dt>
           <dd><a href="#licence">{summary.licence.name}</a></dd>
@@ -183,19 +191,23 @@
               <details>
                 <summary>
                   <code>{t.name}/</code>
-                  <span class="fine num">{t.files.length} files, {bytes(t.bytes)}</span>
+                  <span class="fine num">{count(t.fileCount)} files, {bytes(t.bytes)}</span>
                 </summary>
                 <p class="fine">
                   The list of parts is <a href={`${dataBase}/${t.manifest}`}><code>{t.manifest}</code></a>.
                 </p>
-                <ul class="parts">
-                  {#each t.files as f}
-                    <li>
-                      <a href={`${dataBase}/${f.path}`}><code>{f.path.replace(`${t.name}/`, "")}</code></a>
-                      <span class="fine num">{bytes(f.bytes)}</span>
-                    </li>
-                  {/each}
-                </ul>
+                {#if instances && t.name === browsed}
+                  <InstanceBrowser groups={instances} base={`${dataBase}/${t.name}`} />
+                {:else}
+                  <ul class="parts">
+                    {#each t.files as f}
+                      <li>
+                        <a href={`${dataBase}/${f.path}`}><code>{f.path.replace(`${t.name}/`, "")}</code></a>
+                        <span class="fine num">{bytes(f.bytes)}</span>
+                      </li>
+                    {/each}
+                  </ul>
+                {/if}
               </details>
             </li>
           {/if}
@@ -213,6 +225,13 @@
       <h2>Source and licence</h2>
       <div class="prose">
         <p>{@html source}</p>
+        {#if upstream}
+          <p>
+            Built from <a href={upstream.repo.replace(/\.git$/, "")}>the upstream repository</a> at release
+            <code>{upstream.git_tag}</code>, which ships dataset version {upstream.dataset_version}. PetroDB
+            moves to a new release only on purpose, so the same address always returns the same data.
+          </p>
+        {/if}
         <p>
           Licensed under <a href={summary.licence.url}>{summary.licence.name}</a>.
           {summary.licence.note ?? ""}
