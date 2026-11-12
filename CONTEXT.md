@@ -14,6 +14,10 @@ _Avoid_: "partitioned table" (only some multi-parquet tables are Hive-partitione
 A JSON array of every member file's path, relative to a multi-parquet table's directory root. Exists because DuckDB `httpfs` cannot glob or list a static HTTP server. One per multi-parquet table.
 _Avoid_: "catalog" — the 3W `instances.parquet` is a catalog (a queryable table of metadata rows), a different thing.
 
+**Lake**:
+A read-only DuckLake published alongside the parquet tree that registers the published tables in place, so a DuckDB consumer can `ATTACH` one URL instead of resolving manifests. A convenience entry point, not the contract: the parquet URLs and manifests stay authoritative.
+_Avoid_: "catalog" (reserved for the 3W Instance catalog), "lakehouse", "database".
+
 ### Argentina production dataset
 
 **Well** (`idpozo`):
