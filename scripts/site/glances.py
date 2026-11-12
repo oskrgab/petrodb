@@ -72,6 +72,7 @@ def _r(value: float | None, digits: int = 3) -> float | None:
 VOLVE_FIELD_SQL = """\
 SELECT date_trunc('month', date) AS month,
        sum(oil_volume)   AS oil_sm3,
+       sum(gas_volume)   AS gas_sm3,
        sum(water_volume) AS water_sm3
 FROM '{base}/volve/daily_production.parquet'
 GROUP BY month
@@ -87,6 +88,7 @@ monthly = (
     .group_by(pl.col("date").dt.truncate("1mo").alias("month"))
     .agg(
         pl.col("oil_volume").sum().alias("oil_sm3"),
+        pl.col("gas_volume").sum().alias("gas_sm3"),
         pl.col("water_volume").sum().alias("water_sm3"),
     )
     .sort("month")
@@ -98,20 +100,24 @@ def _volve_field(rows: Rows) -> dict[str, Any]:
     rows = [r for r in rows if r[1] is not None]
     months = [r[0].strftime("%Y-%m") for r in rows]
     oil = [r[1] / 1e3 for r in rows]
-    water = [r[2] / 1e3 for r in rows]
+    gas = [(r[2] or 0.0) / 1e6 for r in rows]
+    water = [r[3] / 1e3 for r in rows]
     peak = max(range(len(oil)), key=oil.__getitem__)
     # First month after which water exceeds oil in every remaining month.
     crossover = next(
         i for i in range(peak, len(oil))
         if all(w > o for w, o in zip(water[i:], oil[i:]))
     )
+    # Gas and oil are both in Sm³; the ratio is the field's producing GOR.
+    gas_per_oil = sum(gas) * 1e6 / (sum(oil) * 1e3)
     top = _nice_max(max(max(oil), max(water)))
     return {
         "takeaway": (
             f"Oil peaked at {oil[peak]:.0f} thousand Sm³ a month in "
-            f"{rows[peak][0]:%B %Y}. From {rows[crossover][0]:%B %Y} the field "
-            "produced more water than oil every month until production "
-            f"stopped in {rows[-1][0]:%Y}."
+            f"{rows[peak][0]:%B %Y}. Gas came with it, about "
+            f"{gas_per_oil:.0f} Sm³ of gas for every Sm³ of oil. From "
+            f"{rows[crossover][0]:%B %Y} the field produced more water than "
+            f"oil every month until production stopped in {rows[-1][0]:%Y}."
         ),
         "chart": {
             "kind": "lines",
@@ -119,8 +125,70 @@ def _volve_field(rows: Rows) -> dict[str, Any]:
             "series": [
                 {"name": "Oil", "unit": "thousand Sm³ / month", "tone": "oil",
                  "min": 0, "max": top, "values": [_r(v, 2) for v in oil]},
+                {"name": "Gas", "unit": "million Sm³ / month", "tone": "gas",
+                 "min": 0, "max": _nice_max(max(gas)), "values": [_r(v, 2) for v in gas]},
                 {"name": "Water", "unit": "thousand Sm³ / month", "tone": "water",
                  "min": 0, "max": top, "values": [_r(v, 2) for v in water]},
+            ],
+        },
+    }
+
+
+VOLVE_WELLS_SQL = """\
+SELECT w.wellbore_name AS well,
+       coalesce(sum(d.oil_volume), 0) / 1e6             AS oil_million_sm3,
+       coalesce(sum(d.water_injection_volume), 0) / 1e6 AS water_injected_million_sm3
+FROM '{base}/volve/daily_production.parquet' AS d
+JOIN '{base}/volve/wells.parquet' AS w USING (npd_wellbore_code)
+GROUP BY well
+ORDER BY oil_million_sm3 DESC;"""
+
+VOLVE_WELLS_POLARS = """\
+import polars as pl
+
+daily = pl.scan_parquet("{base}/volve/daily_production.parquet")
+wells = pl.scan_parquet("{base}/volve/wells.parquet")
+
+by_well = (
+    daily.join(wells, on="npd_wellbore_code")
+    .group_by(pl.col("wellbore_name").alias("well"))
+    .agg(
+        (pl.col("oil_volume").sum() / 1e6).alias("oil_million_sm3"),
+        (pl.col("water_injection_volume").sum() / 1e6).alias("water_injected_million_sm3"),
+    )
+    .sort("oil_million_sm3", descending=True)
+    .collect()
+)"""
+
+
+def _volve_wells(rows: Rows) -> dict[str, Any]:
+    wells = [str(r[0]) for r in rows]
+    oil = [float(r[1] or 0.0) for r in rows]
+    injected = [float(r[2] or 0.0) for r in rows]
+    total = sum(oil)
+    top_two = (oil[0] + oil[1]) / total
+    dry = [i for i, v in enumerate(oil) if v == 0]
+    takeaway = (
+        f"{wells[0]} and {wells[1]} produced {top_two:.0%} of the field's "
+        f"{total:.1f} million Sm³ of oil."
+    )
+    if dry:
+        takeaway += (
+            f" {' and '.join(wells[i] for i in dry)} produced none and injected "
+            f"{sum(injected[i] for i in dry):.1f} million Sm³ of water to "
+            "hold up reservoir pressure."
+        )
+    return {
+        "takeaway": takeaway,
+        "chart": {
+            "kind": "bars",
+            "x": {"type": "category", "values": wells},
+            "series": [
+                {"name": "Oil produced", "unit": "million Sm³", "tone": "oil",
+                 "min": 0, "max": _nice_max(max(oil)), "values": [_r(v, 2) for v in oil]},
+                {"name": "Water injected", "unit": "million Sm³", "tone": "water",
+                 "min": 0, "max": _nice_max(max(injected)),
+                 "values": [_r(v, 2) for v in injected]},
             ],
         },
     }
@@ -334,6 +402,8 @@ def _w3_hydrate(rows: Rows) -> dict[str, Any]:
 GLANCES: list[Glance] = [
     Glance("volve", "field-rates", "A field's whole life in one query",
            VOLVE_FIELD_SQL, _volve_field, polars=VOLVE_FIELD_POLARS),
+    Glance("volve", "cumulative-oil", "Most of the oil came from two wells",
+           VOLVE_WELLS_SQL, _volve_wells, polars=VOLVE_WELLS_POLARS),
     Glance("argentina", "oil-by-resource", "Shale took over Argentina's oil",
            ARGENTINA_RESOURCE_SQL, _argentina_resource),
     Glance("argentina", "basins", "Two basins for oil, a third for gas",
