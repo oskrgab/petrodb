@@ -23,6 +23,7 @@
       </a>
       <nav aria-label="Site">
         <a href="/#datasets">Datasets</a>
+        <a href="/query/">Query the data</a>
         <a href="https://petroviz.ocortez.com/">Explore in petroviz</a>
       </nav>
     </div>
