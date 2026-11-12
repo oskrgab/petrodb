@@ -8,13 +8,16 @@ import type {
   DatasetSummary,
   Glance,
   GuideStep,
+  InstanceGroup,
   Query,
   SeriesChart,
   Snippet,
   Table,
   TableFile,
+  Upstream,
 } from "$lib/types";
 import { highlight } from "./highlight";
+import { listTree, type TreeTable } from "./tree";
 
 /**
  * The canonical data base: the Hugging Face `main` revision. Glances are written
@@ -52,14 +55,34 @@ interface RawGlance {
   chart: Chart;
 }
 
-interface RawFiles {
-  name: string;
-  kind: "single" | "multi";
-  path?: string;
-  manifest?: string;
-  bytes: number;
-  rows: number;
-  files?: TableFile[];
+/**
+ * A committed Dataset's listing is written by the Glances command. A Dataset
+ * whose tree is built in CI (`"generated": true`) is listed from disk at build time.
+ */
+function listFiles(id: string): TreeTable[] | null {
+  if (!listings.has(id)) {
+    listings.set(id, readJson<TreeTable[]>(resolve(DATA_ROOT, id, "files.json")) ?? listTree(resolve(PARQUET_ROOT, id)));
+  }
+  return listings.get(id) ?? null;
+}
+
+// Listing 3W reads 2,228 footers; build each listing once.
+const listings = new Map<string, TreeTable[] | null>();
+
+/**
+ * Whether a Dataset's page can be built here. A generated Dataset's tree is
+ * gitignored and rebuilt in CI, so its page exists only where the pipeline has
+ * run and left the schema documents the page reads.
+ */
+function treeOnDisk(id: string, meta: Record<string, any>): boolean {
+  return !meta.generated || existsSync(resolve(PARQUET_ROOT, id, "schema.json"));
+}
+
+/** Why a Dataset marked ready gets no page in this build, or null if it gets one. */
+export function skipReason(id: string): string | null {
+  const meta = readJson<Record<string, any>>(resolve(DATA_ROOT, id, "dataset.json"));
+  if (!meta?.ready || treeOnDisk(id, meta)) return null;
+  return `parquet/${id}/ is not on disk. The ${id} pipeline builds it; CI runs it before the site build.`;
 }
 
 /** Wrap a DuckDB SQL script so it runs from Python and returns a DataFrame. */
@@ -128,7 +151,7 @@ export function loadSummary(id: string): DatasetSummary {
     grain: meta.grain,
     covers: facts.covers,
     size: bytes(facts.bytes),
-    ready: meta.ready,
+    ready: Boolean(meta.ready) && treeOnDisk(id, meta),
     petroviz: meta.petroviz,
     licence: meta.licence,
     spark: spark(glances?.[0]?.chart),
@@ -167,7 +190,7 @@ export function inlineMarkdown(text: string): string {
 
 export function loadTables(id: string): Table[] {
   const schema = readJson<{ tables: Record<string, any> }>(resolve(PARQUET_ROOT, id, "schema.json"));
-  const files = readJson<RawFiles[]>(resolve(DATA_ROOT, id, "files.json")) ?? [];
+  const files = listFiles(id) ?? [];
   if (!schema) return [];
   const mdPath = resolve(PARQUET_ROOT, id, "schema.md");
   const described = columnDescriptions(existsSync(mdPath) ? readFileSync(mdPath, "utf8") : "");
@@ -192,6 +215,7 @@ export function loadTables(id: string): Table[] {
       manifest: file?.manifest,
       bytes: file?.bytes ?? 0,
       rows: file?.rows ?? 0,
+      fileCount: file?.files?.length ?? 0,
       files: file?.files ?? [],
     };
   });
@@ -233,6 +257,12 @@ export function loadDataset(id: string) {
     why: q.why,
     snippets: snippets(q),
   }));
+  const browsed: string | undefined = meta.instances?.table;
+  const listed = loadTables(id);
+  const instances = browsed ? instanceGroups(id, listed, browsed) : null;
+  // The Instance browser carries the browsed table's files; do not ship them twice.
+  const tables = listed.map((t) => (t.name === browsed ? { ...t, files: [] } : t));
+  const schema = readJson<{ upstream?: Upstream }>(resolve(PARQUET_ROOT, id, "schema.json"));
   return {
     summary: loadSummary(id),
     about: (meta.about ?? []) as string[],
@@ -240,7 +270,36 @@ export function loadDataset(id: string) {
     source: (meta.source?.text ?? "") as string,
     glances: loadGlances(id),
     queries,
-    tables: loadTables(id),
+    tables,
+    // The pin the pipeline wrote into schema.json (ADR-0002), never retyped here.
+    // Other schemas describe their upstream without pinning a release.
+    upstream: schema?.upstream?.git_tag ? schema.upstream : null,
+    instances,
+    browsed: browsed ?? null,
     dataBase: `${DATA_BASE}/${id}`,
   };
+}
+
+/**
+ * Group the Petrobras 3W Observation files by Event class. Each file sits at
+ * `event_class=N/<instance_id>.parquet` (ADR-0001). The Event class names are
+ * committed by the Glances command, since the build reads no parquet rows.
+ */
+function instanceGroups(id: string, tables: Table[], table: string): InstanceGroup[] {
+  const names = readJson<{ event_class: number; description: string }[]>(
+    resolve(DATA_ROOT, id, "event_classes.json"),
+  );
+  if (!names) throw new Error(`No event_classes.json for ${id}: run \`uv run -m scripts.site.glances\``);
+  const groups: InstanceGroup[] = names.map((n) => ({
+    eventClass: n.event_class,
+    description: n.description,
+    files: [],
+  }));
+  for (const f of tables.find((t) => t.name === table)?.files ?? []) {
+    const m = f.path.match(/event_class=(\d+)\/([^/]+)\.parquet$/);
+    const group = m && groups.find((g) => g.eventClass === Number(m[1]));
+    if (!m || !group) throw new Error(`${f.path} is not event_class=N/<instance_id>.parquet for a known Event class`);
+    group.files.push({ instanceId: m[2], bytes: f.bytes });
+  }
+  return groups;
 }

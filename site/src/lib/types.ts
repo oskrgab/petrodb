@@ -17,6 +17,8 @@ export interface SeriesChart {
   max?: number;
   x: { type: "month" | "year" | "depth" | "time" | "category"; values: (string | number)[] };
   series: Series[];
+  /** Labelled stretches of the x axis, as inclusive indices into x.values. */
+  spans?: { name: string; from: number; to: number }[];
 }
 
 /** One run of a single class down a categorical column, top above base. */
@@ -96,6 +98,8 @@ export interface Table {
   manifest?: string;
   bytes: number;
   rows: number;
+  /** How many member files; `files` is left empty when a browser lists them instead. */
+  fileCount: number;
   files: TableFile[];
 }
 
@@ -110,4 +114,19 @@ export interface DatasetSummary {
   petroviz: { label: string; url: string } | null;
   licence: { name: string; url: string; note?: string };
   spark: SeriesChart | null;
+}
+
+/** The upstream release a Dataset is pinned to, as its schema.json records it. */
+export interface Upstream {
+  repo: string;
+  git_tag: string;
+  dataset_version: string;
+}
+
+/** One Event class's Observation files, for the Petrobras 3W Instance browser. */
+export interface InstanceGroup {
+  eventClass: number;
+  description: string;
+  /** Each file is `event_class=<eventClass>/<instanceId>.parquet` (ADR-0001). */
+  files: { instanceId: string; bytes: number }[];
 }

@@ -28,3 +28,4 @@ The Landing becomes a SvelteKit project in `site/`, built with `adapter-static` 
 - The deploy workflow and `deploy.sh` gain a Node build step; the repo gains a second toolchain.
 - Tests that asserted on generated HTML are replaced by tests on the Dataset metadata.
 - A stale Glance is possible if a Dataset is re-exported without regenerating it. The export pipelines must run the Glance command, or a check must compare the two.
+- Petrobras 3W is the exception to "never reads parquet": its tree is gitignored and built in CI, so no file listing can be committed. Its `dataset.json` says `"generated": true`; the build lists that tree from disk (sizes from the file system, row counts from each file's parquet footer, no rows read) and builds the page only where the tree's `schema.json` exists. Elsewhere the build skips the page and says so. Its Glances run against the published files and are committed like the others (#59).

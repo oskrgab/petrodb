@@ -45,6 +45,13 @@ export function stackPaths(chart: SeriesChart): string[] {
   });
 }
 
+/** The box a labelled span covers, from its first point to its last. */
+export function spanBox(chart: SeriesChart, span: { from: number; to: number }): { x: number; width: number } {
+  const n = chart.x.values.length;
+  const x = xAt(span.from, n);
+  return { x, width: Math.max(xAt(span.to, n) - x, 0.5) };
+}
+
 export interface Tick {
   /** Position along the axis, 0–100. */
   at: number;

@@ -19,7 +19,12 @@
 {#if chart.kind === "log"}
   <LogStrip {chart} {label} />
 {:else if chart.kind === "bars"}
-  <div class="bars" role="img" aria-label={label}>
+  <div
+    class="bars"
+    role="img"
+    aria-label={label}
+    style={`grid-template-columns: max-content repeat(${chart.series.length}, minmax(0, 1fr))`}
+  >
     <div class="cats" style={`grid-template-rows: auto repeat(${categories.length}, 1fr)`}>
       <div class="head-spacer"></div>
       {#each categories as c}
@@ -63,6 +68,14 @@
         <CurveHeader name={curveName(s)} min={scale.min} max={scale.max} tone={s.tone} />
       {/each}
     {/if}
+    {#if chart.spans?.length}
+      <div class="spans label">
+        <span class="fine">Labelled</span>
+        {#each chart.spans as s, i}
+          <span class="key" class:strong={i > 0}>{s.name}</span>
+        {/each}
+      </div>
+    {/if}
     <div class="plot">
       <Plot {chart} {label} />
     </div>
@@ -99,6 +112,31 @@
     border-left: 1px solid var(--rule);
   }
 
+  /* Key for the shaded spans; swatches match Plot's .span fills. */
+  .spans {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.25rem 1rem;
+    padding: 0.3rem 0.6rem 0.25rem;
+    border-top: 1px solid var(--rule);
+  }
+
+  .key::before {
+    content: "";
+    display: inline-block;
+    width: 0.9rem;
+    height: 0.7rem;
+    margin-right: 0.35rem;
+    vertical-align: -0.05rem;
+    background: var(--accent-soft);
+    border: 1px solid var(--accent);
+  }
+
+  .key.strong::before {
+    background: color-mix(in srgb, var(--accent) 28%, transparent);
+  }
+
   .plot {
     border-top: 1px solid var(--ink);
     aspect-ratio: 16 / 8;
@@ -127,9 +165,9 @@
     transform: none;
   }
 
+  /* Columns are set inline: the category names, then one track per series. */
   .bars {
     display: grid;
-    grid-template-columns: max-content 1fr 1fr;
     gap: 0 0.75rem;
   }
 
@@ -184,7 +222,7 @@
 
   @media (max-width: 40rem) {
     .bars {
-      grid-template-columns: minmax(0, 1fr);
+      grid-template-columns: minmax(0, 1fr) !important; /* beats the inline columns */
       row-gap: 1rem;
     }
 

@@ -471,6 +471,101 @@
       111.89
      ]
     }
+   ],
+   "spans": [
+    {
+     "name": "Transient",
+     "from": 66,
+     "to": 209
+    },
+    {
+     "name": "Steady",
+     "from": 210,
+     "to": 224
+    }
+   ]
+  }
+ },
+ {
+  "id": "instances-by-class",
+  "title": "Real, simulated and hand-drawn",
+  "takeaway": "2,228 Instances. Real wells supply 1,119, 594 of them Normal Operation. Among the anomalies, Flow Instability comes only from real wells; Rapid Productivity Loss is mostly simulated (439 of 450).",
+  "sql": "SELECT e.description AS event_class,\n       count(*) FILTER (WHERE i.well_kind = 'real')      AS real_wells,\n       count(*) FILTER (WHERE i.well_kind = 'simulated') AS simulated,\n       count(*) FILTER (WHERE i.well_kind = 'drawn')     AS drawn\nFROM 'https://huggingface.co/datasets/oskrgab/petrodb/resolve/main/petrobras_3w/instances.parquet' AS i\nJOIN 'https://huggingface.co/datasets/oskrgab/petrodb/resolve/main/petrobras_3w/event_types.parquet' AS e USING (event_class)\nGROUP BY e.event_class, e.description\nORDER BY e.event_class;",
+  "chart": {
+   "kind": "bars",
+   "x": {
+    "type": "category",
+    "values": [
+     "Normal Operation",
+     "Abrupt Increase of BSW",
+     "Spurious Closure of DHSV",
+     "Severe Slugging",
+     "Flow Instability",
+     "Rapid Productivity Loss",
+     "Quick Restriction in PCK",
+     "Scaling in PCK",
+     "Hydrate in Production Line",
+     "Hydrate in Service Line"
+    ]
+   },
+   "series": [
+    {
+     "name": "Real",
+     "unit": "Instances",
+     "tone": "oil",
+     "min": 0,
+     "max": 600,
+     "values": [
+      594,
+      4,
+      22,
+      32,
+      343,
+      11,
+      6,
+      36,
+      14,
+      57
+     ]
+    },
+    {
+     "name": "Simulated",
+     "unit": "Instances",
+     "tone": "water",
+     "min": 0,
+     "max": 600,
+     "values": [
+      0,
+      114,
+      16,
+      74,
+      0,
+      439,
+      215,
+      0,
+      81,
+      150
+     ]
+    },
+    {
+     "name": "Drawn",
+     "unit": "Instances",
+     "tone": "gas",
+     "min": 0,
+     "max": 600,
+     "values": [
+      0,
+      10,
+      0,
+      0,
+      0,
+      0,
+      0,
+      10,
+      0,
+      0
+     ]
+    }
    ]
   }
  }

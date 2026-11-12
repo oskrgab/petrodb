@@ -140,6 +140,42 @@ def test_check_skips_a_dataset_that_is_not_on_disk(
     assert "skip volve" in capsys.readouterr().out
 
 
+def _committed(dataset: str, glance_id: str) -> dict:
+    path = SITE_DATA / dataset / "glances.json"
+    return next(g for g in json.loads(path.read_text()) if g["id"] == glance_id)
+
+
+def test_3w_instances_per_event_class_split_by_well_kind() -> None:
+    # Pinned release v.1.70.0 / dataset 2.0.0: 2,228 Instances, 594 of them
+    # Normal Operation from real wells, 439 simulated Rapid Productivity Loss.
+    chart = _committed("petrobras_3w", "instances-by-class")["chart"]
+    kinds = {s["name"]: s["values"] for s in chart["series"]}
+    assert set(kinds) == {"Real", "Simulated", "Drawn"}
+    assert sum(sum(v) for v in kinds.values()) == 2228
+    classes = chart["x"]["values"]
+    assert len(classes) == 10
+    assert kinds["Real"][classes.index("Normal Operation")] == 594
+    assert kinds["Simulated"][classes.index("Rapid Productivity Loss")] == 439
+
+
+def test_3w_hydrate_trace_marks_the_labelled_span() -> None:
+    # The Instance is labelled transient (108) from 10:56 on 31 Aug 2011 and
+    # steady (8) from 10:46 on 1 Sep until it ends at 13:10.
+    chart = _committed("petrobras_3w", "hydrate-pressure")["chart"]
+    times = chart["x"]["values"]
+    spans = {s["name"]: (times[s["from"]], times[s["to"]]) for s in chart["spans"]}
+    assert spans == {
+        "Transient": ("2011-08-31T10:50:00", "2011-09-01T10:40:00"),
+        "Steady": ("2011-09-01T10:50:00", "2011-09-01T13:10:00"),
+    }
+
+
+def test_3w_event_classes_are_committed_for_the_instance_browser() -> None:
+    names = json.loads((SITE_DATA / "petrobras_3w" / "event_classes.json").read_text())
+    assert [c["event_class"] for c in names] == list(range(10))
+    assert names[8]["description"] == "Hydrate in Production Line"
+
+
 def test_multi_parquet_tables_are_listed_from_their_manifest() -> None:
     tables = {t["name"]: t for t in glances.list_files("argentina")}
     monthly = tables["monthly_production"]
