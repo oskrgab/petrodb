@@ -1,6 +1,6 @@
 # Serve the parquet tree from Hugging Face; keep the landing on Cloudflare
 
-**Status:** accepted — supersedes [ADR-0003](0003-cloudflare-pages-hosting.md)
+**Status:** accepted — supersedes [ADR-0003](0003-cloudflare-pages-hosting.md); amended by [ADR-0009](0009-hf-dataset-under-oskrgab-namespace.md) (the dataset repo is now `oskrgab/petrodb`)
 
 ## Context
 
