@@ -3,11 +3,10 @@
   "name": "Argentina production",
   "holds": "Monthly oil, gas and water for every well in Argentina, with each well's location, operator history and operating state.",
   "grain": "well per month",
-  "covers": "85,417 wells, 2006–2025",
   "ready": true,
   "petroviz": null,
   "about": [
-    "Argentina's Secretaría de Energía publishes what every well in the country produced each month. PetroDB reshapes those files into four tables that join on one key, <code>idpozo</code>, so a well's attributes are stored once instead of being repeated on 17.8 million monthly rows.",
+    "Argentina's Secretaría de Energía publishes what every well in the country produced each month. PetroDB reshapes those files into four tables that join on one key, <code>idpozo</code>, so a well's attributes are stored once instead of being repeated on every one of its monthly rows.",
     "A well here means one wellbore producing from one formation: a wellbore that produces from two formations has two <code>idpozo</code> values. Column names are kept in Spanish exactly as the source publishes them; the <a href=\"schema.md\">schema document</a> explains each one in English."
   ],
   "units": [

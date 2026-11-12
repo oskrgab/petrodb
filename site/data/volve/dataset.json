@@ -3,7 +3,6 @@
   "name": "Volve",
   "holds": "Daily and monthly production for every well in Equinor's Volve field, from first oil to shutdown.",
   "grain": "well per day",
-  "covers": "7 wells, 2007–2016",
   "ready": false,
   "petroviz": {
     "label": "Open the production dashboard",

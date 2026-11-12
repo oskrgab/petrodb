@@ -86,15 +86,17 @@ export function loadGlances(id: string): Glance[] {
 export function loadSummary(id: string): DatasetSummary {
   const meta = readJson<Record<string, any>>(resolve(DATA_ROOT, id, "dataset.json"));
   if (!meta) throw new Error(`No dataset.json for ${id}`);
-  const files = readJson<RawFiles[]>(resolve(DATA_ROOT, id, "files.json"));
+  // Computed from the data by scripts/site/glances.py; never typed by hand.
+  const facts = readJson<{ covers: string; bytes: number }>(resolve(DATA_ROOT, id, "facts.json"));
+  if (!facts) throw new Error(`No facts.json for ${id}: run \`uv run -m scripts.site.glances ${id}\``);
   const glances = readJson<RawGlance[]>(resolve(DATA_ROOT, id, "glances.json"));
   return {
     id,
     name: meta.name,
     holds: meta.holds,
     grain: meta.grain,
-    covers: meta.covers,
-    size: files ? bytes(files.reduce((sum, t) => sum + t.bytes, 0)) : (meta.size ?? ""),
+    covers: facts.covers,
+    size: bytes(facts.bytes),
     ready: meta.ready,
     petroviz: meta.petroviz,
     licence: meta.licence,

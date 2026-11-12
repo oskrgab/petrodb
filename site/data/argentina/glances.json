@@ -119,7 +119,7 @@
  {
   "id": "basins",
   "title": "Two basins for oil, a third for gas",
-  "takeaway": "Totals for 2006 to 2025. Neuquina and Golfo San Jorge produced 90% of the oil. Gas is a different map: Neuquina leads, and Austral ranks second with only 4% of the oil.",
+  "takeaway": "Totals across all years. Neuquina and Golfo San Jorge produced 90% of the oil. Gas is a different map: Neuquina leads, and Austral ranks second with only 4% of the oil.",
   "sql": "SET VARIABLE monthly_production = (\n    SELECT list('https://huggingface.co/datasets/oskrgab/petrodb/resolve/main/argentina/monthly_production/' || path)\n    FROM read_json('https://huggingface.co/datasets/oskrgab/petrodb/resolve/main/argentina/monthly_production/_files.json') AS manifest(path)\n);\n\nSELECT w.cuenca AS basin,\n       sum(p.prod_pet) / 1e6 AS oil_million_m3,\n       sum(p.prod_gas) / 1e6 AS gas_billion_m3   -- prod_gas is in thousand m³\nFROM read_parquet(getvariable('monthly_production'), hive_partitioning = true) AS p\nJOIN 'https://huggingface.co/datasets/oskrgab/petrodb/resolve/main/argentina/wells.parquet' AS w USING (idpozo)\nGROUP BY basin\nHAVING oil_million_m3 >= 1 OR gas_billion_m3 >= 1\nORDER BY oil_million_m3 DESC;",
   "chart": {
    "kind": "bars",
