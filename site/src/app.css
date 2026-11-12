@@ -33,6 +33,21 @@
   --gas: #f59e0b;
   --neutral: #c5cecb;
 
+  /* Lithology column fills, after the usual log-plot conventions:
+     sand yellow, shale grey-green, carbonates blue, evaporites pink. */
+  --lith-sandstone: #f2d16b;
+  --lith-shale: #8c9a86;
+  --lith-sandstone-shale: #c9bb7a;
+  --lith-limestone: #6fa8dc;
+  --lith-chalk: #c6e2f5;
+  --lith-dolomite: #8e7cc3;
+  --lith-marl: #9fc5a8;
+  --lith-anhydrite: #e3a6d6;
+  --lith-halite: #e07a7a;
+  --lith-coal: #2b2b2b;
+  --lith-basement: #b35d3a;
+  --lith-tuff: #e69138;
+
   --code-string: #2f6a58;
   --code-number: #8a4b1f;
 
@@ -64,6 +79,19 @@
   --water: #38bdf8;
   --gas: #fbbf24;
   --neutral: #3b4a45;
+
+  --lith-sandstone: #c9a93e;
+  --lith-shale: #5f6d5a;
+  --lith-sandstone-shale: #8f8450;
+  --lith-limestone: #4f86b8;
+  --lith-chalk: #8db4cf;
+  --lith-dolomite: #7464a8;
+  --lith-marl: #6c9a78;
+  --lith-anhydrite: #b77cab;
+  --lith-halite: #b85c5c;
+  --lith-coal: #0b0b0b;
+  --lith-basement: #94502f;
+  --lith-tuff: #c27628;
 
   --code-string: #8fd0b8;
   --code-number: #e0a878;

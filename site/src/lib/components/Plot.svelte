@@ -1,8 +1,8 @@
 <script lang="ts">
   import { linePath, scaleOf, stackPaths, toneVar, xTicks } from "$lib/chart";
-  import type { Chart } from "$lib/types";
+  import type { SeriesChart } from "$lib/types";
 
-  let { chart, grid = true, label }: { chart: Chart; grid?: boolean; label: string } = $props();
+  let { chart, grid = true, label }: { chart: SeriesChart; grid?: boolean; label: string } = $props();
 
   const ticks = $derived(xTicks(chart));
 </script>

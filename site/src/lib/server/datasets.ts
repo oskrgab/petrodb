@@ -1,7 +1,18 @@
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { sparkOf } from "$lib/chart";
 import { bytes } from "$lib/format";
-import type { Chart, Column, DatasetSummary, Glance, Query, Snippet, Table, TableFile } from "$lib/types";
+import type {
+  Chart,
+  Column,
+  DatasetSummary,
+  Glance,
+  Query,
+  SeriesChart,
+  Snippet,
+  Table,
+  TableFile,
+} from "$lib/types";
 import { highlight } from "./highlight";
 
 /** Where visitors read the data from. Mirrors PUBLIC_BASE in scripts/site/glances.py. */
@@ -74,6 +85,12 @@ export function loadGlances(id: string): Glance[] {
   }));
 }
 
+/** The home page previews a Dataset with its first Glance, drawn left to right. */
+function spark(chart: Chart | undefined): SeriesChart | null {
+  if (!chart) return null;
+  return chart.kind === "log" ? sparkOf(chart) : chart;
+}
+
 export function loadSummary(id: string): DatasetSummary {
   const meta = readJson<Record<string, any>>(resolve(DATA_ROOT, id, "dataset.json"));
   if (!meta) throw new Error(`No dataset.json for ${id}`);
@@ -89,7 +106,7 @@ export function loadSummary(id: string): DatasetSummary {
     ready: meta.ready,
     petroviz: meta.petroviz,
     licence: meta.licence,
-    spark: glances?.[0]?.chart ?? null,
+    spark: spark(glances?.[0]?.chart),
   };
 }
 

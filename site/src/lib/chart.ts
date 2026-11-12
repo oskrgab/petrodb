@@ -1,4 +1,4 @@
-import type { Chart, Series } from "./types";
+import type { LogChart, Series, SeriesChart } from "./types";
 
 /** Plots are drawn in a 0–100 box and stretched to fit; strokes do not scale. */
 const SIZE = 100;
@@ -30,7 +30,7 @@ export function linePath(s: Series, min: number, max: number): string {
 }
 
 /** Closed bands for a stacked area chart, first series at the bottom. */
-export function stackPaths(chart: Chart): string[] {
+export function stackPaths(chart: SeriesChart): string[] {
   const n = chart.x.values.length;
   const min = chart.min ?? 0;
   const max = chart.max ?? 1;
@@ -52,7 +52,7 @@ export interface Tick {
 }
 
 /** Axis ticks at round values of whatever the x axis measures. */
-export function xTicks(chart: Chart): Tick[] {
+export function xTicks(chart: SeriesChart): Tick[] {
   const { type, values } = chart.x;
   const n = values.length;
   const ticks: Tick[] = [];
@@ -72,10 +72,60 @@ export function xTicks(chart: Chart): Tick[] {
   return ticks;
 }
 
-export function scaleOf(chart: Chart, s: Series): { min: number; max: number } {
+export function scaleOf(chart: SeriesChart, s: Series): { min: number; max: number } {
   return { min: s.min ?? chart.min ?? 0, max: s.max ?? chart.max ?? 1 };
 }
 
 export function toneVar(tone: Series["tone"]): string {
   return `var(--${tone})`;
+}
+
+/* Well-log strips: depth runs down the plot, values across it. */
+
+function depthAt(d: number, chart: LogChart): number {
+  const { min, max } = chart.depth;
+  return ((d - min) / (max - min)) * SIZE;
+}
+
+/** A curve down a log track; nulls lift the pen. Off-scale values are clipped by the track. */
+export function logPath(chart: LogChart, s: Series): string {
+  const min = s.min ?? 0;
+  const max = s.max ?? 1;
+  let d = "";
+  let pen = false;
+  s.values.forEach((v, i) => {
+    if (v == null) {
+      pen = false;
+      return;
+    }
+    const x = ((v - min) / (max - min)) * SIZE;
+    d += `${pen ? "L" : "M"}${fmt(x)} ${fmt(depthAt(chart.depth.values[i], chart))}`;
+    pen = true;
+  });
+  return d;
+}
+
+/** A column interval as a box in the 0–100 plot. */
+export function intervalBox(chart: LogChart, top: number, base: number): { y: number; height: number } {
+  const y = depthAt(top, chart);
+  return { y, height: depthAt(base, chart) - y };
+}
+
+/** Depth ticks every 500 m, positioned 0–100 from the top of the strip. */
+export function depthTicks(chart: LogChart): Tick[] {
+  const ticks: Tick[] = [];
+  const step = 500;
+  for (let d = Math.ceil(chart.depth.min / step) * step; d <= chart.depth.max; d += step) {
+    ticks.push({ at: depthAt(d, chart), label: d.toLocaleString("en-US") });
+  }
+  return ticks;
+}
+
+/** A log strip's first curve laid on its side, for the home page's small preview. */
+export function sparkOf(chart: LogChart): SeriesChart {
+  return {
+    kind: "lines",
+    x: { type: "depth", values: chart.depth.values },
+    series: [chart.tracks[0].series[0]],
+  };
 }
