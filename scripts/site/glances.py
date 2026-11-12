@@ -356,30 +356,137 @@ def _argentina_active(rows: Rows) -> dict[str, Any]:
 # FORCE 2020
 # --------------------------------------------------------------------------
 
-FORCE_GR_SQL = """\
+# FORCE_2020_LITHOFACIES_LITHOLOGY codes, as listed in the dataset's schema.md.
+# The key names the colour token (`--lith-<key>`) the site draws the class in.
+FORCE_LITHOLOGY: dict[int, tuple[str, str]] = {
+    30000: ("sandstone", "Sandstone"),
+    65000: ("shale", "Shale"),
+    65030: ("sandstone-shale", "Sandstone/Shale"),
+    70000: ("limestone", "Limestone"),
+    70032: ("chalk", "Chalk"),
+    74000: ("dolomite", "Dolomite"),
+    80000: ("marl", "Marl"),
+    86000: ("anhydrite", "Anhydrite"),
+    88000: ("halite", "Halite"),
+    90000: ("coal", "Coal"),
+    93000: ("basement", "Basement"),
+    99000: ("tuff", "Tuff"),
+}
+
+FORCE_LOG_STEP_M = 5
+
+# The 5 below is FORCE_LOG_STEP_M; _lithology_runs relies on the two matching.
+FORCE_LOG_SQL = """\
 SELECT floor(DEPTH_MD / 5) * 5 AS depth_m,
-       avg(GR) AS gamma_ray_api
+       avg(GR)   AS gamma_ray_api,
+       avg(RHOB) AS bulk_density_g_cm3,
+       -- the lithology code most samples in each 5 m step carry
+       mode(FORCE_2020_LITHOFACIES_LITHOLOGY) AS lithology
 FROM '{base}/force_2020/wells/15-9-13.parquet'
 GROUP BY depth_m
 ORDER BY depth_m;"""
 
 
-def _force_gr(rows: Rows) -> dict[str, Any]:
-    rows = [r for r in rows if r[1] is not None]
-    depth = [r[0] for r in rows]
+def _lithology_runs(depth: list[float], codes: list[int | None]) -> list[dict[str, Any]]:
+    """Merge consecutive depth steps of one lithology into top/base intervals."""
+    runs: list[dict[str, Any]] = []
+    for i, code in enumerate(codes):
+        base = depth[i + 1] if i + 1 < len(depth) else depth[i] + FORCE_LOG_STEP_M
+        key = FORCE_LITHOLOGY[code][0] if code is not None else None
+        if runs and runs[-1]["key"] == key:
+            runs[-1]["base"] = base
+        else:
+            runs.append({"top": depth[i], "base": base, "key": key})
+    return [r for r in runs if r["key"] is not None]
+
+
+def _force_log(rows: Rows) -> dict[str, Any]:
+    depth = [float(r[0]) for r in rows]
     gr = [r[1] for r in rows]
+    rhob = [r[2] for r in rows]
+    codes = [r[3] for r in rows]
+    runs = _lithology_runs(depth, codes)
+    present = {r["key"] for r in runs}
+    classes = [
+        {"key": key, "name": name}
+        for key, name in FORCE_LITHOLOGY.values() if key in present
+    ]
+    thickness: dict[str, float] = {}
+    for r in runs:
+        thickness[r["key"]] = thickness.get(r["key"], 0.0) + r["base"] - r["top"]
+    logged = sum(thickness.values())
+    shale = thickness.get("shale", 0.0) / logged
+    bottom = depth[-1] + FORCE_LOG_STEP_M
     return {
         "takeaway": (
-            f"Gamma ray in well 15/9-13 from {depth[0]:,.0f} m to "
-            f"{depth[-1]:,.0f} m, averaged every 5 m. High readings mark "
-            "shale; low readings mark cleaner sand and carbonate."
+            f"Well 15/9-13 from {depth[0]:,.0f} m to {bottom:,.0f} m, averaged "
+            f"in {FORCE_LOG_STEP_M} m steps, beside the interpreted lithology. "
+            f"Shale fills {shale:.0%} of it: high gamma ray marks shale, "
+            "low readings mark the sandstone and limestone beds."
         ),
         "chart": {
-            "kind": "lines",
-            "x": {"type": "depth", "values": depth},
+            "kind": "log",
+            "depth": {"unit": "m", "min": depth[0], "max": bottom, "values": depth},
+            "tracks": [
+                {"series": [
+                    {"name": "Gamma ray", "unit": "gAPI", "tone": "ink", "min": 0,
+                     "max": 150, "values": [_r(v, 1) for v in gr]},
+                ]},
+                {"series": [
+                    {"name": "Bulk density", "unit": "g/cm³", "tone": "oil",
+                     "min": 1.4, "max": 2.9, "values": [_r(v, 3) for v in rhob]},
+                ]},
+            ],
+            "column": {"name": "Lithology", "classes": classes, "intervals": runs},
+        },
+    }
+
+
+FORCE_MANIFEST_SQL = """\
+SET VARIABLE wells = (
+    SELECT list('{base}/force_2020/wells/' || path)
+    FROM read_json('{base}/force_2020/wells/_files.json') AS manifest(path)
+);
+"""
+
+_LITHOLOGY_CASE = "\n".join(
+    f"           WHEN {code} THEN '{name}'" for code, (_, name) in FORCE_LITHOLOGY.items()
+)
+
+# Opening all 108 files at once can draw HTTP 429 from Hugging Face's rate
+# limit; DuckDB's default of 3 retries is not always enough to ride it out.
+FORCE_MIX_SQL = """\
+SET http_retries = 8;   -- 108 files: ride out Hugging Face rate limits
+""" + FORCE_MANIFEST_SQL + f"""
+SELECT CASE FORCE_2020_LITHOFACIES_LITHOLOGY
+{_LITHOLOGY_CASE}
+       END AS lithology,
+       count(*) * 100 / sum(count(*)) OVER () AS percent_of_samples,
+       count(DISTINCT WELL) AS wells
+FROM read_parquet(getvariable('wells'))
+GROUP BY lithology
+ORDER BY percent_of_samples DESC;"""
+
+
+def _force_mix(rows: Rows) -> dict[str, Any]:
+    names = [r[0] for r in rows]
+    share = [r[1] for r in rows]
+    wells = [r[2] for r in rows]
+    rare = [n for n, s in zip(names, share) if s < 1]
+    return {
+        "takeaway": (
+            f"{names[0]} makes up {share[0]:.0f}% of all samples and appears in "
+            f"{wells[0]} of the 108 wells. {len(rare)} of the {len(names)} "
+            "lithology classes are under 1% of the samples each."
+        ),
+        "chart": {
+            "kind": "bars",
+            "x": {"type": "category", "values": names},
             "series": [
-                {"name": "Gamma ray", "unit": "API", "tone": "ink", "min": 0,
-                 "max": _nice_max(max(gr)), "values": [_r(v, 1) for v in gr]},
+                {"name": "Samples", "unit": "%", "tone": "ink",
+                 "min": 0, "max": _nice_max(max(share)), "values": [_r(v, 2) for v in share]},
+                {"name": "Wells", "unit": "of 108", "tone": "oil",
+                 "min": 0, "max": 108, "values": wells},
             ],
         },
     }
@@ -436,8 +543,10 @@ GLANCES: list[Glance] = [
            ARGENTINA_BASIN_SQL, _argentina_basin),
     Glance("argentina", "producing-wells", "More oil from fewer wells",
            ARGENTINA_ACTIVE_SQL, _argentina_active),
-    Glance("force_2020", "gamma-ray", "A well log, top to bottom",
-           FORCE_GR_SQL, _force_gr),
+    Glance("force_2020", "log-strip", "A well log, top to bottom",
+           FORCE_LOG_SQL, _force_log),
+    Glance("force_2020", "lithology-mix", "Mostly shale, and a long tail",
+           FORCE_MIX_SQL, _force_mix),
     Glance("petrobras_3w", "hydrate-pressure", "An anomaly as the sensors saw it",
            W3_HYDRATE_SQL, _w3_hydrate),
 ]

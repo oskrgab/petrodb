@@ -45,8 +45,14 @@ def test_series_line_up_with_their_axis() -> None:
     for path in SITE_DATA.glob("*/glances.json"):
         for glance in json.loads(path.read_text()):
             chart = glance["chart"]
-            for series in chart["series"]:
-                assert len(series["values"]) == len(chart["x"]["values"]), glance["id"]
+            if chart["kind"] == "log":
+                axis = chart["depth"]["values"]
+                series_list = [s for track in chart["tracks"] for s in track["series"]]
+            else:
+                axis = chart["x"]["values"]
+                series_list = chart["series"]
+            for series in series_list:
+                assert len(series["values"]) == len(axis), glance["id"]
 
 
 def _glance(dataset: str, glance_id: str) -> glances.Glance:

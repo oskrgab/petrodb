@@ -9,7 +9,8 @@ export interface Series {
   values: (number | null)[];
 }
 
-export interface Chart {
+/** A chart drawn left to right along an x axis. */
+export interface SeriesChart {
   kind: "lines" | "stacked" | "bars";
   unit?: string;
   min?: number;
@@ -17,6 +18,27 @@ export interface Chart {
   x: { type: "month" | "year" | "depth" | "time" | "category"; values: (string | number)[] };
   series: Series[];
 }
+
+/** One run of a single class down a categorical column, top above base. */
+export interface Interval {
+  top: number;
+  base: number;
+  /** Names the colour token, `--lith-<key>`. */
+  key: string;
+}
+
+/**
+ * A well-log strip: depth runs downward, curves sit side by side in tracks
+ * that share the depth axis, and a categorical column (lithology) beside them.
+ */
+export interface LogChart {
+  kind: "log";
+  depth: { unit: string; min: number; max: number; values: number[] };
+  tracks: { series: Series[] }[];
+  column?: { name: string; classes: { key: string; name: string }[]; intervals: Interval[] };
+}
+
+export type Chart = SeriesChart | LogChart;
 
 /** One language's version of a query, already highlighted to HTML. */
 export interface Snippet {
@@ -87,5 +109,5 @@ export interface DatasetSummary {
   ready: boolean;
   petroviz: { label: string; url: string } | null;
   licence: { name: string; url: string; note?: string };
-  spark: Chart | null;
+  spark: SeriesChart | null;
 }

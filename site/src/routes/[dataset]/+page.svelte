@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
+  import FileBrowser from "$lib/components/FileBrowser.svelte";
   import Snippet from "$lib/components/Snippet.svelte";
   import Track from "$lib/components/Track.svelte";
   import { approx, bytes, count } from "$lib/format";
@@ -19,6 +20,8 @@
   const totalRows = $derived(tables.reduce((sum, t) => sum + t.rows, 0));
   const totalBytes = $derived(tables.reduce((sum, t) => sum + t.bytes, 0));
   const docs = ["schema.md", "schema.json", "schema.sql"];
+  // A table with more parts than this opens with its parts listed and a search box.
+  const SEARCH_FROM = 24;
 
   // Mark the section being read in the side list.
   let current = $state("overview");
@@ -62,7 +65,7 @@
         <div><dt class="fine">One row per</dt><dd>{summary.grain}</dd></div>
         <div><dt class="fine">Covers</dt><dd>{summary.covers}</dd></div>
         <div><dt class="fine">Rows</dt><dd class="num">{approx(totalRows)}</dd></div>
-        <div><dt class="fine">Size</dt><dd class="num">{bytes(totalBytes)} in {tables.length} tables</dd></div>
+        <div><dt class="fine">Size</dt><dd class="num">{bytes(totalBytes)} in {tables.length} {tables.length === 1 ? "table" : "tables"}</dd></div>
         <div>
           <dt class="fine">Licence</dt>
           <dd><a href="#licence">{summary.licence.name}</a></dd>
@@ -74,13 +77,6 @@
           <p>{@html paragraph}</p>
         {/each}
       </div>
-
-      {#if summary.petroviz}
-        <p class="explore">
-          <a class="button" href={summary.petroviz.url}>{summary.petroviz.label}</a>
-          <span class="fine">Explore this dataset in petroviz, in your browser.</span>
-        </p>
-      {/if}
     </section>
 
     <section id="glances">
@@ -104,6 +100,12 @@
 
     <section id="query">
       <h2>Query it</h2>
+      {#if summary.petroviz}
+        <p class="explore">
+          <a class="button" href={summary.petroviz.url}>{summary.petroviz.label}</a>
+          <span class="fine">Rather look before you query? petroviz charts this dataset in your browser.</span>
+        </p>
+      {/if}
       <p class="intro">
         Nothing to download. These run against the published files from the DuckDB shell or from
         Python. New to DuckDB or Parquet? <a href="/query/">Query the data</a> walks through it step
@@ -181,7 +183,7 @@
             </li>
           {:else}
             <li class="multi">
-              <details>
+              <details open={t.files.length > SEARCH_FROM}>
                 <summary>
                   <code>{t.name}/</code>
                   <span class="fine num">{t.files.length} files, {bytes(t.bytes)}</span>
@@ -189,14 +191,12 @@
                 <p class="fine">
                   The list of parts is <a href={`${dataBase}/${t.manifest}`}><code>{t.manifest}</code></a>.
                 </p>
-                <ul class="parts">
-                  {#each t.files as f}
-                    <li>
-                      <a href={`${dataBase}/${f.path}`}><code>{f.path.replace(`${t.name}/`, "")}</code></a>
-                      <span class="fine num">{bytes(f.bytes)}</span>
-                    </li>
-                  {/each}
-                </ul>
+                <FileBrowser
+                  table={t.name}
+                  files={t.files}
+                  {dataBase}
+                  searchable={t.files.length > SEARCH_FROM}
+                />
               </details>
             </li>
           {/if}
@@ -468,8 +468,7 @@
     border-top: 1px solid var(--ink);
   }
 
-  .files > li:not(.multi),
-  .parts li {
+  .files > li:not(.multi) {
     display: flex;
     justify-content: space-between;
     gap: 1rem;
@@ -483,20 +482,6 @@
 
   .multi details > .fine {
     padding-left: 1.25rem;
-  }
-
-  .parts {
-    list-style: none;
-    margin: 0.5rem 0 1rem 1.25rem;
-    padding: 0;
-    columns: 2 14rem;
-    column-gap: 2rem;
-  }
-
-  .parts li {
-    padding: 0.3rem 0;
-    border-bottom-color: var(--grid);
-    break-inside: avoid;
   }
 
   .docs {
