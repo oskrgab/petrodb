@@ -16,7 +16,7 @@ import pytest
 
 from scripts.deploy import retarget_data_urls as rt
 
-STAGE_BASE = "https://huggingface.co/datasets/sumpalabs/petrodb/resolve/stage"
+STAGE_BASE = "https://huggingface.co/datasets/oskrgab/petrodb/resolve/stage"
 MAIN_BASE = rt.CANONICAL_HF_BASE
 DEV_HOST = rt.DEV_CADDY_HOST
 
@@ -62,7 +62,7 @@ def test_main_deploy_is_noop_on_hf_base_but_still_clears_dev_host() -> None:
 
 def test_plain_dataset_link_is_not_touched() -> None:
     # The HF dataset landing link lacks `/resolve/<rev>` and must survive.
-    link = "https://huggingface.co/datasets/sumpalabs/petrodb"
+    link = "https://huggingface.co/datasets/oskrgab/petrodb"
     assert rt.retarget_text(link, STAGE_BASE) == link
 
 

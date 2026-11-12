@@ -19,7 +19,7 @@ Magnitudes you'll see:
     Cumulative oil : ~0–2   Bbbl    (billion barrels)
     Cumulative gas : ~0–20  Tcf     (trillion cubic feet)
 
-Try it yourself: https://huggingface.co/datasets/sumpalabs/petrodb
+Try it yourself: https://huggingface.co/datasets/oskrgab/petrodb
 Dependencies: duckdb, polars, matplotlib, contextily.
 """
 
@@ -40,7 +40,7 @@ from utils import (
 # the `BASE_URL` env var for a local Caddy dev host or a frozen HF revision.
 BASE_URL = (
     os.environ.get(
-        "BASE_URL", "https://huggingface.co/datasets/sumpalabs/petrodb/resolve/main"
+        "BASE_URL", "https://huggingface.co/datasets/oskrgab/petrodb/resolve/main"
     ).rstrip("/")
     + "/argentina"
 )
@@ -68,7 +68,7 @@ def main() -> None:
                 "Daily rate · 2006–2025 · four independent DuckDB queries "
                 "against publicly hosted Parquet"
             ),
-            source_caption="Parquet host: Hugging Face (sumpalabs/petrodb)  ·  Basemap © Esri",
+            source_caption="Parquet host: Hugging Face (oskrgab/petrodb)  ·  Basemap © Esri",
         )
     finally:
         conn.close()

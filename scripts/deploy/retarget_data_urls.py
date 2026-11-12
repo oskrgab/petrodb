@@ -42,7 +42,7 @@ DEV_CADDY_HOST = "https://dev-petrodb.ocortez.com"
 # the per-dataset schema READMEs, the root README, the HF dataset card) is
 # committed against this base — it MUST equal `vars.BASE_URL_MAIN` in the deploy
 # workflow so a `main` deploy is a no-op on it.
-CANONICAL_HF_BASE = "https://huggingface.co/datasets/sumpalabs/petrodb/resolve/main"
+CANONICAL_HF_BASE = "https://huggingface.co/datasets/oskrgab/petrodb/resolve/main"
 
 # Non-deploy data hosts frozen in the built tree; each is rewritten to BASE_URL
 # so no host other than the deploy's own revision survives.

@@ -1,7 +1,7 @@
 name: Deploy (Hugging Face data + Cloudflare landing)
 
 # Single workflow, two publish targets per push to main/stage (ADR-0005):
-#   - Hugging Face dataset `sumpalabs/petrodb` carries the parquet *bytes*
+#   - Hugging Face dataset `oskrgab/petrodb` carries the parquet *bytes*
 #     (`*.parquet` + `_files.json`) on a branch matching the GitHub ref. HF
 #     `resolve` URLs honour HTTP Range unconditionally, so DuckDB `httpfs`
 #     consumers get true row-group pushdown (Cloudflare Pages does not).
@@ -21,8 +21,8 @@ name: Deploy (Hugging Face data + Cloudflare landing)
 # allows manual redeploys without an empty commit.
 #
 # 3W pipeline re-run is gated by a cache keyed on the 3W source hashes plus
-# the resolved per-branch BASE_URL (so the prod/stage catalogs never share a
-# cache entry): if neither has changed, the previously-generated 3W tree is
+# the resolved per-branch BASE_URL (so the prod/stage Instance catalogs, which
+# bake BASE_URL into `source_url`, never share a cache entry): if neither has changed, the previously-generated 3W tree is
 # restored and the deploy goes out without re-running the pipeline.
 
 on:
@@ -112,7 +112,7 @@ jobs:
       # which are gated on the cache miss. hf_xet enables the fast Xet upload
       # backend HF uses for content-addressed storage.
       - name: Install Hugging Face CLI
-        run: pipx install "huggingface_hub[cli,hf_xet]"
+        run: pipx install "huggingface_hub[cli,hf_xet]==2.4.0"
 
       - name: Authenticate Hugging Face CLI
         env:
@@ -124,7 +124,7 @@ jobs:
       - name: Ensure HF stage branch exists
         if: github.ref_name == 'stage'
         run: >-
-          hf repo branch create sumpalabs/petrodb stage
+          hf repos branch create oskrgab/petrodb stage
           --repo-type dataset
           --revision main
           --exist-ok
@@ -136,7 +136,7 @@ jobs:
       # `hf upload` supports the `--delete` sync semantics.
       - name: Upload parquet bytes to Hugging Face
         run: >-
-          hf upload sumpalabs/petrodb parquet .
+          hf upload oskrgab/petrodb parquet .
           --repo-type dataset
           --revision ${{ github.ref_name }}
           --include '**/*.parquet'
@@ -151,7 +151,7 @@ jobs:
       # root README.md.
       - name: Upload Hugging Face dataset card
         run: >-
-          hf upload sumpalabs/petrodb hf/README.md README.md
+          hf upload oskrgab/petrodb hf/README.md README.md
           --repo-type dataset
           --revision ${{ github.ref_name }}
           --commit-message "CI deploy: dataset card from ${{ github.sha }}"

@@ -50,7 +50,7 @@ Each partition is sorted by `(idpozo, fecha)`, so Parquet row-group statistics l
 ```python
 import json, urllib.request, duckdb
 
-base = 'https://huggingface.co/datasets/sumpalabs/petrodb/resolve/main/argentina/monthly_production/'
+base = 'https://huggingface.co/datasets/oskrgab/petrodb/resolve/main/argentina/monthly_production/'
 manifest = json.load(urllib.request.urlopen(base + '_files.json'))
 urls = [base + p for p in manifest]
 
@@ -69,7 +69,7 @@ Narrow the manifest to the requested years client-side so only those partition f
 ```python
 import json, urllib.request, duckdb
 
-base = 'https://huggingface.co/datasets/sumpalabs/petrodb/resolve/main/argentina/monthly_production/'
+base = 'https://huggingface.co/datasets/oskrgab/petrodb/resolve/main/argentina/monthly_production/'
 manifest = json.load(urllib.request.urlopen(base + '_files.json'))
 urls = [base + p for p in manifest if 2018 <= int(p.split('=')[1][:4]) <= 2022]
 
@@ -89,7 +89,7 @@ The `wells` master is a single file, read directly; `monthly_production` is redu
 ```python
 import json, urllib.request, duckdb
 
-base = 'https://huggingface.co/datasets/sumpalabs/petrodb/resolve/main/argentina/monthly_production/'
+base = 'https://huggingface.co/datasets/oskrgab/petrodb/resolve/main/argentina/monthly_production/'
 manifest = json.load(urllib.request.urlopen(base + '_files.json'))
 urls = [base + p for p in manifest if p.startswith('anio=2023/')]
 
@@ -97,7 +97,7 @@ duckdb.sql(f"""
     SELECT w.cuenca,
            SUM(m.prod_pet) AS prod_pet_total,
            SUM(m.prod_gas) AS prod_gas_total
-    FROM 'https://huggingface.co/datasets/sumpalabs/petrodb/resolve/main/argentina/wells.parquet' w
+    FROM 'https://huggingface.co/datasets/oskrgab/petrodb/resolve/main/argentina/wells.parquet' w
     JOIN read_parquet(?, hive_partitioning = true) m USING (idpozo)
     WHERE m.anio = 2023
     GROUP BY w.cuenca
@@ -112,7 +112,7 @@ duckdb.sql(f"""
 ```python
 import json, urllib.request, duckdb
 
-base = 'https://huggingface.co/datasets/sumpalabs/petrodb/resolve/main/argentina/monthly_production/'
+base = 'https://huggingface.co/datasets/oskrgab/petrodb/resolve/main/argentina/monthly_production/'
 manifest = json.load(urllib.request.urlopen(base + '_files.json'))
 urls = [base + p for p in manifest]
 
