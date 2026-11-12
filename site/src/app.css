@@ -1,0 +1,215 @@
+@import "@fontsource/ibm-plex-sans/400.css";
+@import "@fontsource/ibm-plex-sans/500.css";
+@import "@fontsource/ibm-plex-sans/600.css";
+@import "@fontsource/ibm-plex-sans/700.css";
+@import "@fontsource/ibm-plex-mono/400.css";
+@import "@fontsource/ibm-plex-mono/500.css";
+
+/*
+ * Tokens. PetroDB and petroviz are one family: the same typefaces (IBM Plex
+ * Sans and Mono), the same header and footer, the same log-track chart
+ * headers, and the same oil / water / gas colours, so a quantity looks the
+ * same on both sites. Each site has its own neutrals and accent: petroviz is
+ * slate with a sky accent, PetroDB is log-paper grey-green with amber.
+ */
+:root {
+  color-scheme: light;
+
+  --paper: #f6f8f7;
+  --surface: #ffffff;
+  --ink: #14201d;
+  --ink-2: #47564f;
+  --ink-3: #6b7a74;
+  --rule: #c9d6d1;
+  --grid: #e3eae7;
+
+  --accent: #b45309;
+  --accent-soft: rgba(180, 83, 9, 0.1);
+
+  /* Shared with petroviz (--color-oil, --color-water, --color-gas). */
+  --oil: #16a34a;
+  --oil-2: #a9dcbb;
+  --water: #0ea5e9;
+  --gas: #f59e0b;
+  --neutral: #c5cecb;
+
+  --code-string: #2f6a58;
+  --code-number: #8a4b1f;
+
+  --sans: "IBM Plex Sans", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", "SF Mono", Monaco, "Cascadia Code", monospace;
+
+  --radius: 8px;
+  --measure: 68ch;
+  --page: 76rem;
+  --gutter: clamp(1rem, 4vw, 2.5rem);
+}
+
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  --paper: #0f1614;
+  --surface: #151e1b;
+  --ink: #e6edea;
+  --ink-2: #b4c2bc;
+  --ink-3: #8b9c95;
+  --rule: #2f3f3a;
+  --grid: #1f2b27;
+
+  --accent: #f4a261;
+  --accent-soft: rgba(244, 162, 97, 0.14);
+
+  --oil: #22c55e;
+  --oil-2: #1f5c38;
+  --water: #38bdf8;
+  --gas: #fbbf24;
+  --neutral: #3b4a45;
+
+  --code-string: #8fd0b8;
+  --code-number: #e0a878;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+  scroll-padding-top: 5rem;
+  -webkit-text-size-adjust: 100%;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+}
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 1rem;
+  line-height: 1.6;
+}
+
+h1,
+h2,
+h3 {
+  font-weight: 600;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  margin: 0;
+  text-wrap: balance;
+}
+
+h1 {
+  font-size: clamp(2rem, 1.3rem + 2.8vw, 3.25rem);
+  font-weight: 700;
+  line-height: 1.08;
+  letter-spacing: -0.03em;
+}
+
+h2 {
+  font-size: clamp(1.5rem, 1.2rem + 1.1vw, 2rem);
+}
+
+h3 {
+  font-size: 1.2rem;
+}
+
+p {
+  margin: 0;
+  max-width: var(--measure);
+  text-wrap: pretty;
+}
+
+a {
+  color: inherit;
+  text-decoration-line: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.18em;
+  text-decoration-color: var(--accent);
+}
+
+a:hover {
+  text-decoration-thickness: 2px;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+code,
+pre {
+  font-family: var(--mono);
+  font-size: 0.86em;
+}
+
+:not(pre) > code {
+  background: var(--grid);
+  padding: 0.08em 0.3em;
+  border-radius: 3px;
+}
+
+/* Small condensed text: table heads, chart scales, file sizes. */
+.fine {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--ink-2);
+}
+
+/* Data labels: chart scales, axis ticks. Mono, as in petroviz. */
+.label {
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--ink-2);
+}
+
+.num {
+  font-variant-numeric: tabular-nums;
+}
+
+.wrap {
+  max-width: var(--page);
+  margin-inline: auto;
+  padding-inline: var(--gutter);
+}
+
+.button {
+  display: inline-block;
+  padding: 0.6rem 1.1rem;
+  background: var(--ink);
+  color: var(--paper);
+  font-weight: 600;
+  text-decoration: none;
+  border-radius: var(--radius);
+}
+
+.button:hover {
+  background: var(--ink-2);
+}
+
+/* Shiki output; token colours follow the theme. */
+pre.shiki {
+  --shiki-foreground: var(--ink);
+  --shiki-background: transparent;
+  --shiki-token-constant: var(--code-number);
+  --shiki-token-string: var(--code-string);
+  --shiki-token-string-expression: var(--code-string);
+  --shiki-token-comment: var(--ink-3);
+  --shiki-token-keyword: var(--ink);
+  --shiki-token-parameter: var(--ink);
+  --shiki-token-function: var(--ink);
+  --shiki-token-punctuation: var(--ink-2);
+  --shiki-token-link: var(--ink);
+  margin: 0;
+  line-height: 1.6;
+  tab-size: 4;
+}

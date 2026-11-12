@@ -1,0 +1,23 @@
+[
+ {
+  "name": "daily_production",
+  "kind": "single",
+  "path": "daily_production.parquet",
+  "bytes": 874657,
+  "rows": 15634
+ },
+ {
+  "name": "monthly_production",
+  "kind": "single",
+  "path": "monthly_production.parquet",
+  "bytes": 18230,
+  "rows": 526
+ },
+ {
+  "name": "wells",
+  "kind": "single",
+  "path": "wells.parquet",
+  "bytes": 5045,
+  "rows": 7
+ }
+]

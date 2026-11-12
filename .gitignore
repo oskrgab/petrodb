@@ -151,8 +151,6 @@ venv.bak/
 # Rope project settings
 .ropeproject
 
-# mkdocs documentation
-/site
 
 # mypy
 .mypy_cache/
@@ -231,3 +229,12 @@ data/Argentina
 # (catalogs, hive-partitioned Observations, manifest, schema docs, README,
 # license mirror) is never committed; other datasets remain tracked.
 parquet/petrobras_3w/
+
+# The Landing (ADR-0010) lives in site/. The Python template above ignores
+# every lib/ directory; SvelteKit keeps its source in one.
+!/site/src/lib/
+
+# Local credentials (Cloudflare token for manual preview deploys)
+.env.*
+!.env.example
+.wrangler/

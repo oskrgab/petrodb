@@ -1,0 +1,233 @@
+[
+ {
+  "id": "oil-by-resource",
+  "title": "Shale took over Argentina's oil",
+  "takeaway": "Unconventional wells produced 15 thousand m³ of oil in 2006 and 29.2 million in 2025. They overtook conventional output in 2023 and lifted the national total from its 2017 low of 28 million m³ to 46 million.",
+  "sql": "SET VARIABLE monthly_production = (\n    SELECT list('https://huggingface.co/datasets/oskrgab/petrodb/resolve/main/argentina/monthly_production/' || path)\n    FROM read_json('https://huggingface.co/datasets/oskrgab/petrodb/resolve/main/argentina/monthly_production/_files.json') AS manifest(path)\n);\n\nSELECT p.anio AS year,\n       CASE w.tipo_recurso\n           WHEN 'NO CONVENCIONAL' THEN 'Unconventional'\n           WHEN 'CONVENCIONAL'    THEN 'Conventional'\n           ELSE 'Not reported'\n       END AS resource,\n       sum(p.prod_pet) / 1e6 AS oil_million_m3\nFROM read_parquet(getvariable('monthly_production'), hive_partitioning = true) AS p\nJOIN 'https://huggingface.co/datasets/oskrgab/petrodb/resolve/main/argentina/wells.parquet' AS w USING (idpozo)\nGROUP BY ALL\nORDER BY year, resource;",
+  "chart": {
+   "kind": "stacked",
+   "unit": "million m³ of oil / year",
+   "min": 0,
+   "max": 50,
+   "x": {
+    "type": "year",
+    "values": [
+     2006,
+     2007,
+     2008,
+     2009,
+     2010,
+     2011,
+     2012,
+     2013,
+     2014,
+     2015,
+     2016,
+     2017,
+     2018,
+     2019,
+     2020,
+     2021,
+     2022,
+     2023,
+     2024,
+     2025
+    ]
+   },
+   "series": [
+    {
+     "name": "Unconventional",
+     "tone": "oil",
+     "values": [
+      0.015,
+      0.021,
+      0.04,
+      0.066,
+      0.067,
+      0.145,
+      0.304,
+      0.556,
+      1.122,
+      1.537,
+      2.068,
+      2.609,
+      3.822,
+      5.728,
+      6.982,
+      9.776,
+      14.44,
+      18.078,
+      22.855,
+      29.218
+     ]
+    },
+    {
+     "name": "Conventional",
+     "tone": "oil-2",
+     "values": [
+      24.316,
+      24.833,
+      25.119,
+      25.375,
+      25.508,
+      24.277,
+      24.203,
+      24.004,
+      23.624,
+      23.779,
+      22.78,
+      21.017,
+      20.686,
+      20.018,
+      17.776,
+      16.976,
+      16.446,
+      16.055,
+      15.321,
+      14.565
+     ]
+    },
+    {
+     "name": "Not reported",
+     "tone": "neutral",
+     "values": [
+      12.962,
+      11.3,
+      10.745,
+      9.94,
+      9.008,
+      8.117,
+      7.869,
+      7.194,
+      6.563,
+      5.951,
+      5.328,
+      4.704,
+      4.406,
+      4.234,
+      3.785,
+      3.608,
+      3.466,
+      3.285,
+      2.976,
+      2.655
+     ]
+    }
+   ]
+  }
+ },
+ {
+  "id": "basins",
+  "title": "Two basins for oil, a third for gas",
+  "takeaway": "Totals for 2006 to 2025. Neuquina and Golfo San Jorge produced 90% of the oil. Gas is a different map: Neuquina leads, and Austral ranks second with only 4% of the oil.",
+  "sql": "SET VARIABLE monthly_production = (\n    SELECT list('https://huggingface.co/datasets/oskrgab/petrodb/resolve/main/argentina/monthly_production/' || path)\n    FROM read_json('https://huggingface.co/datasets/oskrgab/petrodb/resolve/main/argentina/monthly_production/_files.json') AS manifest(path)\n);\n\nSELECT w.cuenca AS basin,\n       sum(p.prod_pet) / 1e6 AS oil_million_m3,\n       sum(p.prod_gas) / 1e6 AS gas_billion_m3   -- prod_gas is in thousand m³\nFROM read_parquet(getvariable('monthly_production'), hive_partitioning = true) AS p\nJOIN 'https://huggingface.co/datasets/oskrgab/petrodb/resolve/main/argentina/wells.parquet' AS w USING (idpozo)\nGROUP BY basin\nHAVING oil_million_m3 >= 1 OR gas_billion_m3 >= 1\nORDER BY oil_million_m3 DESC;",
+  "chart": {
+   "kind": "bars",
+   "x": {
+    "type": "category",
+    "values": [
+     "Neuquina",
+     "Golfo San Jorge",
+     "Cuyana",
+     "Austral",
+     "Noroeste"
+    ]
+   },
+   "series": [
+    {
+     "name": "Oil",
+     "unit": "million m³",
+     "tone": "oil",
+     "min": 0,
+     "max": 400,
+     "values": [
+      330.3,
+      278.3,
+      30.9,
+      25.2,
+      9.5
+     ]
+    },
+    {
+     "name": "Gas",
+     "unit": "billion m³",
+     "tone": "gas",
+     "min": 0,
+     "max": 600,
+     "values": [
+      569.3,
+      95.6,
+      1.1,
+      206.4,
+      67.0
+     ]
+    }
+   ]
+  }
+ },
+ {
+  "id": "producing-wells",
+  "title": "More oil from fewer wells",
+  "takeaway": "The number of wells that produced in a year peaked at 29,513 in 2016 and has drifted down since, while oil output rose: fewer wells, each producing more.",
+  "sql": "SET VARIABLE monthly_production = (\n    SELECT list('https://huggingface.co/datasets/oskrgab/petrodb/resolve/main/argentina/monthly_production/' || path)\n    FROM read_json('https://huggingface.co/datasets/oskrgab/petrodb/resolve/main/argentina/monthly_production/_files.json') AS manifest(path)\n);\n\nSELECT anio AS year,\n       count(DISTINCT idpozo) AS producing_wells\nFROM read_parquet(getvariable('monthly_production'), hive_partitioning = true)\nWHERE prod_pet > 0 OR prod_gas > 0\nGROUP BY year\nORDER BY year;",
+  "chart": {
+   "kind": "lines",
+   "x": {
+    "type": "year",
+    "values": [
+     2006,
+     2007,
+     2008,
+     2009,
+     2010,
+     2011,
+     2012,
+     2013,
+     2014,
+     2015,
+     2016,
+     2017,
+     2018,
+     2019,
+     2020,
+     2021,
+     2022,
+     2023,
+     2024,
+     2025
+    ]
+   },
+   "series": [
+    {
+     "name": "Wells with production",
+     "unit": "thousand wells / year",
+     "tone": "ink",
+     "min": 0,
+     "max": 30,
+     "values": [
+      22.83,
+      24.07,
+      25.18,
+      25.35,
+      25.51,
+      25.56,
+      26.3,
+      27.14,
+      28.04,
+      29.14,
+      29.51,
+      29.0,
+      28.88,
+      29.18,
+      28.32,
+      27.51,
+      27.92,
+      28.07,
+      27.95,
+      27.16
+     ]
+    }
+   ]
+  }
+ }
+]

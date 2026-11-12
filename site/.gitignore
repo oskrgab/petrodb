@@ -1,0 +1,5 @@
+node_modules
+.svelte-kit
+build
+# Schema documents copied in from ../parquet at build time
+static/*/

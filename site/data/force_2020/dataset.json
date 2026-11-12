@@ -1,0 +1,16 @@
+{
+  "id": "force_2020",
+  "name": "FORCE 2020",
+  "holds": "Well logs from the Norwegian continental shelf with interpreted lithology, released for a machine-learning competition.",
+  "grain": "depth sample, one file per well",
+  "covers": "108 wells",
+  "ready": false,
+  "petroviz": {
+    "label": "Open the well log viewer",
+    "url": "https://petroviz.ocortez.com/logs"
+  },
+  "licence": {
+    "name": "Competition terms",
+    "url": "https://xeek.ai/challenges/force-well-logs"
+  }
+}

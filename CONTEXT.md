@@ -18,6 +18,18 @@ _Avoid_: "catalog" — the 3W `instances.parquet` is a catalog (a queryable tabl
 A read-only DuckLake published alongside the parquet tree that registers the published tables in place, so a DuckDB consumer can `ATTACH` one URL instead of resolving manifests. A convenience entry point, not the contract: the parquet URLs and manifests stay authoritative.
 _Avoid_: "catalog" (reserved for the 3W Instance catalog), "lakehouse", "database".
 
+**Dataset**:
+One public source republished by PetroDB as a self-contained set of tables with its own schema documents, licence and attribution. There are four: Volve, FORCE 2020, Argentina production, Petrobras 3W.
+_Avoid_: "database" (nothing is served by a database), "repository" (the site was once titled "PetroData Repository"; the name is PetroDB).
+
+**Landing**:
+The public website that presents the Datasets: what each one holds, how to query it, its Glances and its files. Carries no data bytes.
+_Avoid_: "website", "docs site", "portal".
+
+**Glance**:
+A small precomputed finding about one Dataset, shown on the Landing as a chart or figure together with the query that produces it. Its purpose is to show what is in the data and how to ask for it, not to be an analysis.
+_Avoid_: "insight", "dashboard", "KPI", "preview" (a preview shows raw rows; a Glance shows a result).
+
 ### Argentina production dataset
 
 **Well** (`idpozo`):

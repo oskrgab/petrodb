@@ -1,0 +1,551 @@
+[
+ {
+  "name": "wells",
+  "kind": "multi",
+  "manifest": "wells/_files.json",
+  "bytes": 85558125,
+  "rows": 1307297,
+  "files": [
+   {
+    "path": "wells/15-9-13.parquet",
+    "bytes": 1178936,
+    "rows": 18270
+   },
+   {
+    "path": "wells/15-9-14.parquet",
+    "bytes": 1447706,
+    "rows": 20281
+   },
+   {
+    "path": "wells/15-9-15.parquet",
+    "bytes": 1451496,
+    "rows": 17717
+   },
+   {
+    "path": "wells/15-9-17.parquet",
+    "bytes": 1366786,
+    "rows": 17350
+   },
+   {
+    "path": "wells/16-1-2.parquet",
+    "bytes": 133786,
+    "rows": 1734
+   },
+   {
+    "path": "wells/16-1-6_A.parquet",
+    "bytes": 218694,
+    "rows": 3623
+   },
+   {
+    "path": "wells/16-10-1.parquet",
+    "bytes": 1192570,
+    "rows": 17675
+   },
+   {
+    "path": "wells/16-10-2.parquet",
+    "bytes": 184524,
+    "rows": 2437
+   },
+   {
+    "path": "wells/16-10-3.parquet",
+    "bytes": 1058849,
+    "rows": 15956
+   },
+   {
+    "path": "wells/16-10-5.parquet",
+    "bytes": 250115,
+    "rows": 2765
+   },
+   {
+    "path": "wells/16-11-1_ST3.parquet",
+    "bytes": 597785,
+    "rows": 14938
+   },
+   {
+    "path": "wells/16-2-11_A.parquet",
+    "bytes": 801869,
+    "rows": 10708
+   },
+   {
+    "path": "wells/16-2-16.parquet",
+    "bytes": 659476,
+    "rows": 10025
+   },
+   {
+    "path": "wells/16-2-6.parquet",
+    "bytes": 657654,
+    "rows": 9138
+   },
+   {
+    "path": "wells/16-4-1.parquet",
+    "bytes": 1107303,
+    "rows": 14082
+   },
+   {
+    "path": "wells/16-5-3.parquet",
+    "bytes": 262810,
+    "rows": 3021
+   },
+   {
+    "path": "wells/16-7-4.parquet",
+    "bytes": 715596,
+    "rows": 10010
+   },
+   {
+    "path": "wells/16-7-5.parquet",
+    "bytes": 1044204,
+    "rows": 15590
+   },
+   {
+    "path": "wells/16-8-1.parquet",
+    "bytes": 468301,
+    "rows": 6685
+   },
+   {
+    "path": "wells/17-11-1.parquet",
+    "bytes": 1078332,
+    "rows": 20099
+   },
+   {
+    "path": "wells/25-10-10.parquet",
+    "bytes": 844091,
+    "rows": 9320
+   },
+   {
+    "path": "wells/25-11-15.parquet",
+    "bytes": 176402,
+    "rows": 2284
+   },
+   {
+    "path": "wells/25-11-19_S.parquet",
+    "bytes": 515765,
+    "rows": 6975
+   },
+   {
+    "path": "wells/25-11-24.parquet",
+    "bytes": 401511,
+    "rows": 4195
+   },
+   {
+    "path": "wells/25-11-5.parquet",
+    "bytes": 366072,
+    "rows": 5060
+   },
+   {
+    "path": "wells/25-2-13_T4.parquet",
+    "bytes": 1408243,
+    "rows": 21062
+   },
+   {
+    "path": "wells/25-2-14.parquet",
+    "bytes": 1100625,
+    "rows": 15840
+   },
+   {
+    "path": "wells/25-2-7.parquet",
+    "bytes": 1614704,
+    "rows": 25131
+   },
+   {
+    "path": "wells/25-3-1.parquet",
+    "bytes": 1525497,
+    "rows": 21186
+   },
+   {
+    "path": "wells/25-4-5.parquet",
+    "bytes": 1332112,
+    "rows": 23005
+   },
+   {
+    "path": "wells/25-5-1.parquet",
+    "bytes": 1142908,
+    "rows": 18473
+   },
+   {
+    "path": "wells/25-5-3.parquet",
+    "bytes": 735786,
+    "rows": 11324
+   },
+   {
+    "path": "wells/25-5-4.parquet",
+    "bytes": 849857,
+    "rows": 12997
+   },
+   {
+    "path": "wells/25-6-1.parquet",
+    "bytes": 479532,
+    "rows": 6209
+   },
+   {
+    "path": "wells/25-6-2.parquet",
+    "bytes": 250833,
+    "rows": 2925
+   },
+   {
+    "path": "wells/25-6-3.parquet",
+    "bytes": 724836,
+    "rows": 11985
+   },
+   {
+    "path": "wells/25-7-2.parquet",
+    "bytes": 1875263,
+    "rows": 23879
+   },
+   {
+    "path": "wells/25-8-5_S.parquet",
+    "bytes": 1317086,
+    "rows": 14596
+   },
+   {
+    "path": "wells/25-8-7.parquet",
+    "bytes": 594843,
+    "rows": 8999
+   },
+   {
+    "path": "wells/25-9-1.parquet",
+    "bytes": 832948,
+    "rows": 15743
+   },
+   {
+    "path": "wells/26-4-1.parquet",
+    "bytes": 1346823,
+    "rows": 19577
+   },
+   {
+    "path": "wells/29-3-1.parquet",
+    "bytes": 1045424,
+    "rows": 24213
+   },
+   {
+    "path": "wells/29-6-1.parquet",
+    "bytes": 1174195,
+    "rows": 24464
+   },
+   {
+    "path": "wells/30-3-3.parquet",
+    "bytes": 1356764,
+    "rows": 21163
+   },
+   {
+    "path": "wells/30-3-5_S.parquet",
+    "bytes": 257773,
+    "rows": 4382
+   },
+   {
+    "path": "wells/30-6-5.parquet",
+    "bytes": 1393685,
+    "rows": 21636
+   },
+   {
+    "path": "wells/31-2-1.parquet",
+    "bytes": 568375,
+    "rows": 8274
+   },
+   {
+    "path": "wells/31-2-19_S.parquet",
+    "bytes": 1454497,
+    "rows": 16455
+   },
+   {
+    "path": "wells/31-2-7.parquet",
+    "bytes": 502776,
+    "rows": 8004
+   },
+   {
+    "path": "wells/31-2-8.parquet",
+    "bytes": 1243263,
+    "rows": 19025
+   },
+   {
+    "path": "wells/31-2-9.parquet",
+    "bytes": 601864,
+    "rows": 8699
+   },
+   {
+    "path": "wells/31-3-1.parquet",
+    "bytes": 711926,
+    "rows": 13236
+   },
+   {
+    "path": "wells/31-3-2.parquet",
+    "bytes": 623020,
+    "rows": 10750
+   },
+   {
+    "path": "wells/31-3-3.parquet",
+    "bytes": 720579,
+    "rows": 11624
+   },
+   {
+    "path": "wells/31-3-4.parquet",
+    "bytes": 489084,
+    "rows": 5377
+   },
+   {
+    "path": "wells/31-4-10.parquet",
+    "bytes": 564887,
+    "rows": 8679
+   },
+   {
+    "path": "wells/31-4-5.parquet",
+    "bytes": 807913,
+    "rows": 13352
+   },
+   {
+    "path": "wells/31-5-4_S.parquet",
+    "bytes": 323561,
+    "rows": 11314
+   },
+   {
+    "path": "wells/31-6-5.parquet",
+    "bytes": 571374,
+    "rows": 11098
+   },
+   {
+    "path": "wells/31-6-8.parquet",
+    "bytes": 560362,
+    "rows": 9531
+   },
+   {
+    "path": "wells/32-2-1.parquet",
+    "bytes": 252340,
+    "rows": 3049
+   },
+   {
+    "path": "wells/33-5-2.parquet",
+    "bytes": 266853,
+    "rows": 4091
+   },
+   {
+    "path": "wells/33-6-3_S.parquet",
+    "bytes": 767290,
+    "rows": 12681
+   },
+   {
+    "path": "wells/33-9-1.parquet",
+    "bytes": 765515,
+    "rows": 17278
+   },
+   {
+    "path": "wells/33-9-17.parquet",
+    "bytes": 1259031,
+    "rows": 17718
+   },
+   {
+    "path": "wells/34-10-16_R.parquet",
+    "bytes": 1774247,
+    "rows": 25095
+   },
+   {
+    "path": "wells/34-10-19.parquet",
+    "bytes": 906993,
+    "rows": 12644
+   },
+   {
+    "path": "wells/34-10-21.parquet",
+    "bytes": 1558074,
+    "rows": 22491
+   },
+   {
+    "path": "wells/34-10-33.parquet",
+    "bytes": 326745,
+    "rows": 6046
+   },
+   {
+    "path": "wells/34-10-35.parquet",
+    "bytes": 1118576,
+    "rows": 20619
+   },
+   {
+    "path": "wells/34-11-1.parquet",
+    "bytes": 274896,
+    "rows": 4226
+   },
+   {
+    "path": "wells/34-11-2_S.parquet",
+    "bytes": 1389028,
+    "rows": 23310
+   },
+   {
+    "path": "wells/34-12-1.parquet",
+    "bytes": 792296,
+    "rows": 9350
+   },
+   {
+    "path": "wells/34-2-4.parquet",
+    "bytes": 1174430,
+    "rows": 23403
+   },
+   {
+    "path": "wells/34-3-1_A.parquet",
+    "bytes": 187249,
+    "rows": 2251
+   },
+   {
+    "path": "wells/34-3-3_A.parquet",
+    "bytes": 1288112,
+    "rows": 18190
+   },
+   {
+    "path": "wells/34-4-10_R.parquet",
+    "bytes": 300322,
+    "rows": 3880
+   },
+   {
+    "path": "wells/34-5-1_A.parquet",
+    "bytes": 1035477,
+    "rows": 14592
+   },
+   {
+    "path": "wells/34-5-1_S.parquet",
+    "bytes": 199342,
+    "rows": 2273
+   },
+   {
+    "path": "wells/34-6-1_S.parquet",
+    "bytes": 428365,
+    "rows": 6479
+   },
+   {
+    "path": "wells/34-7-13.parquet",
+    "bytes": 257475,
+    "rows": 3900
+   },
+   {
+    "path": "wells/34-7-20.parquet",
+    "bytes": 807761,
+    "rows": 13157
+   },
+   {
+    "path": "wells/34-7-21.parquet",
+    "bytes": 762583,
+    "rows": 12424
+   },
+   {
+    "path": "wells/34-8-1.parquet",
+    "bytes": 1103833,
+    "rows": 17877
+   },
+   {
+    "path": "wells/34-8-3.parquet",
+    "bytes": 938606,
+    "rows": 13341
+   },
+   {
+    "path": "wells/34-8-7_R.parquet",
+    "bytes": 457071,
+    "rows": 7084
+   },
+   {
+    "path": "wells/35-11-1.parquet",
+    "bytes": 987384,
+    "rows": 15584
+   },
+   {
+    "path": "wells/35-11-10.parquet",
+    "bytes": 512255,
+    "rows": 6206
+   },
+   {
+    "path": "wells/35-11-11.parquet",
+    "bytes": 1054308,
+    "rows": 12844
+   },
+   {
+    "path": "wells/35-11-12.parquet",
+    "bytes": 693036,
+    "rows": 19112
+   },
+   {
+    "path": "wells/35-11-13.parquet",
+    "bytes": 211940,
+    "rows": 2430
+   },
+   {
+    "path": "wells/35-11-15_S.parquet",
+    "bytes": 260191,
+    "rows": 2596
+   },
+   {
+    "path": "wells/35-11-6.parquet",
+    "bytes": 1398085,
+    "rows": 23544
+   },
+   {
+    "path": "wells/35-11-7.parquet",
+    "bytes": 834442,
+    "rows": 13005
+   },
+   {
+    "path": "wells/35-12-1.parquet",
+    "bytes": 1031016,
+    "rows": 13125
+   },
+   {
+    "path": "wells/35-3-7_S.parquet",
+    "bytes": 413399,
+    "rows": 5087
+   },
+   {
+    "path": "wells/35-4-1.parquet",
+    "bytes": 1197817,
+    "rows": 20823
+   },
+   {
+    "path": "wells/35-6-2_S.parquet",
+    "bytes": 1036798,
+    "rows": 13415
+   },
+   {
+    "path": "wells/35-8-4.parquet",
+    "bytes": 204639,
+    "rows": 2709
+   },
+   {
+    "path": "wells/35-8-6_S.parquet",
+    "bytes": 918051,
+    "rows": 14378
+   },
+   {
+    "path": "wells/35-9-10_S.parquet",
+    "bytes": 300983,
+    "rows": 4313
+   },
+   {
+    "path": "wells/35-9-2.parquet",
+    "bytes": 794905,
+    "rows": 12313
+   },
+   {
+    "path": "wells/35-9-5.parquet",
+    "bytes": 407998,
+    "rows": 4942
+   },
+   {
+    "path": "wells/35-9-6_S.parquet",
+    "bytes": 851050,
+    "rows": 13094
+   },
+   {
+    "path": "wells/35-9-8.parquet",
+    "bytes": 371006,
+    "rows": 4274
+   },
+   {
+    "path": "wells/36-7-3.parquet",
+    "bytes": 221785,
+    "rows": 3628
+   },
+   {
+    "path": "wells/7-1-1.parquet",
+    "bytes": 1013251,
+    "rows": 16241
+   },
+   {
+    "path": "wells/7-1-2_S.parquet",
+    "bytes": 167425,
+    "rows": 2040
+   }
+  ]
+ }
+]
