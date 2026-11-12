@@ -11,17 +11,13 @@ import duckdb
 import polars as pl
 import pytest
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
-SITE_DATA = REPO_ROOT / "site" / "data" / "volve"
-LOCAL_BASE = str(REPO_ROOT / "parquet")
+from scripts.site.glances import PARQUET_ROOT, PUBLIC_BASE
+
+SITE_DATA = Path(__file__).resolve().parents[2] / "site" / "data" / "volve"
+LOCAL_BASE = str(PARQUET_ROOT)
 
 META = json.loads((SITE_DATA / "dataset.json").read_text())
 GLANCES = json.loads((SITE_DATA / "glances.json").read_text())
-PUBLIC_BASE = "https://huggingface.co/datasets/oskrgab/petrodb/resolve/main"
-
-
-def _queries() -> list[dict]:
-    return META["queries"]
 
 
 def test_volve_is_ready_with_every_page_section_filled() -> None:
@@ -31,7 +27,7 @@ def test_volve_is_ready_with_every_page_section_filled() -> None:
     assert META["petroviz"]["url"] == "https://petroviz.ocortez.com/production"
 
 
-@pytest.mark.parametrize("query", _queries(), ids=lambda q: q["id"])
+@pytest.mark.parametrize("query", META["queries"], ids=lambda q: q["id"])
 def test_query_sql_returns_rows(query: dict) -> None:
     rows = duckdb.connect().execute(query["sql"].format(base=LOCAL_BASE)).fetchall()
     assert rows
@@ -39,11 +35,13 @@ def test_query_sql_returns_rows(query: dict) -> None:
 
 @pytest.mark.parametrize(
     "code",
-    [q["polars"] for q in _queries() if "polars" in q]
-    + [g["polars"].replace(PUBLIC_BASE, "{base}") for g in GLANCES if "polars" in g],
+    # dataset.json holds snippets with a {base} placeholder; glances.json
+    # holds them as published, with the public host filled in.
+    [q["polars"].replace("{base}", LOCAL_BASE) for q in META["queries"] if "polars" in q]
+    + [g["polars"].replace(PUBLIC_BASE, LOCAL_BASE) for g in GLANCES if "polars" in g],
 )
 def test_polars_snippet_returns_rows(code: str) -> None:
     scope: dict = {}
-    exec(code.replace("{base}", LOCAL_BASE), scope)
+    exec(code, scope)
     frames = [v for v in scope.values() if isinstance(v, pl.DataFrame)]
     assert frames and all(f.height for f in frames)

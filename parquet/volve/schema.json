@@ -202,7 +202,7 @@
           "default_value": null,
           "primary_key": true,
           "comment": null,
-          "description": "Wellbore identifier assigned by the Norwegian Offshore Directorate (NPD). The key every production row joins on."
+          "description": "Wellbore identifier assigned by the Norwegian Offshore Directorate (formerly the Norwegian Petroleum Directorate, NPD). The key every production row joins on."
         },
         {
           "name": "wellbore_code",
@@ -220,7 +220,7 @@
           "default_value": null,
           "primary_key": false,
           "comment": null,
-          "description": "NPD wellbore name (e.g. `15/9-F-12`): licence block 15/9, platform slot F, well 12. Use this to label wells."
+          "description": "NPD wellbore name (e.g. `15/9-F-12`, a well in block 15/9). Use this to label wells."
         },
         {
           "name": "npd_field_code",

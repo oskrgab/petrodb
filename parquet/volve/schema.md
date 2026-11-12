@@ -78,9 +78,9 @@ One row per wellbore in the Volve field: its identifiers and the field and facil
 
 | Column | Type | Nullable | Primary Key | Description |
 |--------|------|----------|-------------|-------------|
-| `npd_wellbore_code` | INTEGER | No | ✓ | Wellbore identifier assigned by the Norwegian Offshore Directorate (NPD). The key every production row joins on. |
+| `npd_wellbore_code` | INTEGER | No | ✓ | Wellbore identifier assigned by the Norwegian Offshore Directorate (formerly the Norwegian Petroleum Directorate, NPD). The key every production row joins on. |
 | `wellbore_code` | TEXT | No |  | Equinor's wellbore code, prefixed with the country (e.g. `NO 15/9-F-12 H`). |
-| `wellbore_name` | TEXT | No |  | NPD wellbore name (e.g. `15/9-F-12`): licence block 15/9, platform slot F, well 12. Use this to label wells. |
+| `wellbore_name` | TEXT | No |  | NPD wellbore name (e.g. `15/9-F-12`, a well in block 15/9). Use this to label wells. |
 | `npd_field_code` | INTEGER | No |  | NPD field identifier. The same value on every row: Volve. |
 | `npd_field_name` | TEXT | No |  | Field name: `VOLVE` on every row. |
 | `npd_facility_code` | INTEGER | No |  | NPD identifier of the facility the wellbore produced through. |

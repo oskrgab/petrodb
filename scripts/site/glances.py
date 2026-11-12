@@ -101,7 +101,7 @@ def _volve_field(rows: Rows) -> dict[str, Any]:
     months = [r[0].strftime("%Y-%m") for r in rows]
     oil = [r[1] / 1e3 for r in rows]
     gas = [(r[2] or 0.0) / 1e6 for r in rows]
-    water = [r[3] / 1e3 for r in rows]
+    water = [(r[3] or 0.0) / 1e3 for r in rows]
     peak = max(range(len(oil)), key=oil.__getitem__)
     # First month after which water exceeds oil in every remaining month.
     crossover = next(
@@ -166,16 +166,16 @@ def _volve_wells(rows: Rows) -> dict[str, Any]:
     oil = [float(r[1] or 0.0) for r in rows]
     injected = [float(r[2] or 0.0) for r in rows]
     total = sum(oil)
-    top_two = (oil[0] + oil[1]) / total
-    dry = [i for i, v in enumerate(oil) if v == 0]
+    top_two_share = (oil[0] + oil[1]) / total
+    no_oil = [i for i, v in enumerate(oil) if v == 0]
     takeaway = (
-        f"{wells[0]} and {wells[1]} produced {top_two:.0%} of the field's "
+        f"{wells[0]} and {wells[1]} produced {top_two_share:.0%} of the field's "
         f"{total:.1f} million Sm³ of oil."
     )
-    if dry:
+    if no_oil:
         takeaway += (
-            f" {' and '.join(wells[i] for i in dry)} produced none and injected "
-            f"{sum(injected[i] for i in dry):.1f} million Sm³ of water to "
+            f" {' and '.join(wells[i] for i in no_oil)} produced none and injected "
+            f"{sum(injected[i] for i in no_oil):.1f} million Sm³ of water to "
             "hold up reservoir pressure."
         )
     return {

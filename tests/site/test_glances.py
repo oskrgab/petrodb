@@ -1,6 +1,7 @@
 """The Glances command: what it publishes must be runnable by a visitor."""
 
 import json
+from datetime import date
 from pathlib import Path
 
 import pytest
@@ -53,8 +54,6 @@ def _glance(dataset: str, glance_id: str) -> glances.Glance:
 
 
 def test_volve_field_rates_chart_oil_gas_and_water() -> None:
-    from datetime import date
-
     # Oil peaks in month 2; water overtakes oil from month 3 for good.
     rows = [
         (date(2008, 1, 1), 100_000.0, 15e6, 0.0),

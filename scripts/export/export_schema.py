@@ -61,15 +61,16 @@ COLUMN_DESCRIPTIONS = {
     "wells": {
         "npd_wellbore_code": (
             "Wellbore identifier assigned by the Norwegian Offshore Directorate "
-            "(NPD). The key every production row joins on."
+            "(formerly the Norwegian Petroleum Directorate, NPD). The key "
+            "every production row joins on."
         ),
         "wellbore_code": (
             "Equinor's wellbore code, prefixed with the country (e.g. "
             "`NO 15/9-F-12 H`)."
         ),
         "wellbore_name": (
-            "NPD wellbore name (e.g. `15/9-F-12`): licence block 15/9, "
-            "platform slot F, well 12. Use this to label wells."
+            "NPD wellbore name (e.g. `15/9-F-12`, a well in block 15/9). "
+            "Use this to label wells."
         ),
         "npd_field_code": "NPD field identifier. The same value on every row: Volve.",
         "npd_field_name": "Field name: `VOLVE` on every row.",
@@ -205,11 +206,15 @@ def get_foreign_keys(table: Table) -> list[dict]:
     return foreign_keys
 
 
+def sorted_indexes(table: Table) -> list:
+    """table.indexes is a set: sort it so the published documents are stable."""
+    return sorted(table.indexes, key=lambda i: i.name)
+
+
 def get_indexes(table: Table) -> list[dict]:
     """Get indexes from a SQLAlchemy Table object."""
     indexes = []
-    # table.indexes is a set: sort so the published documents are stable.
-    for index in sorted(table.indexes, key=lambda i: i.name):
+    for index in sorted_indexes(table):
         indexes.append({
             "name": index.name,
             "unique": index.unique,
@@ -251,7 +256,7 @@ def export_schema_sql(metadata: MetaData, engine, output_path: Path):
 
     # Generate CREATE INDEX statements
     for table_name, table in sorted(metadata.tables.items()):
-        for index in sorted(table.indexes, key=lambda i: i.name):
+        for index in sorted_indexes(table):
             create_index_stmt = str(CreateIndex(index).compile(engine))
             ddl_statements.append(create_index_stmt + ";")
 
