@@ -21,8 +21,7 @@ services:
       # Shadow host's .venv with container's own venv
       - /app/.venv
     networks:
-      cluster-network:
-        ipv4_address: ${MARIMO_IP_ADDRESS}
+      - cluster-network
 
 networks:
   cluster-network:

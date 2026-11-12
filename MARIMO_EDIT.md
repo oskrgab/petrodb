@@ -60,9 +60,6 @@ Create a `.env` file with the following variables:
 # Marimo authentication password
 MARIMO_TOKEN_PASSWORD=your_secure_password_here
 
-# Docker network IP address
-MARIMO_IP_ADDRESS=174.44.0.106
-
 # User/Group IDs (run 'id -u' and 'id -g')
 UID=1000
 GID=1000
@@ -109,11 +106,14 @@ echo "GID=$(id -g)" >> .env
 
 ### Accessing Marimo
 
-Navigate to `http://174.44.0.106:8080` (or your configured IP) and enter your token password.
+The container joins `cluster-network` and is reached by its DNS name,
+`volve-db-marimo` — there is no assigned IP. From another container on that
+network (Caddy, for instance) that is `http://volve-db-marimo:8080`; from a
+browser it is served through Caddy at `nb-volve-db.ocortez.com`.
 
 **Authentication Methods:**
 - **Login page**: Enter password when prompted
-- **Query parameter**: `http://174.44.0.106:8080?access_token=your_password`
+- **Query parameter**: `?access_token=your_password`
 - **Basic auth header**: `Authorization: Basic base64("username:password")`
 
 ### Managing the Service
