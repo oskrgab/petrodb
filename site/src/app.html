@@ -13,6 +13,23 @@
         document.documentElement.setAttribute("data-theme", dark ? "dark" : "light");
       })();
     </script>
+    <!--
+      Umami. The website id is the build's PUBLIC_UMAMI_WEBSITE_ID (the deploy
+      sets it from a GitHub variable); without one, no tracker loads. Page views
+      count on the production hostnames only (data-domains), so stage, branch
+      previews and the dev host stay out. src/app.test.ts holds all of this.
+    -->
+    <script data-website-id="%sveltekit.env.PUBLIC_UMAMI_WEBSITE_ID%">
+      (function (loader) {
+        var id = loader.getAttribute("data-website-id");
+        if (!id) return;
+        var tracker = document.createElement("script");
+        tracker.setAttribute("src", "https://analytics.ocortez.com/script.js");
+        tracker.setAttribute("data-website-id", id);
+        tracker.setAttribute("data-domains", "petrodb.ocortez.com,petrodb.pages.dev");
+        document.head.appendChild(tracker);
+      })(document.currentScript);
+    </script>
     %sveltekit.head%
   </head>
   <body data-sveltekit-preload-data="hover">

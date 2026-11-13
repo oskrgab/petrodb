@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { track } from "$lib/analytics";
   import { preferred } from "$lib/lang.svelte";
   import type { Snippet } from "$lib/types";
 
@@ -11,6 +12,7 @@
 
   async function copy() {
     await navigator.clipboard.writeText(active.code);
+    track("copy-snippet", { lang: active.lang, query: label });
     copied = true;
     setTimeout(() => (copied = false), 1600);
   }

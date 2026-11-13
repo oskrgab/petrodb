@@ -67,6 +67,11 @@ jobs:
       # bases; the catalog must reference the host+revision where its own
       # bytes are reachable. Points at the HF resolve bases (ADR-0005).
       BASE_URL: ${{ github.ref_name == 'main' && vars.BASE_URL_MAIN || vars.BASE_URL_STAGE }}
+      # Umami's website id, inlined into the Landing build; unset, no tracker
+      # loads. The tracker counts the production hostnames only, so a `stage`
+      # build carries it without reporting. Branch previews and deploy.sh
+      # builds get no id at all.
+      PUBLIC_UMAMI_WEBSITE_ID: ${{ vars.UMAMI_WEBSITE_ID }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4

@@ -2,8 +2,20 @@
   import "../app.css";
   import ThemeToggle from "$lib/components/ThemeToggle.svelte";
 
+  import { linkEvent, track } from "$lib/analytics";
+
   let { children } = $props();
+
+  // One listener for every link on the Landing: files and links off the site
+  // leave no page view behind, so they are reported as events.
+  function followed(e: MouseEvent) {
+    const link = e.target instanceof Element ? e.target.closest<HTMLAnchorElement>("a[href]") : null;
+    const event = link && linkEvent(link.href, location.origin);
+    if (event) track(event.name, event.data);
+  }
 </script>
+
+<svelte:document onclick={followed} />
 
 <a class="skip" href="#main">Skip to content</a>
 
