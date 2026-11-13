@@ -20,6 +20,7 @@ on:
     paths:
       - 'site/**'
       - '.github/workflows/deploy-landing-preview.yml'
+      - '.github/actions/build-landing/**'
   workflow_dispatch:
 
 permissions:
@@ -40,23 +41,8 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          package_json_file: site/package.json
-
-      - name: Set up Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: pnpm
-          cache-dependency-path: site/pnpm-lock.yaml
-
       - name: Build the Landing
-        working-directory: site
-        run: |
-          pnpm install --frozen-lockfile
-          pnpm build
+        uses: ./.github/actions/build-landing
 
       # Same guard as the main/stage deploy: the preview names the `main` base
       # only, and carries no parquet and no `_files.json` (ADR-0005).

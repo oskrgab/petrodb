@@ -21,8 +21,9 @@ name: Deploy (Hugging Face data + Cloudflare landing)
 #
 # Trigger: any push to main/stage that touches deployable content — committed
 # datasets under `parquet/`, the 3W pipeline sources (whose outputs are
-# gitignored and rebuilt in CI), the site sources, the Glances command, or this
-# workflow file. `workflow_dispatch`
+# gitignored and rebuilt in CI), the site sources, the Glances command, this
+# workflow file, or the Landing build action it shares with the preview
+# workflow (`.github/actions/build-landing`). `workflow_dispatch`
 # allows manual redeploys without an empty commit.
 #
 # 3W pipeline re-run is gated by a cache keyed on the 3W source hashes plus
@@ -44,6 +45,7 @@ on:
       - 'scripts/site/**'
       - 'site/**'
       - '.github/workflows/deploy-cloudflare-pages.yml'
+      - '.github/actions/build-landing/**'
   workflow_dispatch:
 
 permissions:
@@ -167,23 +169,12 @@ jobs:
       # Build after the retarget pass and the 3W pipeline: the build copies each
       # Dataset's schema documents from parquet/ into the site, and BASE_URL
       # sets the data base the pages name (DATA_BASE in the site's loader).
-      - name: Install pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          package_json_file: site/package.json
-
-      - name: Set up Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: pnpm
-          cache-dependency-path: site/pnpm-lock.yaml
-
       - name: Build the Landing
+        uses: ./.github/actions/build-landing
+
+      - name: List the deploy tree
         working-directory: site
         run: |
-          pnpm install --frozen-lockfile
-          pnpm build
           echo "Deploy tree:"
           find build -type f -not -path 'build/_app/*' | sort
 
