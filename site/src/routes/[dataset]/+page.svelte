@@ -4,6 +4,7 @@
   import InstanceBrowser from "$lib/components/InstanceBrowser.svelte";
   import Snippet from "$lib/components/Snippet.svelte";
   import Track from "$lib/components/Track.svelte";
+  import { fullWidth } from "$lib/chart";
   import { approx, bytes, count } from "$lib/format";
 
   let { data } = $props();
@@ -108,7 +109,7 @@
       {#each glances as g (g.id)}
         <article class="glance">
           <h3>{g.title}</h3>
-          <div class="pair">
+          <div class="pair" class:wide={fullWidth(g.chart)}>
             <figure>
               <Track chart={g.chart} label={g.takeaway} />
               <figcaption>{g.takeaway}</figcaption>
@@ -361,6 +362,11 @@
     gap: clamp(1rem, 2.5vw, 2rem);
     margin-top: 0.9rem;
     align-items: start;
+  }
+
+  /* A chart too wide to sit beside its query goes above it. */
+  .pair.wide {
+    grid-template-columns: minmax(0, 1fr);
   }
 
   figure {

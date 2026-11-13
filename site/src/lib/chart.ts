@@ -1,4 +1,4 @@
-import type { LogChart, Series, SeriesChart } from "./types";
+import type { Chart, LogChart, Series, SeriesChart } from "./types";
 
 /** Plots are drawn in a 0–100 box and stretched to fit; strokes do not scale. */
 const SIZE = 100;
@@ -81,6 +81,15 @@ export function xTicks(chart: SeriesChart): Tick[] {
 
 export function scaleOf(chart: SeriesChart, s: Series): { min: number; max: number } {
   return { min: s.min ?? chart.min ?? 0, max: s.max ?? chart.max ?? 1 };
+}
+
+/**
+ * Whether a chart takes the whole width of its Glance, above its query, rather
+ * than half of it beside the query. A bars chart sets its series side by side,
+ * and beside the query three of them leave each track too narrow for its header.
+ */
+export function fullWidth(chart: Chart): boolean {
+  return chart.kind === "bars" && chart.series.length > 2;
 }
 
 export function toneVar(tone: Series["tone"]): string {
