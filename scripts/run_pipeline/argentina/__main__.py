@@ -3,11 +3,15 @@
 Invoke from the repo root:
 
     uv run python -m scripts.run_pipeline.argentina
+
+The last step regenerates the Argentina Glances, facts and file listing under
+``site/data/argentina/`` so the Landing never drifts from the export.
 """
 
 from pathlib import Path
 
 from scripts.export.argentina import orchestrator as export_orch
+from scripts.site import glances
 from scripts.transform.argentina import orchestrator as transform_orch
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -21,8 +25,9 @@ def main() -> None:
     export_orch.run(
         db_path=DB_PATH,
         output_dir=OUTPUT_DIR,
-        website_root=REPO_ROOT,
+        repo_root=REPO_ROOT,
     )
+    glances.write("argentina")
 
 
 if __name__ == "__main__":

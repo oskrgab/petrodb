@@ -10,15 +10,14 @@ The committed tree carries a single canonical host for every hand-authored and
 website-integrator-produced data URL — the HF ``main`` resolve base — so the
 working tree never drifts per-branch (the commit stays canonical ``main``, and a
 ``stage`` build leaves no ``stage`` URLs behind in git). The locally generated,
-gitignored surfaces (the 3W docs) plus the root-README "Browse and download"
-pointer carry the dev Caddy host. This pass rewrites both to the deploy's
-``BASE_URL`` at build time.
+gitignored surfaces (the 3W docs) carry the dev Caddy host. This pass rewrites
+both hosts to the deploy's ``BASE_URL`` at build time.
 
 Unlike the schema-doc generators and website integrators (which each embed
 ``BASE_URL`` when they *run*), this is a single blunt host rewrite over the
 already-built artifacts. It therefore covers the four datasets uniformly —
-including the hand-authored Volve/FORCE tabs in ``index.html`` and the root
-README quick-start, which have no generator of their own — and needs no dataset
+including the hand-authored FORCE 2020 README and the root README quick-start,
+which have no generator of their own — and needs no dataset
 sources, so it runs in CI without the transform DBs (pure stdlib, no uv). The 3W
 pipeline still bakes ``BASE_URL`` into its own surfaces first; this pass is a
 no-op on anything already pointed at ``BASE_URL``.
@@ -34,12 +33,11 @@ import os
 from pathlib import Path
 
 # Dev Caddy fallback, shared with the generators/constants when BASE_URL is
-# unset. Also the host baked into the locally generated (gitignored) 3W docs and
-# the root-README "Browse and download" pointer.
+# unset. Also the host baked into the locally generated (gitignored) 3W docs.
 DEV_CADDY_HOST = "https://dev-petrodb.ocortez.com"
 
-# The canonical committed HF host. Every tracked deployed surface (index.html,
-# the per-dataset schema READMEs, the root README, the HF dataset card) is
+# The canonical committed HF host. Every tracked deployed surface (the
+# per-dataset schema READMEs, the root README, the HF dataset card) is
 # committed against this base — it MUST equal `vars.BASE_URL_MAIN` in the deploy
 # workflow so a `main` deploy is a no-op on it.
 CANONICAL_HF_BASE = "https://huggingface.co/datasets/oskrgab/petrodb/resolve/main"
@@ -52,23 +50,16 @@ CANONICAL_HOSTS = (CANONICAL_HF_BASE, DEV_CADDY_HOST)
 def _target_files(repo_root: Path) -> list[Path]:
     """Deployed artifacts that carry data URLs, in a stable order.
 
-    The landing page, the HF dataset card, the root README, and every
-    per-dataset schema README under ``parquet/*/``. Callers skip files that do
-    not exist (e.g. the gitignored 3W tree before it is built).
+    The HF dataset card, the root README, and every per-dataset schema README
+    under ``parquet/*/``. Callers skip files that do not exist (e.g. the
+    gitignored 3W tree before it is built). The Landing is not listed: the site
+    build fills its data host from ``BASE_URL`` itself (ADR-0010).
     """
-    candidates = [
+    return [
         repo_root / "README.md",
         repo_root / "hf" / "README.md",
-        repo_root / "parquet" / "index.html",
         *sorted((repo_root / "parquet").glob("*/README.md")),
     ]
-    seen: set[Path] = set()
-    ordered: list[Path] = []
-    for path in candidates:
-        if path not in seen:
-            seen.add(path)
-            ordered.append(path)
-    return ordered
 
 
 def retarget_text(text: str, base_url: str) -> str:

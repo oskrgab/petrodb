@@ -1,0 +1,236 @@
+<script lang="ts">
+  import { curveName, scaleOf, toneVar, xTicks } from "$lib/chart";
+  import { count } from "$lib/format";
+  import type { Chart } from "$lib/types";
+  import CurveHeader from "./CurveHeader.svelte";
+  import LogStrip from "./LogStrip.svelte";
+  import Plot from "./Plot.svelte";
+
+  /*
+   * A chart framed like a well-log track: a header strip that names each
+   * curve and gives the ends of its scale, above a gridded plot.
+   */
+  let { chart, label }: { chart: Chart; label: string } = $props();
+
+  const ticks = $derived(chart.kind === "log" ? [] : xTicks(chart));
+  const categories = $derived(chart.kind === "log" ? [] : chart.x.values.map(String));
+</script>
+
+{#if chart.kind === "log"}
+  <LogStrip {chart} {label} />
+{:else if chart.kind === "bars"}
+  <div class="bars" role="img" aria-label={label} style={`--series: ${chart.series.length}`}>
+    <div class="cats" style={`grid-template-rows: auto repeat(${categories.length}, 1fr)`}>
+      <div class="head-spacer"></div>
+      {#each categories as c}
+        <div class="cat fine">{c}</div>
+      {/each}
+    </div>
+    {#each chart.series as s}
+      {@const scale = scaleOf(chart, s)}
+      <div class="track">
+        <CurveHeader name={curveName(s)} min={scale.min} max={scale.max} tone={s.tone} />
+        <div class="rows" style={`grid-template-rows: repeat(${categories.length}, 1fr)`}>
+          {#each s.values as v, i}
+            <div class="row">
+              <span class="rowcat fine">{categories[i]}</span>
+              <div class="lane">
+                <div
+                  class="bar"
+                  style={`width: ${((v ?? 0) / scale.max) * 100}%; background: ${toneVar(s.tone)}`}
+                ></div>
+              </div>
+              <span class="value label num">{count(v ?? 0)}</span>
+            </div>
+          {/each}
+        </div>
+      </div>
+    {/each}
+  </div>
+{:else}
+  <div class="track">
+    {#if chart.kind === "stacked"}
+      <!-- Stacked bands share one scale: state it once, then name each band. -->
+      <CurveHeader name={chart.unit ?? ""} min={chart.min ?? 0} max={chart.max ?? 1} />
+      <div class="bands label">
+        {#each chart.series as s}
+          <span class="band" style={`--tone: ${toneVar(s.tone)}`}>{s.name}</span>
+        {/each}
+      </div>
+    {:else}
+      {#each chart.series as s}
+        {@const scale = scaleOf(chart, s)}
+        <CurveHeader name={curveName(s)} min={scale.min} max={scale.max} tone={s.tone} />
+      {/each}
+    {/if}
+    {#if chart.spans?.length}
+      <div class="spans label">
+        <span class="fine">Labelled</span>
+        {#each chart.spans as s, i}
+          <span class="key" class:strong={i > 0}>{s.name}</span>
+        {/each}
+      </div>
+    {/if}
+    <div class="plot">
+      <Plot {chart} {label} />
+    </div>
+  </div>
+  <div class="axis label num" aria-hidden="true">
+    {#each ticks as t}
+      <span style={`left: ${t.at}%`} class:last={t.at > 97} class:first={t.at < 3}>{t.label}</span>
+    {/each}
+  </div>
+{/if}
+
+<style>
+  .track {
+    border: 1px solid var(--ink);
+    background: var(--surface);
+    min-width: 0;
+  }
+
+  .bands {
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: 1fr;
+  }
+
+  .band {
+    padding: 0.3rem 0.6rem 0.25rem;
+    border-bottom: 7px solid var(--tone);
+    text-align: center;
+    font-weight: 600;
+    color: var(--ink);
+  }
+
+  .band + .band {
+    border-left: 1px solid var(--rule);
+  }
+
+  /* Key for the shaded spans; swatches match Plot's .span fills. */
+  .spans {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.25rem 1rem;
+    padding: 0.3rem 0.6rem 0.25rem;
+    border-top: 1px solid var(--rule);
+  }
+
+  .key::before {
+    content: "";
+    display: inline-block;
+    width: 0.9rem;
+    height: 0.7rem;
+    margin-right: 0.35rem;
+    vertical-align: -0.05rem;
+    background: var(--accent-soft);
+    border: 1px solid var(--accent);
+  }
+
+  .key.strong::before {
+    background: color-mix(in srgb, var(--accent) 28%, transparent);
+  }
+
+  .plot {
+    border-top: 1px solid var(--ink);
+    aspect-ratio: 16 / 8;
+    max-height: 22rem;
+    width: 100%;
+  }
+
+  .axis {
+    position: relative;
+    height: 1.6rem;
+    margin-inline: 1px;
+  }
+
+  .axis span {
+    position: absolute;
+    top: 0.3rem;
+    transform: translateX(-50%);
+    white-space: nowrap;
+  }
+
+  .axis span.last {
+    transform: translateX(-100%);
+  }
+
+  .axis span.first {
+    transform: none;
+  }
+
+  /* The category names, then one track per series; --series is set inline. */
+  .bars {
+    display: grid;
+    grid-template-columns: max-content repeat(var(--series), minmax(0, 1fr));
+    gap: 0 0.75rem;
+  }
+
+  .cats {
+    display: grid;
+  }
+
+  .head-spacer {
+    height: calc(1.6rem + 4px);
+  }
+
+  .cat {
+    display: flex;
+    align-items: center;
+    color: var(--ink);
+    padding-block: 0.35rem;
+  }
+
+  .rows {
+    display: grid;
+    border-top: 1px solid var(--ink);
+  }
+
+  .row {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding-block: 0.35rem;
+  }
+
+  /* The lane is the scale; the value sits outside it so it never clips. */
+  .lane {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .bar {
+    height: 0.9rem;
+    min-width: 1px;
+  }
+
+  .value {
+    flex: 0 0 3.2rem;
+    padding-right: 0.5rem;
+    text-align: right;
+    color: var(--ink-2);
+  }
+
+  .rowcat {
+    display: none;
+  }
+
+  @media (max-width: 40rem) {
+    .bars {
+      grid-template-columns: minmax(0, 1fr);
+      row-gap: 1rem;
+    }
+
+    .cats {
+      display: none;
+    }
+
+    .rowcat {
+      display: block;
+      flex: 0 0 7.5rem;
+      color: var(--ink);
+      padding-left: 0.6rem;
+    }
+  }
+</style>

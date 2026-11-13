@@ -1,0 +1,66 @@
+{
+  "id": "petrobras_3w",
+  "name": "Petrobras 3W",
+  "holds": "Labelled sensor recordings of normal operation and nine kinds of anomaly in offshore wells: real, simulated and hand-drawn.",
+  "grain": "second, one file per Instance",
+  "ready": true,
+  "generated": true,
+  "petroviz": null,
+  "about": [
+    "Petrobras publishes 3W to train and test detectors of undesirable events in offshore oil wells. PetroDB republishes it as four tables. An <strong>Instance</strong> is one window of sensor readings taken once a second, framed around one <strong>Event class</strong>: normal operation or one of nine kinds of anomaly. Each Instance is one Observations file, and the Instance catalog describes every one of them without opening it.",
+    "<strong>Well kind</strong> says where an Instance comes from: a real well (anonymised by Petrobras), a simulator, or a series drawn by hand. Each <strong>Observation</strong> carries a <code>class</code> label: normal, the anomaly's transient phase (its Event class + 100), or its steady state. Sensor columns keep their upstream names, hyphens included, so quote them in SQL: <code>\"P-TPT\"</code>. The <a href=\"schema.md\">schema document</a> describes each one."
+  ],
+  "units": [
+    {
+      "column": "P-*, PT-P",
+      "unit": "pascals"
+    },
+    {
+      "column": "T-*",
+      "unit": "°C"
+    },
+    {
+      "column": "QBS, QGL",
+      "unit": "m³ per second"
+    },
+    {
+      "column": "ABER-*",
+      "unit": "% open"
+    },
+    {
+      "column": "ESTADO-*",
+      "unit": "valve state: 0 closed, 0.5 partly open, 1 open"
+    }
+  ],
+  "queries": [
+    {
+      "id": "find-instances",
+      "title": "Find Instances in the catalog",
+      "why": "The Instance catalog is one 100 kB file with a row per Instance. Pick Instances here by Event class, Well kind or length; source_url is the address of each one's Observations file.",
+      "sql": "SELECT instance_id, well_id, start_ts,\n       round(duration_s / 3600, 1) AS hours,\n       n_rows, source_url\nFROM '{base}/petrobras_3w/instances.parquet'\nWHERE event_class = 8          -- Hydrate in Production Line\n  AND well_kind = 'real'\nORDER BY start_ts;",
+      "polars": "import polars as pl\n\ninstances = (\n    pl.scan_parquet(\"{base}/petrobras_3w/instances.parquet\")\n    .filter((pl.col(\"event_class\") == 8) & (pl.col(\"well_kind\") == \"real\"))   # Hydrate in Production Line\n    .select(\n        \"instance_id\", \"well_id\", \"start_ts\",\n        (pl.col(\"duration_s\") / 3600).round(1).alias(\"hours\"),\n        \"n_rows\", \"source_url\",\n    )\n    .sort(\"start_ts\")\n    .collect()\n)"
+    },
+    {
+      "id": "one-class",
+      "title": "Every real-well Observation of one Event class",
+      "why": "The Observations are split into one file per Instance, in a folder per Event class. Read the file list first and keep one folder, then query those files together.",
+      "sql": "SET VARIABLE observations = (\n    SELECT list('{base}/petrobras_3w/observations/' || path)\n    FROM read_json('{base}/petrobras_3w/observations/_files.json') AS manifest(path)\n    WHERE path LIKE 'event_class=8/%'   -- Hydrate in Production Line\n);\n\nSELECT instance_id, class,\n       count(*) AS observations,\n       avg(\"P-TPT\") / 1e5 AS p_tpt_bar   -- sensors report pascals\nFROM read_parquet(getvariable('observations'), hive_partitioning = true)\nWHERE well_kind = 'real'\nGROUP BY ALL\nORDER BY instance_id, class;",
+      "python": "import json, urllib.request\nimport duckdb\n\nbase = \"{base}/petrobras_3w/observations/\"\nfiles = json.load(urllib.request.urlopen(base + \"_files.json\"))\nurls = [base + path for path in files if path.startswith(\"event_class=8/\")]   # Hydrate in Production Line\n\nhydrate = duckdb.sql(\"\"\"\n    SELECT instance_id, class,\n           count(*) AS observations,\n           avg(\"P-TPT\") / 1e5 AS p_tpt_bar   -- sensors report pascals\n    FROM read_parquet($urls, hive_partitioning = true)\n    WHERE well_kind = 'real'\n    GROUP BY ALL\n    ORDER BY instance_id, class\n\"\"\", params={\"urls\": urls}).df()",
+      "polars": "import json, urllib.request\nimport polars as pl\n\nbase = \"{base}/petrobras_3w/observations/\"\nfiles = json.load(urllib.request.urlopen(base + \"_files.json\"))\nurls = [base + path for path in files if path.startswith(\"event_class=8/\")]   # Hydrate in Production Line\n\nhydrate = (\n    pl.scan_parquet(urls, hive_partitioning=True)\n    .filter(pl.col(\"well_kind\") == \"real\")\n    .group_by(\"instance_id\", \"class\")\n    .agg(\n        pl.len().alias(\"observations\"),\n        (pl.col(\"P-TPT\").mean() / 1e5).alias(\"p_tpt_bar\"),   # sensors report pascals\n    )\n    .sort(\"instance_id\", \"class\")\n    .collect()\n)"
+    }
+  ],
+  "instances": {
+    "table": "observations",
+    "search": {
+      "placeholder": "WELL-00032"
+    }
+  },
+  "source": {
+    "text": "Data from <a href=\"https://github.com/petrobras/3W\">3W</a>, published by Petrobras on GitHub. PetroDB keeps the sensor values and labels as they are and adds the catalog tables."
+  },
+  "licence": {
+    "name": "CC BY 4.0",
+    "url": "https://creativecommons.org/licenses/by/4.0/",
+    "note": "Credit Petrobras and the 3W project when you use it."
+  }
+}

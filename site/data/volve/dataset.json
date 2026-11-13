@@ -1,0 +1,72 @@
+{
+  "id": "volve",
+  "name": "Volve",
+  "holds": "Daily and monthly production for every well in Equinor's Volve field, from first oil to shutdown.",
+  "grain": "well per day",
+  "ready": true,
+  "petroviz": {
+    "label": "Open the production dashboard",
+    "url": "https://petroviz.ocortez.com/production"
+  },
+  "about": [
+    "Volve is a small oil field in the Norwegian North Sea. Equinor produced it from first oil until it was shut down, then released the field's data for research and teaching. PetroDB republishes the production reports as three tables that join on one key, <code>npd_wellbore_code</code>: one row per well in <code>wells</code>, one per well per day in <code>daily_production</code>, and one per well per month in <code>monthly_production</code>.",
+    "The daily table carries more than volumes: hours on stream, downhole and wellhead pressures and temperatures, and choke opening. Some wells switched from producing oil to injecting water, so <code>flow_kind</code> and <code>well_type</code> are recorded per day. The <a href=\"schema.md\">schema document</a> explains each column."
+  ],
+  "units": [
+    {
+      "column": "oil_volume, gas_volume, water_volume, water_injection_volume",
+      "unit": "Sm³ per day (standard cubic metres)"
+    },
+    {
+      "column": "oil_volume_sm3, gas_volume_sm3, water_volume_sm3, water_injection_sm3",
+      "unit": "Sm³ per month"
+    },
+    {
+      "column": "avg_downhole_pressure, avg_wellhead_pressure, avg_annulus_pressure, avg_dp_tubing, dp_choke_size",
+      "unit": "bar"
+    },
+    {
+      "column": "avg_downhole_temperature, avg_wellhead_temperature",
+      "unit": "°C"
+    },
+    {
+      "column": "avg_choke_size_percent",
+      "unit": "% of fully open"
+    },
+    {
+      "column": "on_stream_hours",
+      "unit": "hours on stream in the day (daily) or the month (monthly)"
+    }
+  ],
+  "queries": [
+    {
+      "id": "one-well",
+      "title": "One well's daily history",
+      "why": "Wells are named in the small wells table. Join it to the daily table to pick a well by name instead of by its NPD code.",
+      "sql": "SELECT d.date, d.on_stream_hours, d.oil_volume, d.gas_volume, d.water_volume\nFROM '{base}/volve/daily_production.parquet' AS d\nJOIN '{base}/volve/wells.parquet' AS w USING (npd_wellbore_code)\nWHERE w.wellbore_name = '15/9-F-12'   -- the field's biggest producer\nORDER BY d.date;",
+      "polars": "import polars as pl\n\ndaily = pl.scan_parquet(\"{base}/volve/daily_production.parquet\")\nwells = pl.scan_parquet(\"{base}/volve/wells.parquet\")\n\nwell = (\n    daily.join(wells, on=\"npd_wellbore_code\")\n    .filter(pl.col(\"wellbore_name\") == \"15/9-F-12\")   # the field's biggest producer\n    .select(\"date\", \"on_stream_hours\", \"oil_volume\", \"gas_volume\", \"water_volume\")\n    .sort(\"date\")\n    .collect()\n)"
+    },
+    {
+      "id": "pressures",
+      "title": "Pressures while a well was flowing",
+      "why": "Pressure and temperature readings are missing on many days. Keep the days the well was on stream and had a downhole reading.",
+      "sql": "SELECT d.date,\n       d.avg_downhole_pressure,\n       d.avg_wellhead_pressure,\n       d.avg_choke_size_percent\nFROM '{base}/volve/daily_production.parquet' AS d\nJOIN '{base}/volve/wells.parquet' AS w USING (npd_wellbore_code)\nWHERE w.wellbore_name = '15/9-F-14'\n  AND d.on_stream_hours > 0\n  AND d.avg_downhole_pressure > 0\nORDER BY d.date;",
+      "polars": "import polars as pl\n\ndaily = pl.scan_parquet(\"{base}/volve/daily_production.parquet\")\nwells = pl.scan_parquet(\"{base}/volve/wells.parquet\")\n\npressures = (\n    daily.join(wells, on=\"npd_wellbore_code\")\n    .filter(\n        (pl.col(\"wellbore_name\") == \"15/9-F-14\")\n        & (pl.col(\"on_stream_hours\") > 0)\n        & (pl.col(\"avg_downhole_pressure\") > 0)\n    )\n    .select(\"date\", \"avg_downhole_pressure\", \"avg_wellhead_pressure\", \"avg_choke_size_percent\")\n    .sort(\"date\")\n    .collect()\n)"
+    },
+    {
+      "id": "monthly",
+      "title": "A year of monthly volumes, well by well",
+      "why": "The monthly table is Equinor's own monthly report, with gas and water injection alongside production. Its date is the first day of each month.",
+      "sql": "SELECT w.wellbore_name,\n       m.date AS month,\n       m.oil_volume_sm3,\n       m.gas_volume_sm3,\n       m.water_volume_sm3,\n       m.water_injection_sm3\nFROM '{base}/volve/monthly_production.parquet' AS m\nJOIN '{base}/volve/wells.parquet' AS w USING (npd_wellbore_code)\nWHERE m.date >= DATE '2014-01-01' AND m.date < DATE '2015-01-01'\nORDER BY w.wellbore_name, month;",
+      "polars": "from datetime import datetime\n\nimport polars as pl\n\nmonthly = pl.scan_parquet(\"{base}/volve/monthly_production.parquet\")\nwells = pl.scan_parquet(\"{base}/volve/wells.parquet\")\n\nyear = (\n    monthly.join(wells, on=\"npd_wellbore_code\")\n    .filter(pl.col(\"date\").is_between(datetime(2014, 1, 1), datetime(2015, 1, 1), closed=\"left\"))\n    .select(\n        \"wellbore_name\",\n        pl.col(\"date\").alias(\"month\"),\n        \"oil_volume_sm3\",\n        \"gas_volume_sm3\",\n        \"water_volume_sm3\",\n        \"water_injection_sm3\",\n    )\n    .sort(\"wellbore_name\", \"month\")\n    .collect()\n)"
+    }
+  ],
+  "source": {
+    "text": "Production data from the <a href=\"https://www.equinor.com/energy/volve-data-sharing\">Volve data village</a>, which Equinor released in 2018 together with the field's subsurface and operations data. PetroDB uses the daily and monthly sheets of <code>Volve production data.xlsx</code>."
+  },
+  "licence": {
+    "name": "CC BY-NC-SA 4.0",
+    "url": "https://creativecommons.org/licenses/by-nc-sa/4.0/",
+    "note": "Non-commercial use only. Credit Equinor, and share anything you build from the data under the same licence."
+  }
+}

@@ -1,0 +1,28 @@
+name: Build the Landing
+description: >-
+  Install pnpm and Node, then build the prerendered Landing into site/build
+  (ADR-0010). The pages name the data base in the caller's BASE_URL, or the
+  canonical `main` base when it is unset. Used by deploy-cloudflare-pages.yml
+  and deploy-landing-preview.yml; run it after actions/checkout.
+
+runs:
+  using: composite
+  steps:
+    - name: Install pnpm
+      uses: pnpm/action-setup@v4
+      with:
+        package_json_file: site/package.json
+
+    - name: Set up Node
+      uses: actions/setup-node@v4
+      with:
+        node-version: 22
+        cache: pnpm
+        cache-dependency-path: site/pnpm-lock.yaml
+
+    - name: Build the Landing
+      shell: bash
+      working-directory: site
+      run: |
+        pnpm install --frozen-lockfile
+        pnpm build

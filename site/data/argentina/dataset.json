@@ -1,0 +1,51 @@
+{
+  "id": "argentina",
+  "name": "Argentina production",
+  "holds": "Monthly oil, gas and water for every well in Argentina, with each well's location, operator history and operating state.",
+  "grain": "well per month",
+  "ready": true,
+  "petroviz": null,
+  "about": [
+    "Argentina's Secretaría de Energía publishes what every well in the country produced each month. PetroDB reshapes those files into four tables that join on one key, <code>idpozo</code>, so a well's attributes are stored once instead of being repeated on every one of its monthly rows.",
+    "A well here means one wellbore producing from one formation: a wellbore that produces from two formations has two <code>idpozo</code> values. Column names are kept in Spanish exactly as the source publishes them; the <a href=\"schema.md\">schema document</a> explains each one in English."
+  ],
+  "units": [
+    {
+      "column": "prod_pet, prod_agua, iny_agua",
+      "unit": "m³ per month"
+    },
+    {
+      "column": "prod_gas, iny_gas",
+      "unit": "thousand m³ per month"
+    },
+    {
+      "column": "tef",
+      "unit": "hours on production in the month"
+    }
+  ],
+  "queries": [
+    {
+      "id": "one-well",
+      "title": "One well's production history",
+      "why": "The monthly table is split into one file per year. Read the file list first, then filter: each file is sorted by well, so DuckDB fetches only the parts that hold this well.",
+      "sql": "SET VARIABLE monthly_production = (\n    SELECT list('{base}/argentina/monthly_production/' || path)\n    FROM read_json('{base}/argentina/monthly_production/_files.json') AS manifest(path)\n);\n\nSELECT fecha, prod_pet, prod_gas, prod_agua\nFROM read_parquet(getvariable('monthly_production'), hive_partitioning = true)\nWHERE idpozo = 160694   -- YPF.Nq.LLL-1577(h), a Vaca Muerta shale well\nORDER BY fecha;",
+      "python": "import json, urllib.request\nimport duckdb\n\nbase = \"{base}/argentina/monthly_production/\"\nfiles = json.load(urllib.request.urlopen(base + \"_files.json\"))\nurls = [base + path for path in files]\n\nwell = duckdb.sql(\"\"\"\n    SELECT fecha, prod_pet, prod_gas, prod_agua\n    FROM read_parquet($urls, hive_partitioning = true)\n    WHERE idpozo = 160694   -- YPF.Nq.LLL-1577(h), a Vaca Muerta shale well\n    ORDER BY fecha\n\"\"\", params={\"urls\": urls}).df()",
+      "polars": "import json, urllib.request\nimport polars as pl\n\nbase = \"{base}/argentina/monthly_production/\"\nfiles = json.load(urllib.request.urlopen(base + \"_files.json\"))\n\nwell = (\n    pl.scan_parquet([base + path for path in files], hive_partitioning=True)\n    .filter(pl.col(\"idpozo\") == 160694)   # YPF.Nq.LLL-1577(h), a Vaca Muerta shale well\n    .select(\"fecha\", \"prod_pet\", \"prod_gas\", \"prod_agua\")\n    .sort(\"fecha\")\n    .collect()\n)"
+    },
+    {
+      "id": "find-wells",
+      "title": "Find wells by what you know about them",
+      "why": "Everything that describes a well lives in one 8 MB file. Start here to get the idpozo values you need, then use them to filter the monthly table.",
+      "sql": "SELECT idpozo, sigla, empresa, yacimiento, profundidad\nFROM '{base}/argentina/wells.parquet'\nWHERE formprod = 'VMUT'               -- Vaca Muerta\n  AND sub_tipo_recurso = 'SHALE'\n  AND provincia = 'Neuquén'\nORDER BY profundidad DESC\nLIMIT 20;",
+      "polars": "import polars as pl\n\nwells = (\n    pl.scan_parquet(\"{base}/argentina/wells.parquet\")\n    .filter(\n        (pl.col(\"formprod\") == \"VMUT\")   # Vaca Muerta\n        & (pl.col(\"sub_tipo_recurso\") == \"SHALE\")\n        & (pl.col(\"provincia\") == \"Neuquén\")\n    )\n    .select(\"idpozo\", \"sigla\", \"empresa\", \"yacimiento\", \"profundidad\")\n    .sort(\"profundidad\", descending=True)\n    .head(20)\n    .collect()\n)"
+    }
+  ],
+  "source": {
+    "text": "Data from <a href=\"https://datos.energia.gob.ar/dataset/produccion-de-petroleo-y-gas-por-pozo\">Producción de petróleo y gas por pozo (Capítulo IV)</a>, published by the Secretaría de Energía on Argentina's open data portal. All three source files are resources of that one dataset package."
+  },
+  "licence": {
+    "name": "CC BY 4.0",
+    "url": "https://creativecommons.org/licenses/by/4.0/",
+    "note": "As declared on the dataset's portal page. Credit the Secretaría de Energía when you use it."
+  }
+}

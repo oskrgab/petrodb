@@ -4,10 +4,9 @@ Validates the intermediate DB unconditionally, then writes the four
 published Parquets: `wells.parquet`, `well_operator_history.parquet`,
 `well_events.parquet`, and the hive-partitioned `monthly_production`
 tree (with a `_files.json` manifest). Finally, idempotently surfaces
-the dataset on the static site via `website_integrator`.
+the dataset in the root README via `website_integrator`.
 """
 
-import json
 from pathlib import Path
 
 import duckdb
@@ -23,14 +22,13 @@ from scripts.export.argentina import (
 def run(
     db_path: Path,
     output_dir: Path,
-    website_root: Path | None = None,
+    repo_root: Path | None = None,
 ) -> None:
     """Run the export pipeline.
 
-    `website_root` is the repo root containing `README.md` and
-    `parquet/index.html`. When provided, the static site is patched in
-    place to surface the Argentina dataset; when `None`, the website
-    integration step is skipped.
+    `repo_root` is the repo root containing `README.md`. When
+    provided, the root README is patched in place to surface the
+    Argentina dataset; when `None`, the README patch is skipped.
     """
     db_path = Path(db_path)
     output_dir = Path(output_dir)
@@ -44,9 +42,5 @@ def run(
         validator.validate_partitions(con, output_dir)
         schema_doc_generator.generate(con, output_dir)
 
-    if website_root is not None:
-        manifest = json.loads(
-            (output_dir / "monthly_production" / "_files.json").read_text()
-        )
-        years = sorted(int(p.split("=", 1)[1].split("/", 1)[0]) for p in manifest)
-        website_integrator.integrate(Path(website_root), years)
+    if repo_root is not None:
+        website_integrator.integrate(Path(repo_root))

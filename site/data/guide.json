@@ -1,0 +1,63 @@
+{
+  "intro": [
+    "Every Dataset on PetroDB is a set of Parquet files at public web addresses. Parquet is a file format for tables that stores each column on its own, so a program can read a few columns of a large file without downloading the rest.",
+    "You read them with DuckDB, a query engine that runs inside your own program, from its command-line shell or from Python, and reads Parquet straight from the web; or with Polars, a Python library for tables. No account, key or server is needed. Install the Python packages with <code>pip install duckdb pandas polars</code>; the DuckDB shell is a single download from <a href=\"https://duckdb.org/docs/installation/\">duckdb.org</a>.",
+    "Each step below works for every Dataset. The examples use Volve, FORCE 2020 and Argentina production; swap in the addresses listed under Files on any Dataset page."
+  ],
+  "steps": [
+    {
+      "id": "one-file",
+      "title": "Read a single file by URL",
+      "body": [
+        "A table that fits in one file has one address. Put that address, in quotes, where a SQL query names a table: DuckDB fetches the file and treats it as the table. This reads the wellbores of the Volve Dataset."
+      ],
+      "sql": "SELECT *\nFROM '{base}/volve/wells.parquet';",
+      "polars": "import polars as pl\n\nwells = pl.read_parquet(\"{base}/volve/wells.parquet\")"
+    },
+    {
+      "id": "manifest",
+      "title": "Read a Multi-parquet table through its Manifest",
+      "body": [
+        "A large table is published as many files that share the same columns. PetroDB calls this a Multi-parquet table. FORCE 2020's well logs are one: one file per well, all in <code>force_2020/wells/</code>.",
+        "A web server cannot list a folder the way your computer can, so a wildcard such as <code>*.parquet</code> does not work. Instead each Multi-parquet table has a Manifest: a file named <code>_files.json</code> in the table's folder that lists the path of every file in it. Read the Manifest, add the folder's address in front of each path, and give the query the whole list."
+      ],
+      "sql": "SET VARIABLE force_wells = (\n    SELECT list('{base}/force_2020/wells/' || path)\n    FROM read_json('{base}/force_2020/wells/_files.json') AS manifest(path)\n);\n\nSELECT WELL, count(*) AS samples\nFROM read_parquet(getvariable('force_wells'))\nGROUP BY WELL\nORDER BY samples DESC\nLIMIT 10;",
+      "python": "import json, urllib.request\nimport duckdb\n\nfolder = \"{base}/force_2020/wells/\"\npaths = json.load(urllib.request.urlopen(folder + \"_files.json\"))\nurls = [folder + path for path in paths]\n\ndf = duckdb.sql(\"\"\"\n    SELECT WELL, count(*) AS samples\n    FROM read_parquet($urls)\n    GROUP BY WELL\n    ORDER BY samples DESC\n    LIMIT 10\n\"\"\", params={\"urls\": urls}).df()",
+      "polars": "import json, urllib.request\nimport polars as pl\n\nfolder = \"{base}/force_2020/wells/\"\npaths = json.load(urllib.request.urlopen(folder + \"_files.json\"))\n\nsamples = (\n    pl.scan_parquet([folder + path for path in paths])\n    .group_by(\"WELL\")\n    .agg(pl.len().alias(\"samples\"))\n    .sort(\"samples\", descending=True)\n    .head(10)\n    .collect()\n)"
+    },
+    {
+      "id": "filter",
+      "title": "Filter so only the needed bytes are fetched",
+      "body": [
+        "DuckDB and Polars do not download a whole file to answer a query. Parquet keeps each column apart and records the smallest and largest value of every column for each block of rows, so the reader asks the server for only the pieces that can hold an answer. Three habits make those pieces few:",
+        "<strong>Name the columns you need</strong> instead of <code>*</code>. Columns you leave out are never fetched.",
+        "<strong>Filter on the column in the folder names.</strong> Argentina's monthly production is a Multi-parquet table with one file per year, in folders named <code>anio=2006</code>, <code>anio=2007</code> and so on. With <code>hive_partitioning = true</code> the year becomes a column, and a filter on it skips the other years' files without opening them.",
+        "<strong>Filter on the column the files are sorted by.</strong> Each yearly file is sorted by well (<code>idpozo</code>), so a filter on one well skips every block of rows that holds other wells. This query reads three years of one well from a 147 MB table."
+      ],
+      "sql": "SET VARIABLE monthly_production = (\n    SELECT list('{base}/argentina/monthly_production/' || path)\n    FROM read_json('{base}/argentina/monthly_production/_files.json') AS manifest(path)\n);\n\nSELECT fecha, prod_pet, prod_gas, prod_agua\nFROM read_parquet(getvariable('monthly_production'), hive_partitioning = true)\nWHERE anio >= 2023         -- skips the files for 2006 to 2022\n  AND idpozo = 160694      -- skips blocks of rows that hold other wells\nORDER BY fecha;",
+      "python": "import json, urllib.request\nimport duckdb\n\nfolder = \"{base}/argentina/monthly_production/\"\npaths = json.load(urllib.request.urlopen(folder + \"_files.json\"))\nurls = [folder + path for path in paths]\n\ndf = duckdb.sql(\"\"\"\n    SELECT fecha, prod_pet, prod_gas, prod_agua\n    FROM read_parquet($urls, hive_partitioning = true)\n    WHERE anio >= 2023         -- skips the files for 2006 to 2022\n      AND idpozo = 160694      -- skips blocks of rows that hold other wells\n    ORDER BY fecha\n\"\"\", params={\"urls\": urls}).df()",
+      "polars": "import json, urllib.request\nimport polars as pl\n\nfolder = \"{base}/argentina/monthly_production/\"\npaths = json.load(urllib.request.urlopen(folder + \"_files.json\"))\n\nwell = (\n    pl.scan_parquet([folder + path for path in paths], hive_partitioning=True)\n    .filter((pl.col(\"anio\") >= 2023) & (pl.col(\"idpozo\") == 160694))\n    .select(\"fecha\", \"prod_pet\", \"prod_gas\", \"prod_agua\")\n    .sort(\"fecha\")\n    .collect()\n)"
+    },
+    {
+      "id": "pin",
+      "title": "Pin a version with a Hugging Face commit",
+      "body": [
+        "Every address on this site contains <code>/resolve/main/</code>. <code>main</code> always points at the newest files, so a query can return different rows after a Dataset is republished. To make an analysis repeatable, replace <code>main</code> with a commit: a fixed snapshot of every file, named by a long ID. The commits are listed in the <a href=\"{repo}/commits/main\">history of the files on Hugging Face</a>; copy the ID of the one you want.",
+        "Pinning works for Multi-parquet tables too. Read the Manifest from the pinned address and build the file addresses from that same address, and every file comes from the same snapshot."
+      ],
+      "sql": "SELECT npd_wellbore_code, sum(oil_volume_sm3) AS oil_sm3\nFROM '{repo}/resolve/29408097f44a880b62db71942a57b8f988349b58/volve/monthly_production.parquet'\nGROUP BY npd_wellbore_code\nORDER BY oil_sm3 DESC;",
+      "polars": "import polars as pl\n\ncommit = \"29408097f44a880b62db71942a57b8f988349b58\"\n\noil = (\n    pl.read_parquet(f\"{repo}/resolve/{commit}/volve/monthly_production.parquet\")\n    .group_by(\"npd_wellbore_code\")\n    .agg(pl.col(\"oil_volume_sm3\").sum().alias(\"oil_sm3\"))\n    .sort(\"oil_sm3\", descending=True)\n)"
+    },
+    {
+      "id": "download",
+      "title": "Download the files instead",
+      "body": [
+        "Reading over the web suits exploring. If you will read the same table many times, work offline, or use a tool that cannot read web addresses, download it once.",
+        "The Python version copies every file of a Multi-parquet table exactly as published, using its Manifest, so the copy keeps the same folders. The SQL and Polars versions read the table and write it to one Parquet file on your disk. To pick files by hand, <a href=\"{repo}/tree/main\">browse them on Hugging Face</a>."
+      ],
+      "sql": "SET VARIABLE force_wells = (\n    SELECT list('{base}/force_2020/wells/' || path)\n    FROM read_json('{base}/force_2020/wells/_files.json') AS manifest(path)\n);\n\nCOPY (FROM read_parquet(getvariable('force_wells')))\nTO 'force_2020_wells.parquet';",
+      "python": "import json, pathlib, urllib.request\n\nfolder = \"{base}/force_2020/wells/\"\npaths = json.load(urllib.request.urlopen(folder + \"_files.json\"))\n\nfor path in paths:\n    target = pathlib.Path(\"force_2020/wells\") / path\n    target.parent.mkdir(parents=True, exist_ok=True)\n    urllib.request.urlretrieve(folder + path, target)",
+      "polars": "import json, urllib.request\nimport polars as pl\n\nfolder = \"{base}/force_2020/wells/\"\npaths = json.load(urllib.request.urlopen(folder + \"_files.json\"))\n\npl.scan_parquet([folder + path for path in paths]).sink_parquet(\"force_2020_wells.parquet\")"
+    }
+  ]
+}

@@ -11,19 +11,44 @@ it in multiple formats:
 
 These files help consumers of the parquet files understand the data structure
 and relationships without needing access to the original database.
+
+SQLite keeps no column comments, so table and column descriptions cannot be
+reflected. They come from ``volve_descriptions``; the export fails if a
+reflected column has no description or a description names a column that
+does not exist. The Landing reads them from the generated schema.md.
+
+Run from the repo root::
+
+    uv run -m scripts.export.export_schema
 """
 
 import json
 from pathlib import Path
-from typing import Any
 
 from sqlalchemy import MetaData, create_engine, Table
 from sqlalchemy.schema import CreateTable, CreateIndex
 
+from scripts.export.volve_descriptions import COLUMN_DESCRIPTIONS, TABLE_DESCRIPTIONS
 from scripts.transform.constants import DATABASE_PATH
 
-# Output directory
-SCHEMA_OUTPUT_DIR = Path("parquet")
+REPO_ROOT = Path(__file__).resolve().parents[2]
+
+# Output directory: the published Volve Dataset
+SCHEMA_OUTPUT_DIR = REPO_ROOT / "parquet" / "volve"
+
+
+def check_descriptions(
+    columns: dict[str, list[str]], descriptions: dict[str, dict[str, str]]
+) -> None:
+    """Fail unless every reflected column, and only those, has a description."""
+    problems = []
+    for table in sorted(set(columns) | set(descriptions)):
+        have = set(columns.get(table, []))
+        described = {c for c, text in descriptions.get(table, {}).items() if text}
+        problems += [f"{table}.{c}: no description" for c in sorted(have - described)]
+        problems += [f"{table}.{c}: no such column" for c in sorted(described - have)]
+    if problems:
+        raise ValueError("column descriptions: " + "; ".join(problems))
 
 
 def reflect_schema(engine) -> MetaData:
@@ -43,7 +68,11 @@ def get_table_info(table: Table) -> list[dict]:
             "not_null": not col.nullable,
             "default_value": str(col.default.arg) if col.default else None,
             "primary_key": col.primary_key,
-            "comment": col.comment
+            # Always null (SQLite keeps no comments), but published in
+            # schema.json since before descriptions existed: dropping the key
+            # would change the published document.
+            "comment": col.comment,
+            "description": COLUMN_DESCRIPTIONS[table.name][col.name],
         })
     return columns
 
@@ -60,10 +89,15 @@ def get_foreign_keys(table: Table) -> list[dict]:
     return foreign_keys
 
 
+def sorted_indexes(table: Table) -> list:
+    """table.indexes is a set: sort it so the published documents are stable."""
+    return sorted(table.indexes, key=lambda i: i.name)
+
+
 def get_indexes(table: Table) -> list[dict]:
     """Get indexes from a SQLAlchemy Table object."""
     indexes = []
-    for index in table.indexes:
+    for index in sorted_indexes(table):
         indexes.append({
             "name": index.name,
             "unique": index.unique,
@@ -82,6 +116,7 @@ def export_schema_json(metadata: MetaData, output_path: Path):
 
     for table_name, table in metadata.tables.items():
         schema["tables"][table_name] = {
+            "description": TABLE_DESCRIPTIONS[table_name],
             "columns": get_table_info(table),
             "foreign_keys": get_foreign_keys(table),
             "indexes": get_indexes(table)
@@ -104,7 +139,7 @@ def export_schema_sql(metadata: MetaData, engine, output_path: Path):
 
     # Generate CREATE INDEX statements
     for table_name, table in sorted(metadata.tables.items()):
-        for index in table.indexes:
+        for index in sorted_indexes(table):
             create_index_stmt = str(CreateIndex(index).compile(engine))
             ddl_statements.append(create_index_stmt + ";")
 
@@ -126,23 +161,22 @@ def export_schema_markdown(metadata: MetaData, output_path: Path):
     content += "## Tables\n\n"
 
     for table_name, table in sorted(metadata.tables.items()):
-        content += f"### {table_name}\n\n"
-
-        # Table description from comments
-        if table.comment:
-            content += f"*{table.comment}*\n\n"
+        content += f"### `{table_name}`\n\n"
+        content += f"{TABLE_DESCRIPTIONS[table_name]}\n\n"
 
         # Columns
         columns = get_table_info(table)
         content += "**Columns:**\n\n"
-        content += "| Column | Type | Nullable | Primary Key | Comment |\n"
-        content += "|--------|------|----------|-------------|----------|\n"
+        content += "| Column | Type | Nullable | Primary Key | Description |\n"
+        content += "|--------|------|----------|-------------|-------------|\n"
 
         for col in columns:
             nullable = "Yes" if not col["not_null"] else "No"
             pk = "✓" if col["primary_key"] else ""
-            comment = col.get("comment", "") or ""
-            content += f"| {col['name']} | {col['type']} | {nullable} | {pk} | {comment} |\n"
+            content += (
+                f"| `{col['name']}` | {col['type']} | {nullable} | {pk} "
+                f"| {col['description']} |\n"
+            )
 
         content += "\n"
 
@@ -182,36 +216,41 @@ def export_schema_markdown(metadata: MetaData, output_path: Path):
     print(f"✓ Exported Markdown schema: {output_path}")
 
 
-def export_all_schemas():
+def export_all_schemas(output_dir: Path = SCHEMA_OUTPUT_DIR):
     """Export database schema in all formats using SQLAlchemy reflection."""
     print("="*80)
     print("EXPORTING DATABASE SCHEMA")
     print("="*80)
 
     # Ensure output directory exists
-    SCHEMA_OUTPUT_DIR.mkdir(exist_ok=True)
+    output_dir.mkdir(parents=True, exist_ok=True)
 
     # Connect to database using SQLAlchemy
-    print(f"\nConnecting to: {DATABASE_PATH}")
-    engine = create_engine(f"sqlite:///{DATABASE_PATH}")
+    database = REPO_ROOT / DATABASE_PATH
+    print(f"\nConnecting to: {database}")
+    engine = create_engine(f"sqlite:///{database}")
 
     # Reflect the schema
     print("Reflecting database schema...")
     metadata = reflect_schema(engine)
     print(f"  → Found {len(metadata.tables)} tables")
+    check_descriptions(
+        {name: [c.name for c in t.columns] for name, t in metadata.tables.items()},
+        COLUMN_DESCRIPTIONS,
+    )
 
     # Export in different formats
     print("\nExporting schema...")
-    export_schema_json(metadata, SCHEMA_OUTPUT_DIR / "schema.json")
-    export_schema_sql(metadata, engine, SCHEMA_OUTPUT_DIR / "schema.sql")
-    export_schema_markdown(metadata, SCHEMA_OUTPUT_DIR / "schema.md")
+    export_schema_json(metadata, output_dir / "schema.json")
+    export_schema_sql(metadata, engine, output_dir / "schema.sql")
+    export_schema_markdown(metadata, output_dir / "schema.md")
 
     engine.dispose()
 
     print("\n" + "="*80)
     print("SCHEMA EXPORT COMPLETE")
     print("="*80)
-    print(f"\nSchema files exported to: {SCHEMA_OUTPUT_DIR}/")
+    print(f"\nSchema files exported to: {output_dir}/")
     print("  - schema.json (machine-readable)")
     print("  - schema.sql (DDL statements)")
     print("  - schema.md (human-readable documentation)")

@@ -1,0 +1,132 @@
+[
+ {
+  "name": "well_events",
+  "kind": "single",
+  "path": "well_events.parquet",
+  "bytes": 2117040,
+  "rows": 499031
+ },
+ {
+  "name": "well_operator_history",
+  "kind": "single",
+  "path": "well_operator_history.parquet",
+  "bytes": 611047,
+  "rows": 176956
+ },
+ {
+  "name": "wells",
+  "kind": "single",
+  "path": "wells.parquet",
+  "bytes": 8286353,
+  "rows": 85417
+ },
+ {
+  "name": "monthly_production",
+  "kind": "multi",
+  "manifest": "monthly_production/_files.json",
+  "bytes": 146634834,
+  "rows": 17775911,
+  "files": [
+   {
+    "path": "monthly_production/anio=2006/data.parquet",
+    "bytes": 6483231,
+    "rows": 752448
+   },
+   {
+    "path": "monthly_production/anio=2007/data.parquet",
+    "bytes": 5952744,
+    "rows": 767041
+   },
+   {
+    "path": "monthly_production/anio=2008/data.parquet",
+    "bytes": 6309250,
+    "rows": 792362
+   },
+   {
+    "path": "monthly_production/anio=2009/data.parquet",
+    "bytes": 6568031,
+    "rows": 808590
+   },
+   {
+    "path": "monthly_production/anio=2010/data.parquet",
+    "bytes": 6667218,
+    "rows": 819755
+   },
+   {
+    "path": "monthly_production/anio=2011/data.parquet",
+    "bytes": 6725828,
+    "rows": 831028
+   },
+   {
+    "path": "monthly_production/anio=2012/data.parquet",
+    "bytes": 6956857,
+    "rows": 842497
+   },
+   {
+    "path": "monthly_production/anio=2013/data.parquet",
+    "bytes": 7232874,
+    "rows": 852181
+   },
+   {
+    "path": "monthly_production/anio=2014/data.parquet",
+    "bytes": 7457840,
+    "rows": 871040
+   },
+   {
+    "path": "monthly_production/anio=2015/data.parquet",
+    "bytes": 7642903,
+    "rows": 889229
+   },
+   {
+    "path": "monthly_production/anio=2016/data.parquet",
+    "bytes": 7824704,
+    "rows": 906073
+   },
+   {
+    "path": "monthly_production/anio=2017/data.parquet",
+    "bytes": 7849257,
+    "rows": 920835
+   },
+   {
+    "path": "monthly_production/anio=2018/data.parquet",
+    "bytes": 7818652,
+    "rows": 934809
+   },
+   {
+    "path": "monthly_production/anio=2019/data.parquet",
+    "bytes": 7935229,
+    "rows": 948165
+   },
+   {
+    "path": "monthly_production/anio=2020/data.parquet",
+    "bytes": 7683395,
+    "rows": 954695
+   },
+   {
+    "path": "monthly_production/anio=2021/data.parquet",
+    "bytes": 7794949,
+    "rows": 962221
+   },
+   {
+    "path": "monthly_production/anio=2022/data.parquet",
+    "bytes": 7852724,
+    "rows": 972897
+   },
+   {
+    "path": "monthly_production/anio=2023/data.parquet",
+    "bytes": 7914328,
+    "rows": 975438
+   },
+   {
+    "path": "monthly_production/anio=2024/data.parquet",
+    "bytes": 7990975,
+    "rows": 984123
+   },
+   {
+    "path": "monthly_production/anio=2025/data.parquet",
+    "bytes": 7973845,
+    "rows": 990484
+   }
+  ]
+ }
+]
