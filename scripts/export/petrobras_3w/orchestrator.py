@@ -34,7 +34,7 @@ def run(
     output_dir: Path,
     dataset_ini: DatasetIni,
     staging_dir: Path,
-    website_root: Path | None = None,
+    repo_root: Path | None = None,
 ) -> None:
     """Run the export pipeline.
 
@@ -50,10 +50,9 @@ def run(
     the full corpus in RAM. The same tree is the upstream source-of-
     truth for the post-write ``parity`` suite.
 
-    ``website_root`` is the repo root containing `README.md`. When
+    ``repo_root`` is the repo root containing `README.md`. When
     provided, the root README is patched in place to surface the
-    Petrobras 3W dataset; when None, the website integration step is
-    skipped. The patch runs only after ``parity.check`` returns, so a
+    Petrobras 3W dataset; when None, the README patch is skipped. The patch runs only after ``parity.check`` returns, so a
     divergence keeps the existing README intact.
     """
     db_path = Path(db_path)
@@ -72,5 +71,5 @@ def run(
     with duckdb.connect(str(db_path), read_only=True) as con:
         schema_doc_generator.generate(con, output_dir, dataset_ini)
 
-    if website_root is not None:
-        website_integrator.integrate(Path(website_root))
+    if repo_root is not None:
+        website_integrator.integrate(Path(repo_root))

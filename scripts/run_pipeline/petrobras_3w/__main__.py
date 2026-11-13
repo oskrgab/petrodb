@@ -26,7 +26,7 @@ def main() -> None:
         output_dir=OUTPUT_DIR,
         dataset_ini=dataset_ini,
         staging_dir=STAGING_DIR,
-        website_root=REPO_ROOT,
+        repo_root=REPO_ROOT,
     )
 
 

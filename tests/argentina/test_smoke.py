@@ -49,7 +49,7 @@ def test_pipeline_emits_wells_parquet(tmp_path: Path) -> None:
     (site_root / "README.md").write_text(_STUB_README)
 
     transform_orch.run(db_path=db_path, csv_dir=FIXTURES)
-    export_orch.run(db_path=db_path, output_dir=out_dir, website_root=site_root)
+    export_orch.run(db_path=db_path, output_dir=out_dir, repo_root=site_root)
 
     wells_parquet = out_dir / "wells.parquet"
     assert wells_parquet.exists(), "wells.parquet was not written"

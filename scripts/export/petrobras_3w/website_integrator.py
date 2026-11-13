@@ -28,13 +28,13 @@ README_END = "<!-- petrobras_3w:end -->"
 README_ANCHOR = "## Access Data"
 
 
-def integrate(website_root: Path) -> None:
+def integrate(repo_root: Path) -> None:
     """Idempotently inject the Petrobras 3W dataset entry into the root README.
 
-    ``website_root`` is the repo root containing ``README.md``. Re-running
+    ``repo_root`` is the repo root containing ``README.md``. Re-running
     produces byte-identical output.
     """
-    _patch_root_readme(Path(website_root) / "README.md")
+    _patch_root_readme(Path(repo_root) / "README.md")
 
 
 def _readme_payload() -> str:

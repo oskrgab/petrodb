@@ -25,7 +25,7 @@ def main() -> None:
     export_orch.run(
         db_path=DB_PATH,
         output_dir=OUTPUT_DIR,
-        website_root=REPO_ROOT,
+        repo_root=REPO_ROOT,
     )
     glances.write("argentina")
 
