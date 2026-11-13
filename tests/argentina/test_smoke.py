@@ -35,26 +35,6 @@ FORCE placeholder.
 placeholder
 """
 
-_STUB_INDEX = """\
-<!DOCTYPE html>
-<html><body>
-    <div class="container">
-        <div class="tab-navigation">
-            <button class="tab-button active" data-tab="volve">Volve</button>
-            <button class="tab-button" data-tab="force2020">Force 2020</button>
-        </div>
-
-        <!-- Volve Tab Content -->
-        <div id="volve-tab" class="tab-content active">v</div>
-
-        <!-- Force 2020 Tab Content -->
-        <div id="force2020-tab" class="tab-content">f</div>
-
-        <footer>footer</footer>
-    </div>
-</body></html>
-"""
-
 
 def test_pipeline_emits_wells_parquet(tmp_path: Path) -> None:
     """Fixture has 4 capitulo-iv wells (one orphan) + 2 production-only.
@@ -62,12 +42,11 @@ def test_pipeline_emits_wells_parquet(tmp_path: Path) -> None:
     db_path = tmp_path / "argentina.duckdb"
     out_dir = tmp_path / "parquet"
 
-    # Stub website tree so the export's website_integrator step has
-    # something to patch end-to-end.
+    # Stub repo root so the export's website_integrator step has a root
+    # README to patch end-to-end.
     site_root = tmp_path / "site"
-    (site_root / "parquet").mkdir(parents=True)
+    site_root.mkdir()
     (site_root / "README.md").write_text(_STUB_README)
-    (site_root / "parquet" / "index.html").write_text(_STUB_INDEX)
 
     transform_orch.run(db_path=db_path, csv_dir=FIXTURES)
     export_orch.run(db_path=db_path, output_dir=out_dir, website_root=site_root)
@@ -283,17 +262,12 @@ def test_pipeline_emits_wells_parquet(tmp_path: Path) -> None:
     assert "_files.json" in readme and "read_parquet(?" in readme
     assert "anio=*/data.parquet" not in readme
 
-    # Website integration — the static site must surface the dataset.
+    # Website integration — the root README surfaces the dataset.
     site_readme = (site_root / "README.md").read_text()
     assert "### Argentina Production Data" in site_readme
     assert "import json, urllib.request, duckdb" in site_readme
-    site_index = (site_root / "parquet" / "index.html").read_text()
-    assert 'data-tab="argentina"' in site_index
-    assert 'id="argentina-tab"' in site_index
-    for artifact in ("schema.md", "schema.json", "schema.sql", "README.md"):
-        assert f'"argentina/{artifact}"' in site_index, (
-            f"index.html missing link to argentina/{artifact}"
-        )
+    # Pipelines emit data, never markup (ADR-0010).
+    assert not list(tmp_path.rglob("*.html"))
 
 
 def test_export_aborts_when_validator_fails(

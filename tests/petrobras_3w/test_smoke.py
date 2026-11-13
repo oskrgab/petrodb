@@ -58,26 +58,6 @@ FORCE placeholder.
 placeholder
 """
 
-_STUB_INDEX = """\
-<!DOCTYPE html>
-<html><body>
-    <div class="container">
-        <div class="tab-navigation">
-            <button class="tab-button active" data-tab="volve">Volve</button>
-            <button class="tab-button" data-tab="force2020">Force 2020</button>
-        </div>
-
-        <!-- Volve Tab Content -->
-        <div id="volve-tab" class="tab-content active">v</div>
-
-        <!-- Force 2020 Tab Content -->
-        <div id="force2020-tab" class="tab-content">f</div>
-
-        <footer>footer</footer>
-    </div>
-</body></html>
-"""
-
 
 def _populated_staging(tmp_path: Path) -> Path:
     """Copy the fixture upstream tree into `tmp_path/staging` so the stager
@@ -92,9 +72,8 @@ def _populated_staging(tmp_path: Path) -> Path:
 
 def _site_root(tmp_path: Path) -> Path:
     site_root = tmp_path / "site"
-    (site_root / "parquet").mkdir(parents=True)
+    site_root.mkdir()
     (site_root / "README.md").write_text(_STUB_README)
-    (site_root / "parquet" / "index.html").write_text(_STUB_INDEX)
     return site_root
 
 
@@ -346,30 +325,16 @@ def test_website_integration_is_idempotent(tmp_path: Path) -> None:
         website_root=site_root,
     )
     first_readme = (site_root / "README.md").read_text()
-    first_index = (site_root / "parquet" / "index.html").read_text()
 
-    # The README and index must show the new dataset entry/tab.
+    # The root README shows the new dataset entry, with its pinned upstream
+    # identity and a manifest-free catalog query.
     assert "### Petrobras 3W Dataset" in first_readme
     assert "import duckdb" in first_readme
-    assert 'data-tab="petrobras_3w"' in first_index
-    assert 'id="petrobras_3w-tab"' in first_index
-    for artifact in ("README.md", "schema.md", "schema.json", "schema.sql"):
-        assert f'"petrobras_3w/{artifact}"' in first_index, (
-            f"index.html missing link to petrobras_3w/{artifact}"
-        )
-    # All published parquets are surfaced on the static site.
-    assert "petrobras_3w/event_types.parquet" in first_index
-    assert "petrobras_3w/instances.parquet" in first_index
-    assert "petrobras_3w/wells.parquet" in first_index
-    # The Observations manifest is surfaced.
-    assert "petrobras_3w/observations/_files.json" in first_index
-    # The observations query example uses manifest-based discovery filtered to
-    # one event_class partition, never a glob (ADR-0004).
-    assert "observations/event_class=8/*.parquet" not in first_index
-    assert "event_class=8/" in first_index
-    # Pin metadata is surfaced on the site.
-    assert PIN_GIT_TAG in first_index
-    assert PIN_DATASET_VERSION in first_index
+    assert "instances.parquet" in first_readme
+    assert PIN_GIT_TAG in first_readme
+    assert PIN_DATASET_VERSION in first_readme
+    # Pipelines emit data, never markup (ADR-0010).
+    assert not list(tmp_path.rglob("*.html"))
 
     # Re-running must produce byte-identical output (no duplicate blocks).
     export_orch.run(
@@ -380,7 +345,6 @@ def test_website_integration_is_idempotent(tmp_path: Path) -> None:
         website_root=site_root,
     )
     assert (site_root / "README.md").read_text() == first_readme
-    assert (site_root / "parquet" / "index.html").read_text() == first_index
 
 
 def test_validator_logs_pinned_upstream(
@@ -1474,7 +1438,6 @@ def test_orchestrator_aborts_publish_on_parity_failure(
             website_root=site_root,
         )
 
-    # The static site is untouched on a parity abort: the publish never
+    # The root README is untouched on a parity abort: the publish never
     # made it past `parity.check`.
     assert (site_root / "README.md").read_text() == pristine_readme
-    assert "petrobras_3w" not in (site_root / "parquet" / "index.html").read_text()

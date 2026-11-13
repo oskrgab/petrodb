@@ -2,9 +2,9 @@
 
 The deploy must ship artifacts whose every data URL resolves to the deploy's own
 HF revision (ADR-0005). These tests pin that the retarget pass rewrites the
-surfaces that gained per-branch awareness — the hand-authored Volve/FORCE tabs
-in ``index.html``, the root-README quick-start, the HF dataset card, and the
-FORCE/Argentina schema READMEs — from the canonical committed host to a
+surfaces that gained per-branch awareness — the root-README quick-start, the HF
+dataset card, and the FORCE/Argentina schema READMEs — from the canonical
+committed host to a
 per-branch ``BASE_URL``, and that a no-``BASE_URL`` run falls back to the dev
 Caddy host without leaving stray hosts behind.
 """
@@ -26,7 +26,6 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 TRACKED_SURFACES = [
     "README.md",
     "hf/README.md",
-    "parquet/index.html",
     "parquet/argentina/README.md",
     "parquet/force_2020/README.md",
 ]
@@ -93,19 +92,28 @@ def test_stage_deploy_retargets_every_surface(repo_copy: Path) -> None:
         assert STAGE_BASE in text, f"{rel} gained no stage URL"
 
 
-def test_stage_deploy_covers_volve_and_force_static_tabs(repo_copy: Path) -> None:
+def test_stage_deploy_covers_hand_authored_force_readme(repo_copy: Path) -> None:
     rt.retarget(repo_copy, STAGE_BASE)
-    index = (repo_copy / "parquet/index.html").read_text()
-    # The hand-authored Volve and FORCE 2020 tabs (no generator of their own).
-    assert f"{STAGE_BASE}/volve/daily_production.parquet" in index
-    assert f"{STAGE_BASE}/force_2020/wells/15-9-13.parquet" in index
+    readme = (repo_copy / "parquet/force_2020/README.md").read_text()
+    # FORCE 2020 has no generator of its own; its README is written by hand.
+    assert f"{STAGE_BASE}/force_2020/wells/15-9-13.parquet" in readme
+
+
+def test_retired_landing_page_is_not_a_surface(repo_copy: Path) -> None:
+    # The Landing is the prerendered site (ADR-0010); a leftover
+    # parquet/index.html is not a deployed artifact and is left alone.
+    stray = repo_copy / "parquet/index.html"
+    stray.write_text(f"{MAIN_BASE}/volve/wells.parquet")
+    changed = rt.retarget(repo_copy, STAGE_BASE)
+    assert stray not in changed
+    assert stray.read_text() == f"{MAIN_BASE}/volve/wells.parquet"
 
 
 def test_stage_deploy_covers_root_readme_quickstart(repo_copy: Path) -> None:
     rt.retarget(repo_copy, STAGE_BASE)
     readme = (repo_copy / "README.md").read_text()
     assert f'HF = "{STAGE_BASE}"' in readme
-    # And the "Browse and download" pointer no longer names the dev host.
+    # And nothing in it names the dev host.
     assert DEV_HOST not in readme
 
 
@@ -124,9 +132,9 @@ def test_no_base_url_falls_back_to_dev_host(
     monkeypatch.delenv("BASE_URL", raising=False)
     monkeypatch.setattr(rt, "__file__", str(repo_copy / "scripts/deploy/x.py"))
     rt.main()
-    index = (repo_copy / "parquet/index.html").read_text()
-    assert MAIN_BASE not in index
-    assert f"{DEV_HOST}/volve/daily_production.parquet" in index
+    readme = (repo_copy / "parquet/force_2020/README.md").read_text()
+    assert MAIN_BASE not in readme
+    assert f"{DEV_HOST}/force_2020/wells/15-9-13.parquet" in readme
 
 
 def test_committed_tree_is_canonical_main() -> None:

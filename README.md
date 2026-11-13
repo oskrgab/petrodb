@@ -95,7 +95,10 @@ source: <https://github.com/petrobras/3W.git> (CC BY 4.0).
 
 ## Access Data
 
-Browse and download files at: **https://dev-petrodb.ocortez.com**
+Browse the Datasets at **https://petrodb.ocortez.com/**: a catalogue page, one
+page per Dataset with its tables, Glances and query examples, and a guide to
+querying the data. The site is a prerendered SvelteKit project in `site/`
+(ADR-0010); the parquet files themselves are served from Hugging Face.
 
 ## Quick Start
 
@@ -169,7 +172,9 @@ well_data = conn.execute("""
 ## Project Structure
 
 ```
-parquet/
+site/                         # the Landing: prerendered SvelteKit site (ADR-0010)
+└── data/<dataset>/           # per-Dataset metadata, file lists and Glances
+parquet/                      # the data tree: parquet files + schema documents
 ├── volve/                    # Volve production data
 │   ├── daily_production.parquet
 │   ├── monthly_production.parquet
