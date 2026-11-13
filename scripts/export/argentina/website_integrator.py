@@ -44,13 +44,13 @@ README_ANCHOR = "## Access Data"
 # ---------------------------------------------------------------------------
 
 
-def integrate(website_root: Path) -> None:
+def integrate(repo_root: Path) -> None:
     """Idempotently inject the Argentina dataset entry into the root README.
 
-    ``website_root`` is the repo root: the directory that contains
+    ``repo_root`` is the repo root: the directory that contains
     ``README.md``. Re-running produces byte-identical output.
     """
-    _patch_root_readme(Path(website_root) / "README.md")
+    _patch_root_readme(Path(repo_root) / "README.md")
 
 
 # ---------------------------------------------------------------------------

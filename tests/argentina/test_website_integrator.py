@@ -44,14 +44,14 @@ See original license terms.
 
 
 @pytest.fixture
-def website_root(tmp_path: Path) -> Path:
+def repo_root(tmp_path: Path) -> Path:
     (tmp_path / "README.md").write_text(_README_BEFORE)
     return tmp_path
 
 
-def test_integrate_adds_argentina_blurb_to_root_readme(website_root: Path) -> None:
-    website_integrator.integrate(website_root)
-    body = (website_root / "README.md").read_text()
+def test_integrate_adds_argentina_blurb_to_root_readme(repo_root: Path) -> None:
+    website_integrator.integrate(repo_root)
+    body = (repo_root / "README.md").read_text()
     assert "### Argentina Production Data" in body
     assert "wells.parquet" in body
     assert "well_operator_history.parquet" in body
@@ -61,21 +61,21 @@ def test_integrate_adds_argentina_blurb_to_root_readme(website_root: Path) -> No
     assert "Spanish" in body or "español" in body.lower()
 
 
-def test_integrate_readme_blurb_appears_under_datasets(website_root: Path) -> None:
+def test_integrate_readme_blurb_appears_under_datasets(repo_root: Path) -> None:
     """The Argentina entry must sit under `## Datasets` and before
     `## Access Data` so it slots in next to Volve and FORCE 2020."""
-    website_integrator.integrate(website_root)
-    body = (website_root / "README.md").read_text()
+    website_integrator.integrate(repo_root)
+    body = (repo_root / "README.md").read_text()
     datasets_idx = body.index("## Datasets")
     argentina_idx = body.index("### Argentina Production Data")
     access_idx = body.index("## Access Data")
     assert datasets_idx < argentina_idx < access_idx
 
 
-def test_integrate_readme_includes_duckdb_query_example(website_root: Path) -> None:
+def test_integrate_readme_includes_duckdb_query_example(repo_root: Path) -> None:
     """The blurb must carry a copy-pasteable DuckDB query example."""
-    website_integrator.integrate(website_root)
-    body = (website_root / "README.md").read_text()
+    website_integrator.integrate(repo_root)
+    body = (repo_root / "README.md").read_text()
     assert "import json, urllib.request, duckdb" in body
     assert "duckdb.sql(" in body
     # The example uses the published HTTP URLs so it works without download
@@ -89,36 +89,36 @@ def test_integrate_readme_includes_duckdb_query_example(website_root: Path) -> N
     assert "hive_partitioning = true" in body
 
 
-def test_integrate_is_idempotent_on_root_readme(website_root: Path) -> None:
-    website_integrator.integrate(website_root)
-    first = (website_root / "README.md").read_text()
-    website_integrator.integrate(website_root)
-    second = (website_root / "README.md").read_text()
+def test_integrate_is_idempotent_on_root_readme(repo_root: Path) -> None:
+    website_integrator.integrate(repo_root)
+    first = (repo_root / "README.md").read_text()
+    website_integrator.integrate(repo_root)
+    second = (repo_root / "README.md").read_text()
     assert first == second
 
 
-def test_integrate_does_not_duplicate_argentina_entries(website_root: Path) -> None:
+def test_integrate_does_not_duplicate_argentina_entries(repo_root: Path) -> None:
     """Re-running must never accumulate copies of the inserted entries."""
     for _ in range(3):
-        website_integrator.integrate(website_root)
-    readme = (website_root / "README.md").read_text()
+        website_integrator.integrate(repo_root)
+    readme = (repo_root / "README.md").read_text()
     assert readme.count("### Argentina Production Data") == 1
 
 
-def test_integrate_writes_sentinel_markers(website_root: Path) -> None:
+def test_integrate_writes_sentinel_markers(repo_root: Path) -> None:
     """The sentinels are how the patch finds itself on a re-run; if they
     disappear, the patch will duplicate."""
-    website_integrator.integrate(website_root)
-    readme = (website_root / "README.md").read_text()
+    website_integrator.integrate(repo_root)
+    readme = (repo_root / "README.md").read_text()
     assert website_integrator.README_BEGIN in readme
     assert website_integrator.README_END in readme
 
 
-def test_integrate_replaces_stale_block_in_place(website_root: Path) -> None:
+def test_integrate_replaces_stale_block_in_place(repo_root: Path) -> None:
     """If the inserted block changes, re-running must overwrite the prior
     version rather than appending alongside it."""
-    website_integrator.integrate(website_root)
-    readme_path = website_root / "README.md"
+    website_integrator.integrate(repo_root)
+    readme_path = repo_root / "README.md"
     body = readme_path.read_text()
     # Doctor the file so the previous block contains stale text.
     stale = body.replace(
@@ -129,14 +129,14 @@ def test_integrate_replaces_stale_block_in_place(website_root: Path) -> None:
     readme_path.write_text(stale)
     assert "STALE STALE STALE" in readme_path.read_text()
 
-    website_integrator.integrate(website_root)
+    website_integrator.integrate(repo_root)
     fresh = readme_path.read_text()
     assert "STALE STALE STALE" not in fresh
     assert fresh.count("### Argentina Production Data") == 1
 
 
-def test_integrate_writes_only_the_root_readme(website_root: Path) -> None:
+def test_integrate_writes_only_the_root_readme(repo_root: Path) -> None:
     """Pipelines emit data, never markup (ADR-0010): the README is the one
     file the integrator touches."""
-    website_integrator.integrate(website_root)
-    assert sorted(p.name for p in website_root.rglob("*")) == ["README.md"]
+    website_integrator.integrate(repo_root)
+    assert sorted(p.name for p in repo_root.rglob("*")) == ["README.md"]

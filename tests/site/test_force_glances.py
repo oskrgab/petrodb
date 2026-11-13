@@ -3,11 +3,11 @@
 import pytest
 
 from scripts.site import glances
+from tests.site.support import find_glance
 
 
 def _glance(glance_id: str) -> dict:
-    glance = next(g for g in glances.GLANCES if g.dataset == "force_2020" and g.id == glance_id)
-    return glances.run_glance(glance)
+    return glances.run_glance(find_glance("force_2020", glance_id))
 
 
 @pytest.fixture(scope="module")
@@ -55,4 +55,6 @@ def test_lithology_mix_covers_every_class_in_the_corpus() -> None:
     share, wells = chart["series"]
     assert sum(share["values"]) == pytest.approx(100, abs=0.1)
     assert share["values"][0] == pytest.approx(804_778 / 1_307_297 * 100, abs=0.01)
+    # The corpus is 108 wells, one file each in wells/_files.json.
+    assert (wells["unit"], wells["max"]) == ("of 108", 108)
     assert max(wells["values"]) <= 108

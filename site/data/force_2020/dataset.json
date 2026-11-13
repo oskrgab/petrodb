@@ -9,8 +9,8 @@
     "url": "https://petroviz.ocortez.com/logs"
   },
   "about": [
-    "The FORCE 2020 machine-learning competition asked entrants to predict lithology from wireline logs. Its corpus is 108 wells from the Norwegian North Sea, each sampled about every 15 cm down the hole, with an interpreted lithology label on every sample. PetroDB publishes it as one Parquet file per well, so reading one well fetches one file.",
-    "Columns keep the source log mnemonics: <code>GR</code> is gamma ray, <code>RHOB</code> bulk density, <code>NPHI</code> neutron porosity, <code>RDEP</code> deep resistivity. The lithology is an integer code in <code>FORCE_2020_LITHOFACIES_LITHOLOGY</code>; the <a href=\"schema.md\">schema document</a> names all twelve classes. The <code>dataset</code> column keeps the competition's train and test split. Quote <code>\"GROUP\"</code> in SQL: it is a reserved word."
+    "The FORCE 2020 machine-learning competition asked entrants to predict lithology from wireline logs. Its corpus is a set of wells from the Norwegian North Sea, each sampled about every 15 cm down the hole, with an interpreted lithology label on every sample. PetroDB publishes it as one Parquet file per well, so reading one well fetches one file.",
+    "Columns keep the source log mnemonics: <code>GR</code> is gamma ray, <code>RHOB</code> bulk density, <code>NPHI</code> neutron porosity, <code>RDEP</code> deep resistivity. The lithology is an integer code in <code>FORCE_2020_LITHOFACIES_LITHOLOGY</code>; the <a href=\"schema.md\">schema document</a> names every class. The <code>dataset</code> column keeps the competition's train and test split. Quote <code>\"GROUP\"</code> in SQL: it is a reserved word."
   ],
   "units": [
     {
@@ -55,6 +55,13 @@
       "polars": "import json, urllib.request\nimport polars as pl\n\nbase = \"{base}/force_2020/wells/\"\nfiles = json.load(urllib.request.urlopen(base + \"_files.json\"))\nurls = [base + path for path in files if path.startswith(\"15-9-\")]   # block 15/9\n\nmix = (\n    pl.scan_parquet(urls)\n    .group_by(\"WELL\", pl.col(\"FORCE_2020_LITHOFACIES_LITHOLOGY\").alias(\"lithology\"))\n    .agg(pl.len().alias(\"samples\"), pl.col(\"GR\").mean().round(1).alias(\"mean_gr\"))\n    .sort(\"WELL\", \"samples\", descending=[False, True])\n    .collect()\n)"
     }
   ],
+  "file_search": {
+    "placeholder": "15/9-13",
+    "spellings": [
+      ["/", "-"],
+      [" ", "_"]
+    ]
+  },
   "source": {
     "text": "Data from the FORCE 2020 Machine Predicted Lithology competition. The competition's files and code are in its <a href=\"https://github.com/bolgebrygg/Force-2020-Machine-Learning-competition\">GitHub repository</a>; the dataset itself is deposited on Zenodo as <a href=\"https://doi.org/10.5281/zenodo.4351156\"><em>FORCE 2020 Well well log and lithofacies dataset for machine learning competition</em></a>. Cite that record when you use it."
   },

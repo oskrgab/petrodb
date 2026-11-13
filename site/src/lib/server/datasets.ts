@@ -2,10 +2,12 @@ import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { sparkOf } from "$lib/chart";
 import { bytes } from "$lib/format";
+import { groupInstances } from "$lib/instances";
 import type {
   Chart,
   Column,
   DatasetSummary,
+  FileSearch,
   Glance,
   GuideStep,
   InstanceGroup,
@@ -13,7 +15,6 @@ import type {
   SeriesChart,
   Snippet,
   Table,
-  TableFile,
   Upstream,
 } from "$lib/types";
 import { highlight } from "./highlight";
@@ -22,6 +23,7 @@ import { listTree, type TreeTable } from "./tree";
 /**
  * The canonical data base: the Hugging Face `main` revision. Glances are written
  * against it (PUBLIC_BASE in scripts/site/glances.py) and it is the default.
+ * tests/site/test_glances.py holds this to the Python copies.
  */
 const CANONICAL_BASE = "https://huggingface.co/datasets/oskrgab/petrodb/resolve/main";
 
@@ -44,6 +46,46 @@ const PARQUET_ROOT = resolve(SITE_ROOT, "../parquet");
 
 function readJson<T>(path: string): T | null {
   return existsSync(path) ? (JSON.parse(readFileSync(path, "utf8")) as T) : null;
+}
+
+/** A query as `dataset.json` and `guide.json` write it: `{base}` stands for the data base. */
+interface RawQuery {
+  id: string;
+  title: string;
+  sql: string;
+  python?: string;
+  polars?: string;
+}
+
+/** `site/data/<id>/dataset.json`: what a Dataset's pages say, written by hand. */
+interface DatasetMeta {
+  name: string;
+  holds: string;
+  grain: string;
+  ready: boolean;
+  /** The tree is gitignored and built in CI rather than committed (Petrobras 3W). */
+  generated?: boolean;
+  petroviz: DatasetSummary["petroviz"];
+  licence: DatasetSummary["licence"];
+  about?: string[];
+  units?: { column: string; unit: string }[];
+  queries?: (RawQuery & { why: string })[];
+  source?: { text: string };
+  /** The Multi-parquet table the Instance browser lists by Event class, and its search box. */
+  instances?: { table: string; search?: FileSearch };
+  /** The search box over a Multi-parquet table's member files. */
+  file_search?: FileSearch;
+}
+
+const metas = new Map<string, DatasetMeta>();
+
+function readMeta(id: string): DatasetMeta {
+  if (!metas.has(id)) {
+    const meta = readJson<DatasetMeta>(resolve(DATA_ROOT, id, "dataset.json"));
+    if (!meta) throw new Error(`No dataset.json for ${id}`);
+    metas.set(id, meta);
+  }
+  return metas.get(id)!;
 }
 
 interface RawGlance {
@@ -74,14 +116,14 @@ const listings = new Map<string, TreeTable[] | null>();
  * gitignored and rebuilt in CI, so its page exists only where the pipeline has
  * run and left the schema documents the page reads.
  */
-function treeOnDisk(id: string, meta: Record<string, any>): boolean {
+function treeOnDisk(id: string, meta: DatasetMeta): boolean {
   return !meta.generated || existsSync(resolve(PARQUET_ROOT, id, "schema.json"));
 }
 
 /** Why a Dataset marked ready gets no page in this build, or null if it gets one. */
 export function skipReason(id: string): string | null {
-  const meta = readJson<Record<string, any>>(resolve(DATA_ROOT, id, "dataset.json"));
-  if (!meta?.ready || treeOnDisk(id, meta)) return null;
+  const meta = readMeta(id);
+  if (!meta.ready || treeOnDisk(id, meta)) return null;
   return `parquet/${id}/ is not on disk. The ${id} pipeline builds it; CI runs it before the site build.`;
 }
 
@@ -106,7 +148,7 @@ function fill(text: string): string {
     .replaceAll("{repo}", DATA_REPO);
 }
 
-function snippets(q: { sql: string; python?: string; polars?: string }): Snippet[] {
+function snippets(q: Omit<RawQuery, "id" | "title">): Snippet[] {
   const sql = fill(q.sql);
   const python = q.python ? fill(q.python) : sqlToPython(sql);
   const out: Snippet[] = [
@@ -138,8 +180,7 @@ function spark(chart: Chart | undefined): SeriesChart | null {
 }
 
 export function loadSummary(id: string): DatasetSummary {
-  const meta = readJson<Record<string, any>>(resolve(DATA_ROOT, id, "dataset.json"));
-  if (!meta) throw new Error(`No dataset.json for ${id}`);
+  const meta = readMeta(id);
   // Computed from the data by scripts/site/glances.py; never typed by hand.
   const facts = readJson<{ covers: string; bytes: number }>(resolve(DATA_ROOT, id, "facts.json"));
   if (!facts) throw new Error(`No facts.json for ${id}: run \`uv run -m scripts.site.glances ${id}\``);
@@ -151,7 +192,7 @@ export function loadSummary(id: string): DatasetSummary {
     grain: meta.grain,
     covers: facts.covers,
     size: bytes(facts.bytes),
-    ready: Boolean(meta.ready) && treeOnDisk(id, meta),
+    ready: meta.ready && treeOnDisk(id, meta),
     petroviz: meta.petroviz,
     licence: meta.licence,
     spark: spark(glances?.[0]?.chart),
@@ -221,13 +262,8 @@ export function loadTables(id: string): Table[] {
   });
 }
 
-interface RawGuideStep {
-  id: string;
-  title: string;
+interface RawGuideStep extends RawQuery {
   body: string[];
-  sql: string;
-  python?: string;
-  polars?: string;
   /** Why a variant is absent, by language. */
   missing?: Partial<Record<Snippet["lang"], string>>;
 }
@@ -249,15 +285,14 @@ export function loadGuide(): { intro: string[]; steps: GuideStep[] } {
 }
 
 export function loadDataset(id: string) {
-  const meta = readJson<Record<string, any>>(resolve(DATA_ROOT, id, "dataset.json"));
-  if (!meta) throw new Error(`No dataset.json for ${id}`);
-  const queries: Query[] = (meta.queries ?? []).map((q: any) => ({
+  const meta = readMeta(id);
+  const queries: Query[] = (meta.queries ?? []).map((q) => ({
     id: q.id,
     title: q.title,
     why: q.why,
     snippets: snippets(q),
   }));
-  const browsed: string | undefined = meta.instances?.table;
+  const browsed = meta.instances?.table;
   const listed = loadTables(id);
   const instances = browsed ? instanceGroups(id, listed, browsed) : null;
   // The Instance browser carries the browsed table's files; do not ship them twice.
@@ -265,9 +300,9 @@ export function loadDataset(id: string) {
   const schema = readJson<{ upstream?: Upstream }>(resolve(PARQUET_ROOT, id, "schema.json"));
   return {
     summary: loadSummary(id),
-    about: (meta.about ?? []) as string[],
-    units: (meta.units ?? []) as { column: string; unit: string }[],
-    source: (meta.source?.text ?? "") as string,
+    about: meta.about ?? [],
+    units: meta.units ?? [],
+    source: meta.source?.text ?? "",
     glances: loadGlances(id),
     queries,
     tables,
@@ -276,13 +311,15 @@ export function loadDataset(id: string) {
     upstream: schema?.upstream?.git_tag ? schema.upstream : null,
     instances,
     browsed: browsed ?? null,
+    fileSearch: meta.file_search ?? {},
+    instanceSearch: meta.instances?.search ?? {},
     dataBase: `${DATA_BASE}/${id}`,
   };
 }
 
 /**
- * Group the Petrobras 3W Observation files by Event class. Each file sits at
- * `event_class=N/<instance_id>.parquet` (ADR-0001). The Event class names are
+ * Group the Petrobras 3W Observation files by Event class, from the Event class
+ * partition of each Manifest path (ADR-0001). The Event class names are
  * committed by the Glances command, since the build reads no parquet rows.
  */
 function instanceGroups(id: string, tables: Table[], table: string): InstanceGroup[] {
@@ -290,16 +327,5 @@ function instanceGroups(id: string, tables: Table[], table: string): InstanceGro
     resolve(DATA_ROOT, id, "event_classes.json"),
   );
   if (!names) throw new Error(`No event_classes.json for ${id}: run \`uv run -m scripts.site.glances\``);
-  const groups: InstanceGroup[] = names.map((n) => ({
-    eventClass: n.event_class,
-    description: n.description,
-    files: [],
-  }));
-  for (const f of tables.find((t) => t.name === table)?.files ?? []) {
-    const m = f.path.match(/event_class=(\d+)\/([^/]+)\.parquet$/);
-    const group = m && groups.find((g) => g.eventClass === Number(m[1]));
-    if (!m || !group) throw new Error(`${f.path} is not event_class=N/<instance_id>.parquet for a known Event class`);
-    group.files.push({ instanceId: m[2], bytes: f.bytes });
-  }
-  return groups;
+  return groupInstances(names, tables.find((t) => t.name === table)?.files ?? []);
 }

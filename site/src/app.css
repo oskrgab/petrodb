@@ -224,6 +224,26 @@ pre {
   background: var(--ink-2);
 }
 
+/* Search boxes and pickers that narrow a list. */
+.field {
+  max-width: 100%;
+  padding: 0.4rem 0.6rem;
+  font: inherit;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+}
+
+input.field {
+  font-family: var(--mono);
+  font-size: 0.9rem;
+}
+
+.field:focus-visible {
+  border-color: var(--accent);
+}
+
 /* Shiki output; token colours follow the theme. */
 pre.shiki {
   --shiki-foreground: var(--ink);

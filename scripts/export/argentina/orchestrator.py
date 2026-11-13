@@ -22,14 +22,13 @@ from scripts.export.argentina import (
 def run(
     db_path: Path,
     output_dir: Path,
-    website_root: Path | None = None,
+    repo_root: Path | None = None,
 ) -> None:
     """Run the export pipeline.
 
-    `website_root` is the repo root containing `README.md`. When
+    `repo_root` is the repo root containing `README.md`. When
     provided, the root README is patched in place to surface the
-    Argentina dataset; when `None`, the website integration step is
-    skipped.
+    Argentina dataset; when `None`, the README patch is skipped.
     """
     db_path = Path(db_path)
     output_dir = Path(output_dir)
@@ -43,5 +42,5 @@ def run(
         validator.validate_partitions(con, output_dir)
         schema_doc_generator.generate(con, output_dir)
 
-    if website_root is not None:
-        website_integrator.integrate(Path(website_root))
+    if repo_root is not None:
+        website_integrator.integrate(Path(repo_root))

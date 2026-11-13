@@ -1,32 +1,21 @@
 """The "Query the data" guide: what it teaches, in what order, and that it runs."""
 
 import json
-import os
 import re
 from pathlib import Path
 
 import duckdb
 import pytest
 
-from scripts.site import glances
+from tests.site.support import assert_returns_rows, needs_network, run, variants
 
 SITE = Path(__file__).resolve().parents[2] / "site"
 GUIDE = SITE / "data" / "guide.json"
 GUIDE_PAGE = SITE / "src" / "routes" / "query" / "+page.svelte"
 
-# The repository root that `{repo}` stands for; `{base}` is its `main` revision.
-REPO = glances.PUBLIC_BASE.removesuffix("/resolve/main")
-
-# Running the snippets fetches from Hugging Face, so it is opt-in.
-NETWORK = os.environ.get("PETRODB_NETWORK") == "1"
-
 
 def load_steps() -> list[dict]:
     return json.loads(GUIDE.read_text())["steps"]
-
-
-def fill(code: str) -> str:
-    return code.replace("{base}", glances.PUBLIC_BASE).replace("{repo}", REPO)
 
 
 def test_steps_follow_the_order_the_guide_teaches() -> None:
@@ -56,34 +45,17 @@ def test_snippets_take_their_host_from_the_site_data_base() -> None:
             assert "ocortez.com" not in code, (step["id"], lang)
 
 
-def _variants(step: dict) -> list[tuple[str, str]]:
-    sql = fill(step["sql"])
-    python = fill(step["python"]) if step.get("python") else None
-    out = [("sql", sql), ("python", python)]
-    if step.get("polars"):
-        out.append(("polars", fill(step["polars"])))
-    return out
-
-
-@pytest.mark.skipif(not NETWORK, reason="set PETRODB_NETWORK=1 to run against the published files")
+@needs_network
 @pytest.mark.parametrize("step", load_steps(), ids=lambda s: s["id"])
 def test_every_snippet_runs_against_the_published_files(
-    step: dict, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+    step: dict, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.chdir(tmp_path)  # the download step writes files
-    for lang, code in _variants(step):
-        if lang == "sql":
-            result = duckdb.connect().sql(code)
-            shown = result.fetchall() if result is not None else "(no result)"
-        elif code is None:
-            # The site wraps the SQL for Python; run that same wrap.
-            shown = duckdb.sql(fill(step["sql"]).rstrip().rstrip(";")).df()
+    for lang, code in variants(step):
+        if step["id"] == "download":
+            run(lang, code)  # writes files and returns no table
         else:
-            scope: dict = {}
-            exec(code, scope)
-            shown = {k: v for k, v in scope.items() if k in ("df", "wells", "samples", "well", "oil")}
-        with capsys.disabled():
-            print(f"\n[{step['id']} / {lang}]\n{shown}")
+            assert_returns_rows(lang, code)
     if step["id"] == "download":
         assert len(list((tmp_path / "force_2020" / "wells").glob("*.parquet"))) == 108
         assert duckdb.sql("SELECT count(*) FROM 'force_2020_wells.parquet'").fetchone()[0] == 1307297

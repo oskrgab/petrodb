@@ -49,7 +49,7 @@ def test_pipeline_emits_wells_parquet(tmp_path: Path) -> None:
     (site_root / "README.md").write_text(_STUB_README)
 
     transform_orch.run(db_path=db_path, csv_dir=FIXTURES)
-    export_orch.run(db_path=db_path, output_dir=out_dir, website_root=site_root)
+    export_orch.run(db_path=db_path, output_dir=out_dir, repo_root=site_root)
 
     wells_parquet = out_dir / "wells.parquet"
     assert wells_parquet.exists(), "wells.parquet was not written"
@@ -262,7 +262,7 @@ def test_pipeline_emits_wells_parquet(tmp_path: Path) -> None:
     assert "_files.json" in readme and "read_parquet(?" in readme
     assert "anio=*/data.parquet" not in readme
 
-    # Website integration — the root README surfaces the dataset.
+    # Root README patch — the root README surfaces the dataset.
     site_readme = (site_root / "README.md").read_text()
     assert "### Argentina Production Data" in site_readme
     assert "import json, urllib.request, duckdb" in site_readme

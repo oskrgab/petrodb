@@ -89,7 +89,7 @@ def test_pipeline_emits_event_types(tmp_path: Path) -> None:
         output_dir=out_dir,
         dataset_ini=dataset_ini,
         staging_dir=staging,
-        website_root=site_root,
+        repo_root=site_root,
     )
 
     event_types = out_dir / "event_types.parquet"
@@ -310,7 +310,7 @@ def test_pipeline_emits_documentation(tmp_path: Path) -> None:
     assert "petrobras/3W" in license_text
 
 
-def test_website_integration_is_idempotent(tmp_path: Path) -> None:
+def test_root_readme_patch_is_idempotent(tmp_path: Path) -> None:
     db_path = tmp_path / "petrobras_3w.duckdb"
     out_dir = tmp_path / "parquet"
     staging = _populated_staging(tmp_path)
@@ -322,7 +322,7 @@ def test_website_integration_is_idempotent(tmp_path: Path) -> None:
         output_dir=out_dir,
         dataset_ini=dataset_ini,
         staging_dir=staging,
-        website_root=site_root,
+        repo_root=site_root,
     )
     first_readme = (site_root / "README.md").read_text()
 
@@ -342,7 +342,7 @@ def test_website_integration_is_idempotent(tmp_path: Path) -> None:
         output_dir=out_dir,
         dataset_ini=dataset_ini,
         staging_dir=staging,
-        website_root=site_root,
+        repo_root=site_root,
     )
     assert (site_root / "README.md").read_text() == first_readme
 
@@ -1411,10 +1411,10 @@ def test_orchestrator_aborts_publish_on_parity_failure(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """A parity divergence raised from `parity.check` propagates out of
-    the orchestrator and skips the website-integration step.
+    the orchestrator and skips the root README patch.
 
     Patches `parity.check` (as imported into the orchestrator module) so
-    it always raises. The website root is provided, so we can assert
+    it always raises. The repo root is provided, so we can assert
     the integrator did NOT run by checking the stub README is unchanged.
     """
     db_path = tmp_path / "petrobras_3w.duckdb"
@@ -1435,7 +1435,7 @@ def test_orchestrator_aborts_publish_on_parity_failure(
             output_dir=out_dir,
             dataset_ini=dataset_ini,
             staging_dir=staging,
-            website_root=site_root,
+            repo_root=site_root,
         )
 
     # The root README is untouched on a parity abort: the publish never

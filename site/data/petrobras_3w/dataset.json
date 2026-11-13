@@ -50,7 +50,10 @@
     }
   ],
   "instances": {
-    "table": "observations"
+    "table": "observations",
+    "search": {
+      "placeholder": "WELL-00032"
+    }
   },
   "source": {
     "text": "Data from <a href=\"https://github.com/petrobras/3W\">3W</a>, published by Petrobras on GitHub. PetroDB keeps the sensor values and labels as they are and adds the catalog tables."

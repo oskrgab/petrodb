@@ -1,5 +1,6 @@
 <script lang="ts">
   import { toneVar } from "$lib/chart";
+  import { count } from "$lib/format";
   import type { Tone } from "$lib/types";
 
   /*
@@ -15,14 +16,12 @@
     tone,
     stack = false,
   }: { name: string; min: number; max: number; tone?: Tone; stack?: boolean } = $props();
-
-  const num = (n: number) => n.toLocaleString("en-US");
 </script>
 
 <div class="curve label" class:scale={!tone} class:stack style={tone ? `--tone: ${toneVar(tone)}` : undefined}>
-  <span class="num">{num(min)}</span>
+  <span class="num">{count(min)}</span>
   <span class="name">{name}</span>
-  <span class="num">{num(max)}</span>
+  <span class="num">{count(max)}</span>
 </div>
 
 <style>

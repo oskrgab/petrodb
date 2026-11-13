@@ -9,7 +9,7 @@
     "url": "https://petroviz.ocortez.com/production"
   },
   "about": [
-    "Volve is a small oil field in the Norwegian North Sea. Water injection began in 2007 and Equinor produced oil from 2008 until the field was shut down in 2016, then released the field's data for research and teaching. PetroDB republishes the production reports as three tables that join on one key, <code>npd_wellbore_code</code>: one row per well in <code>wells</code>, one per well per day in <code>daily_production</code>, and one per well per month in <code>monthly_production</code>.",
+    "Volve is a small oil field in the Norwegian North Sea. Equinor produced it from first oil until it was shut down, then released the field's data for research and teaching. PetroDB republishes the production reports as three tables that join on one key, <code>npd_wellbore_code</code>: one row per well in <code>wells</code>, one per well per day in <code>daily_production</code>, and one per well per month in <code>monthly_production</code>.",
     "The daily table carries more than volumes: hours on stream, downhole and wellhead pressures and temperatures, and choke opening. Some wells switched from producing oil to injecting water, so <code>flow_kind</code> and <code>well_type</code> are recorded per day. The <a href=\"schema.md\">schema document</a> explains each column."
   ],
   "units": [
