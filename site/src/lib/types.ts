@@ -82,10 +82,32 @@ export interface Column {
   description: string;
 }
 
+/** One member file of a Multi-parquet table; `path` is relative to the Dataset root. */
 export interface TableFile {
   path: string;
   bytes: number;
   rows: number;
+}
+
+/** A file as a list shows it: a label, the address it links to, its size. */
+export interface FileLink {
+  name: string;
+  href: string;
+  bytes: number;
+}
+
+/**
+ * How a search box reads what a visitor types, from the Dataset's metadata.
+ * Both what is typed and the file names are lower-cased before comparing.
+ */
+export interface FileSearch {
+  /** An example of what to type, shown in the empty box. */
+  placeholder?: string;
+  /**
+   * Pairs of [as typed, as the file names spell it]. FORCE 2020 well names are
+   * typed "16/11-1 ST3" and spelled "16-11-1_ST3": `[["/", "-"], [" ", "_"]]`.
+   */
+  spellings?: [string, string][];
 }
 
 export interface Table {
@@ -127,6 +149,6 @@ export interface Upstream {
 export interface InstanceGroup {
   eventClass: number;
   description: string;
-  /** Each file is `event_class=<eventClass>/<instanceId>.parquet` (ADR-0001). */
-  files: { instanceId: string; bytes: number }[];
+  /** `path` is the Manifest's, from the Dataset root; `name` is its file name without `.parquet`. */
+  files: { name: string; path: string; bytes: number }[];
 }

@@ -7,13 +7,9 @@
  */
 import { closeSync, existsSync, openSync, readFileSync, readSync, readdirSync, statSync } from "node:fs";
 import { resolve } from "node:path";
+import type { TableFile } from "../types.ts";
 
-export interface TreeFile {
-  path: string;
-  bytes: number;
-  rows: number;
-}
-
+/** One table of a listing; the shape of each entry in a committed `files.json`. */
 export interface TreeTable {
   name: string;
   kind: "single" | "multi";
@@ -21,7 +17,7 @@ export interface TreeTable {
   manifest?: string;
   bytes: number;
   rows: number;
-  files?: TreeFile[];
+  files?: TableFile[];
 }
 
 /**

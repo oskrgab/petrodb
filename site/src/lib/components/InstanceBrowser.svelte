@@ -1,33 +1,37 @@
 <script lang="ts">
-  import { onMount } from "svelte";
-  import { bytes, count } from "$lib/format";
+  import { shownCount } from "$lib/files";
+  import { count } from "$lib/format";
   import { filterInstances } from "$lib/instances";
-  import type { InstanceGroup } from "$lib/types";
+  import { live } from "$lib/live.svelte";
+  import type { FileSearch, InstanceGroup } from "$lib/types";
+  import FileList from "./FileList.svelte";
 
   /*
    * Every Observation file, grouped by Event class. The whole list is in the
-   * prerendered page; the two filters only narrow it once the page has loaded.
+   * prerendered page; the two filters appear only once JavaScript is running,
+   * and only narrow what is already there.
    */
-  /** `base` is the Observations table's URL, where the `event_class=N/` folders sit. */
-  let { groups, base }: { groups: InstanceGroup[]; base: string } = $props();
+  let {
+    groups,
+    dataBase,
+    search = {},
+  }: { groups: InstanceGroup[]; dataBase: string; search?: FileSearch } = $props();
 
   let eventClass = $state("all");
-  let search = $state("");
-  // Without JavaScript the filters could not work, so they appear only once it runs.
-  let live = $state(false);
-  onMount(() => (live = true));
+  let query = $state("");
+  const running = live();
 
   const total = $derived(groups.reduce((sum, g) => sum + g.files.length, 0));
-  const shown = $derived(filterInstances(groups, eventClass, search));
+  const shown = $derived(filterInstances(groups, eventClass, query, search.spellings));
   const matches = $derived(shown.reduce((sum, g) => sum + g.files.length, 0));
 </script>
 
 <div class="browser">
-  {#if live}
+  {#if running.current}
     <div class="filters">
       <label>
         <span class="fine">Event class</span>
-        <select bind:value={eventClass}>
+        <select class="field" bind:value={eventClass}>
           <option value="all">All {groups.length} Event classes</option>
           {#each groups as g}
             <option value={String(g.eventClass)}>{g.eventClass} · {g.description} ({g.files.length})</option>
@@ -36,12 +40,17 @@
       </label>
       <label>
         <span class="fine"><code>instance_id</code> contains</span>
-        <input type="search" bind:value={search} placeholder="WELL-00032" autocomplete="off" spellcheck="false" />
+        <input
+          class="field"
+          type="search"
+          bind:value={query}
+          placeholder={search.placeholder ? `e.g. ${search.placeholder}` : undefined}
+          autocomplete="off"
+          spellcheck="false"
+        />
       </label>
     </div>
-    <p class="fine count" aria-live="polite">
-      {matches === total ? `${count(total)} Instances` : `${count(matches)} of ${count(total)} Instances`}
-    </p>
+    <p class="fine count" aria-live="polite">{shownCount(matches, total, "Instances")}</p>
   {/if}
 
   <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
@@ -53,14 +62,7 @@
           {g.description}
           <span class="fine num">{count(g.files.length)} files</span>
         </h4>
-        <ul>
-          {#each g.files as f (f.instanceId)}
-            <li>
-              <a href={`${base}/event_class=${g.eventClass}/${f.instanceId}.parquet`}><code>{f.instanceId}</code></a>
-              <span class="fine num">{bytes(f.bytes)}</span>
-            </li>
-          {/each}
-        </ul>
+        <FileList files={g.files.map((f) => ({ name: f.name, href: `${dataBase}/${f.path}`, bytes: f.bytes }))} />
       </section>
     {:else}
       <p class="fine">No Instance matches.</p>
@@ -84,17 +86,6 @@
     gap: 0.25rem;
   }
 
-  select,
-  input {
-    font: inherit;
-    color: var(--ink);
-    background: var(--surface);
-    border: 1px solid var(--rule);
-    border-radius: 4px;
-    padding: 0.35rem 0.5rem;
-    max-width: 100%;
-  }
-
   .count {
     margin-top: 0.6rem;
   }
@@ -116,22 +107,5 @@
 
   h4 .fine {
     margin-left: auto;
-  }
-
-  ul {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-    columns: 2 16rem;
-    column-gap: 2rem;
-  }
-
-  li {
-    display: flex;
-    justify-content: space-between;
-    gap: 1rem;
-    padding: 0.3rem 0;
-    border-bottom: 1px solid var(--grid);
-    break-inside: avoid;
   }
 </style>

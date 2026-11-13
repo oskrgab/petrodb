@@ -1,5 +1,6 @@
 <script lang="ts">
   import { curveName, scaleOf, toneVar, xTicks } from "$lib/chart";
+  import { count } from "$lib/format";
   import type { Chart } from "$lib/types";
   import CurveHeader from "./CurveHeader.svelte";
   import LogStrip from "./LogStrip.svelte";
@@ -13,18 +14,12 @@
 
   const ticks = $derived(chart.kind === "log" ? [] : xTicks(chart));
   const categories = $derived(chart.kind === "log" ? [] : chart.x.values.map(String));
-  const num = (n: number) => n.toLocaleString("en-US");
 </script>
 
 {#if chart.kind === "log"}
   <LogStrip {chart} {label} />
 {:else if chart.kind === "bars"}
-  <div
-    class="bars"
-    role="img"
-    aria-label={label}
-    style={`grid-template-columns: max-content repeat(${chart.series.length}, minmax(0, 1fr))`}
-  >
+  <div class="bars" role="img" aria-label={label} style={`--series: ${chart.series.length}`}>
     <div class="cats" style={`grid-template-rows: auto repeat(${categories.length}, 1fr)`}>
       <div class="head-spacer"></div>
       {#each categories as c}
@@ -45,7 +40,7 @@
                   style={`width: ${((v ?? 0) / scale.max) * 100}%; background: ${toneVar(s.tone)}`}
                 ></div>
               </div>
-              <span class="value label num">{num(v ?? 0)}</span>
+              <span class="value label num">{count(v ?? 0)}</span>
             </div>
           {/each}
         </div>
@@ -165,9 +160,10 @@
     transform: none;
   }
 
-  /* Columns are set inline: the category names, then one track per series. */
+  /* The category names, then one track per series; --series is set inline. */
   .bars {
     display: grid;
+    grid-template-columns: max-content repeat(var(--series), minmax(0, 1fr));
     gap: 0 0.75rem;
   }
 
@@ -222,7 +218,7 @@
 
   @media (max-width: 40rem) {
     .bars {
-      grid-template-columns: minmax(0, 1fr) !important; /* beats the inline columns */
+      grid-template-columns: minmax(0, 1fr);
       row-gap: 1rem;
     }
 

@@ -7,8 +7,21 @@
   import { approx, bytes, count } from "$lib/format";
 
   let { data } = $props();
-  const { summary, about, units, source, glances, queries, tables, upstream, instances, browsed, dataBase } =
-    $derived(data);
+  const {
+    summary,
+    about,
+    units,
+    source,
+    glances,
+    queries,
+    tables,
+    upstream,
+    instances,
+    browsed,
+    fileSearch,
+    instanceSearch,
+    dataBase,
+  } = $derived(data);
 
   const sections = [
     { id: "overview", label: "Overview" },
@@ -200,13 +213,14 @@
                   The list of parts is <a href={`${dataBase}/${t.manifest}`}><code>{t.manifest}</code></a>.
                 </p>
                 {#if instances && t.name === browsed}
-                  <InstanceBrowser groups={instances} base={`${dataBase}/${t.name}`} />
+                  <InstanceBrowser groups={instances} {dataBase} search={instanceSearch} />
                 {:else}
                   <FileBrowser
                     table={t.name}
                     files={t.files}
                     {dataBase}
                     searchable={t.files.length > SEARCH_FROM}
+                    search={fileSearch}
                   />
                 {/if}
               </details>

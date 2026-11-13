@@ -1,7 +1,8 @@
 <script lang="ts">
-  import { onMount } from "svelte";
-  import { bytes } from "$lib/format";
-  import type { TableFile } from "$lib/types";
+  import { filterFiles, shownCount } from "$lib/files";
+  import { live } from "$lib/live.svelte";
+  import type { FileLink, FileSearch, TableFile } from "$lib/types";
+  import FileList from "./FileList.svelte";
 
   /*
    * The member files of a Multi-parquet table, as listed by its Manifest.
@@ -13,91 +14,55 @@
     files,
     dataBase,
     searchable = false,
-  }: { table: string; files: TableFile[]; dataBase: string; searchable?: boolean } = $props();
+    search = {},
+  }: { table: string; files: TableFile[]; dataBase: string; searchable?: boolean; search?: FileSearch } =
+    $props();
 
-  const nameOf = (f: TableFile) => f.path.replace(`${table}/`, "");
-
-  // Well names are typed as "15/9-13" or "16/11-1 ST3"; files spell them
-  // "15-9-13" and "16-11-1_ST3". Compare in one spelling, ignoring case.
-  const fold = (s: string) => s.toLowerCase().replaceAll("/", "-").replace(/\s+/g, "_");
+  // Each file is named by its path inside the table, as the Manifest lists it.
+  const links: FileLink[] = $derived(
+    files.map((f) => ({ name: f.path.replace(`${table}/`, ""), href: `${dataBase}/${f.path}`, bytes: f.bytes })),
+  );
 
   let query = $state("");
-  let live = $state(false);
-  onMount(() => (live = true));
-
-  const shown = $derived(files.filter((f) => fold(nameOf(f)).includes(fold(query.trim()))));
-  const visible = $derived(new Set(shown));
+  const running = live();
+  const shown = $derived(filterFiles(links, query, search.spellings));
 </script>
 
-{#if searchable && live}
-  <div class="search">
-    <label class="fine" for={`find-${table}`}>Find a file</label>
-    <input
-      id={`find-${table}`}
-      type="search"
-      bind:value={query}
-      placeholder="e.g. 15/9-13"
-      autocomplete="off"
-      spellcheck="false"
-    />
-    <span class="fine num" aria-live="polite">
-      {shown.length === files.length ? `${files.length} files` : `${shown.length} of ${files.length} files`}
-    </span>
-  </div>
-{/if}
-<ul class="parts">
-  {#each files as f (f.path)}
-    <li hidden={!visible.has(f)}>
-      <a href={`${dataBase}/${f.path}`}><code>{nameOf(f)}</code></a>
-      <span class="fine num">{bytes(f.bytes)}</span>
-    </li>
-  {/each}
-</ul>
+<div class="browser">
+  {#if searchable && running.current}
+    <div class="search">
+      <label class="fine" for={`find-${table}`}>Find a file</label>
+      <input
+        id={`find-${table}`}
+        class="field"
+        type="search"
+        bind:value={query}
+        placeholder={search.placeholder ? `e.g. ${search.placeholder}` : undefined}
+        autocomplete="off"
+        spellcheck="false"
+      />
+      <span class="fine num" aria-live="polite">{shownCount(shown.length, links.length, "files")}</span>
+    </div>
+  {/if}
+  <FileList files={shown} />
+</div>
 
 <style>
+  .browser {
+    display: grid;
+    gap: 0.5rem;
+    margin: 0.75rem 0 1rem 1.25rem;
+  }
+
   .search {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
     gap: 0.4rem 0.75rem;
-    margin: 0.75rem 0 0 1.25rem;
   }
 
   input {
     flex: 1 1 12rem;
     max-width: 20rem;
-    padding: 0.45rem 0.6rem;
-    font: inherit;
-    font-family: var(--mono);
-    font-size: 0.9rem;
-    color: var(--ink);
-    background: var(--surface);
-    border: 1px solid var(--rule);
-    border-radius: var(--radius);
-  }
-
-  input:focus-visible {
-    border-color: var(--accent);
-  }
-
-  .parts {
-    list-style: none;
-    margin: 0.5rem 0 1rem 1.25rem;
-    padding: 0;
-    columns: 2 14rem;
-    column-gap: 2rem;
-  }
-
-  .parts li {
-    display: flex;
-    justify-content: space-between;
-    gap: 1rem;
-    padding: 0.3rem 0;
-    border-bottom: 1px solid var(--grid);
-    break-inside: avoid;
-  }
-
-  .parts li[hidden] {
-    display: none;
   }
 </style>
