@@ -9,8 +9,8 @@
     "url": "https://petroviz.ocortez.com/logs"
   },
   "about": [
-    "The FORCE 2020 machine-learning competition asked entrants to predict lithology from wireline logs. Its corpus is 108 wells from the Norwegian North Sea, each sampled about every 15 cm down the hole, with an interpreted lithology label on every sample. PetroDB publishes it as one Parquet file per well, so reading one well fetches one file.",
-    "Columns keep the source log mnemonics: <code>GR</code> is gamma ray, <code>RHOB</code> bulk density, <code>NPHI</code> neutron porosity, <code>RDEP</code> deep resistivity. The lithology is an integer code in <code>FORCE_2020_LITHOFACIES_LITHOLOGY</code>; the <a href=\"schema.md\">schema document</a> names all twelve classes. The <code>dataset</code> column keeps the competition's train and test split. Quote <code>\"GROUP\"</code> in SQL: it is a reserved word."
+    "The FORCE 2020 machine-learning competition asked entrants to predict lithology from wireline logs. Its corpus is a set of wells from the Norwegian North Sea, each sampled about every 15 cm down the hole, with an interpreted lithology label on every sample. PetroDB publishes it as one Parquet file per well, so reading one well fetches one file.",
+    "Columns keep the source log mnemonics: <code>GR</code> is gamma ray, <code>RHOB</code> bulk density, <code>NPHI</code> neutron porosity, <code>RDEP</code> deep resistivity. The lithology is an integer code in <code>FORCE_2020_LITHOFACIES_LITHOLOGY</code>; the <a href=\"schema.md\">schema document</a> names every class. The <code>dataset</code> column keeps the competition's train and test split. Quote <code>\"GROUP\"</code> in SQL: it is a reserved word."
   ],
   "units": [
     {

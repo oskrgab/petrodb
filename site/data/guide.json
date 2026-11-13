@@ -9,7 +9,7 @@
       "id": "one-file",
       "title": "Read a single file by URL",
       "body": [
-        "A table that fits in one file has one address. Put that address, in quotes, where a SQL query names a table: DuckDB fetches the file and treats it as the table. This reads the seven wellbores of the Volve Dataset."
+        "A table that fits in one file has one address. Put that address, in quotes, where a SQL query names a table: DuckDB fetches the file and treats it as the table. This reads the wellbores of the Volve Dataset."
       ],
       "sql": "SELECT *\nFROM '{base}/volve/wells.parquet';",
       "polars": "import polars as pl\n\nwells = pl.read_parquet(\"{base}/volve/wells.parquet\")"
@@ -18,7 +18,7 @@
       "id": "manifest",
       "title": "Read a Multi-parquet table through its Manifest",
       "body": [
-        "A large table is published as many files that share the same columns. PetroDB calls this a Multi-parquet table. FORCE 2020's well logs are one: one file per well, 108 files in <code>force_2020/wells/</code>.",
+        "A large table is published as many files that share the same columns. PetroDB calls this a Multi-parquet table. FORCE 2020's well logs are one: one file per well, all in <code>force_2020/wells/</code>.",
         "A web server cannot list a folder the way your computer can, so a wildcard such as <code>*.parquet</code> does not work. Instead each Multi-parquet table has a Manifest: a file named <code>_files.json</code> in the table's folder that lists the path of every file in it. Read the Manifest, add the folder's address in front of each path, and give the query the whole list."
       ],
       "sql": "SET VARIABLE force_wells = (\n    SELECT list('{base}/force_2020/wells/' || path)\n    FROM read_json('{base}/force_2020/wells/_files.json') AS manifest(path)\n);\n\nSELECT WELL, count(*) AS samples\nFROM read_parquet(getvariable('force_wells'))\nGROUP BY WELL\nORDER BY samples DESC\nLIMIT 10;",
