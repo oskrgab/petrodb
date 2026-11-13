@@ -19,8 +19,13 @@
 {#if chart.kind === "log"}
   <LogStrip {chart} {label} />
 {:else if chart.kind === "bars"}
-  <div class="bars" role="img" aria-label={label} style={`--series: ${chart.series.length}`}>
-    <div class="cats" style={`grid-template-rows: auto repeat(${categories.length}, 1fr)`}>
+  <div
+    class="bars"
+    role="img"
+    aria-label={label}
+    style={`--series: ${chart.series.length}; --rows: ${categories.length}`}
+  >
+    <div class="cats">
       <div class="head-spacer"></div>
       {#each categories as c}
         <div class="cat fine">{c}</div>
@@ -29,8 +34,10 @@
     {#each chart.series as s}
       {@const scale = scaleOf(chart, s)}
       <div class="track">
-        <CurveHeader name={curveName(s)} min={scale.min} max={scale.max} tone={s.tone} />
-        <div class="rows" style={`grid-template-rows: repeat(${categories.length}, 1fr)`}>
+        <div class="head">
+          <CurveHeader name={curveName(s)} min={scale.min} max={scale.max} tone={s.tone} />
+        </div>
+        <div class="rows">
           {#each s.values as v, i}
             <div class="row">
               <span class="rowcat fine">{categories[i]}</span>
@@ -160,19 +167,35 @@
     transform: none;
   }
 
-  /* The category names, then one track per series; --series is set inline. */
+  /*
+   * The category names, then one track per series; --series and --rows are set
+   * inline. Names and tracks share the chart's rows through subgrid: a header
+   * row as tall as the tallest header, then one row per category, so each name
+   * stays level with its bars however the headers wrap.
+   */
   .bars {
     display: grid;
     grid-template-columns: max-content repeat(var(--series), minmax(0, 1fr));
+    grid-template-rows: auto repeat(var(--rows), 1fr);
     gap: 0 0.75rem;
   }
 
-  .cats {
+  .cats,
+  .bars > .track {
+    grid-row: 1 / -1;
     display: grid;
+    grid-template-rows: subgrid;
   }
 
-  .head-spacer {
-    height: calc(1.6rem + 4px);
+  /*
+   * The header's width is what CurveHeader queries to stack itself. Not the
+   * track's: a size container is laid out on its own and so cannot be a subgrid.
+   * As a grid it stretches a header shorter than its neighbours, keeping that
+   * header's rule on the rows.
+   */
+  .head {
+    container: track / inline-size;
+    display: grid;
   }
 
   .cat {
@@ -183,7 +206,9 @@
   }
 
   .rows {
+    grid-row: 2 / -1;
     display: grid;
+    grid-template-rows: subgrid;
     border-top: 1px solid var(--ink);
   }
 
@@ -217,13 +242,24 @@
   }
 
   @media (max-width: 40rem) {
+    /* One track under another, each naming its own rows. */
     .bars {
       grid-template-columns: minmax(0, 1fr);
+      grid-template-rows: none;
       row-gap: 1rem;
     }
 
     .cats {
       display: none;
+    }
+
+    .bars > .track {
+      grid-row: auto;
+      display: block;
+    }
+
+    .rows {
+      grid-template-rows: repeat(var(--rows), 1fr);
     }
 
     .rowcat {

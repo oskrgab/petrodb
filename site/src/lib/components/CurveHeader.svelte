@@ -7,7 +7,8 @@
    * The header row of a well-log track: the curve's name between the two
    * ends of its scale, over a rule in its colour. Without a tone it states a
    * shared scale over a thin rule. `stack` puts the name on its own line, for
-   * tracks too narrow to hold all three side by side.
+   * tracks too narrow to hold all three side by side; inside a `track`
+   * container it does so on its own once the container is narrow.
    */
   let {
     name,
@@ -63,5 +64,20 @@
     order: -1;
     flex: 1 0 100%;
     line-height: 1.3;
+  }
+
+  /* A bars track (a `track` container) stacks its header once it gets this narrow. */
+  @container track (max-width: 9rem) {
+    .curve {
+      flex-wrap: wrap;
+      gap: 0 0.5rem;
+      padding-inline: 0.4rem;
+    }
+
+    .name {
+      order: -1;
+      flex: 1 0 100%;
+      line-height: 1.3;
+    }
   }
 </style>
