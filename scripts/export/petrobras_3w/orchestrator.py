@@ -4,12 +4,12 @@ Validates the intermediate DB unconditionally (and emits the pinned
 upstream identity to the validation log), then writes the published
 parquets, runs the post-write parity suite against the upstream staged
 tree, writes the schema documentation, and idempotently surfaces the
-dataset on the static site.
+dataset in the root README.
 
 Two correctness gates run in sequence: the pre-write ``validator`` covers
 structural invariants of the intermediate DB; the post-write ``parity``
 suite proves the written bytes round-trip the upstream bytes 1:1. A
-parity divergence aborts publish before the static-site tab is patched,
+parity divergence aborts publish before the root README is patched,
 so a broken export never becomes visible to consumers.
 """
 
@@ -50,12 +50,11 @@ def run(
     the full corpus in RAM. The same tree is the upstream source-of-
     truth for the post-write ``parity`` suite.
 
-    ``website_root`` is the repo root containing `README.md` and
-    `parquet/index.html`. When provided, the static site is patched in
-    place to surface the Petrobras 3W dataset; when None, the website
-    integration step is skipped. Both site-patching paths run only after
-    ``parity.check`` returns, so a divergence keeps the existing site
-    intact.
+    ``website_root`` is the repo root containing `README.md`. When
+    provided, the root README is patched in place to surface the
+    Petrobras 3W dataset; when None, the website integration step is
+    skipped. The patch runs only after ``parity.check`` returns, so a
+    divergence keeps the existing README intact.
     """
     db_path = Path(db_path)
     output_dir = Path(output_dir)

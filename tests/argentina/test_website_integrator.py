@@ -3,12 +3,12 @@
 Verifies:
 
 - The root `README.md` gains an Argentina entry under `## Datasets`.
-- `parquet/index.html` gains a tab button + tab content section linking
-  to the four published artifacts.
-- Both patches are idempotent: re-running produces byte-identical files
-  and never duplicates the entries.
-- The patch is robust to anchors that don't exist (raises) and is
-  bracketed by sentinel HTML comments so it can be removed/replaced.
+- The patch is idempotent: re-running produces a byte-identical file and
+  never duplicates the entry.
+- The patch is bracketed by sentinel HTML comments so it can be
+  removed/replaced.
+- It writes no markup anywhere else: the Landing reads the Dataset
+  metadata under `site/data/` (ADR-0010).
 """
 
 from pathlib import Path
@@ -17,12 +17,8 @@ import pytest
 
 from scripts.export.argentina import website_integrator
 
-# Representative year range. `integrate` only cares that it's a sorted
-# list of ints — the patcher renders one button per year.
-_YEARS = list(range(2006, 2026))
-
-# A tiny but representative pair of files. The sentinels and anchors must
-# match the production README.md and parquet/index.html structure exactly.
+# A tiny but representative root README. The anchor must match the
+# production README.md structure exactly.
 _README_BEFORE = """\
 # PetroData Repository
 
@@ -46,50 +42,15 @@ Browse and download files at: **https://dev-petrodb.ocortez.com**
 See original license terms.
 """
 
-_INDEX_BEFORE = """\
-<!DOCTYPE html>
-<html><body>
-    <div class="container">
-        <!-- Tab Navigation -->
-        <div class="tab-navigation">
-            <button class="tab-button active" data-tab="volve">
-                Volve Production
-                <span class="tab-count">3 files</span>
-            </button>
-            <button class="tab-button" data-tab="force2020">
-                Force 2020 Wells
-                <span class="tab-count">108 files</span>
-            </button>
-        </div>
-
-        <!-- Volve Tab Content -->
-        <div id="volve-tab" class="tab-content active">
-            volve content
-        </div>
-
-        <!-- Force 2020 Tab Content -->
-        <div id="force2020-tab" class="tab-content">
-            force2020 content
-        </div>
-
-        <footer>
-            footer content
-        </footer>
-    </div>
-</body></html>
-"""
-
 
 @pytest.fixture
 def website_root(tmp_path: Path) -> Path:
     (tmp_path / "README.md").write_text(_README_BEFORE)
-    (tmp_path / "parquet").mkdir()
-    (tmp_path / "parquet" / "index.html").write_text(_INDEX_BEFORE)
     return tmp_path
 
 
 def test_integrate_adds_argentina_blurb_to_root_readme(website_root: Path) -> None:
-    website_integrator.integrate(website_root, _YEARS)
+    website_integrator.integrate(website_root)
     body = (website_root / "README.md").read_text()
     assert "### Argentina Production Data" in body
     assert "wells.parquet" in body
@@ -103,7 +64,7 @@ def test_integrate_adds_argentina_blurb_to_root_readme(website_root: Path) -> No
 def test_integrate_readme_blurb_appears_under_datasets(website_root: Path) -> None:
     """The Argentina entry must sit under `## Datasets` and before
     `## Access Data` so it slots in next to Volve and FORCE 2020."""
-    website_integrator.integrate(website_root, _YEARS)
+    website_integrator.integrate(website_root)
     body = (website_root / "README.md").read_text()
     datasets_idx = body.index("## Datasets")
     argentina_idx = body.index("### Argentina Production Data")
@@ -113,7 +74,7 @@ def test_integrate_readme_blurb_appears_under_datasets(website_root: Path) -> No
 
 def test_integrate_readme_includes_duckdb_query_example(website_root: Path) -> None:
     """The blurb must carry a copy-pasteable DuckDB query example."""
-    website_integrator.integrate(website_root, _YEARS)
+    website_integrator.integrate(website_root)
     body = (website_root / "README.md").read_text()
     assert "import json, urllib.request, duckdb" in body
     assert "duckdb.sql(" in body
@@ -128,154 +89,35 @@ def test_integrate_readme_includes_duckdb_query_example(website_root: Path) -> N
     assert "hive_partitioning = true" in body
 
 
-def test_integrate_adds_argentina_tab_button_to_index_html(
-    website_root: Path,
-) -> None:
-    website_integrator.integrate(website_root, _YEARS)
-    body = (website_root / "parquet" / "index.html").read_text()
-    assert 'data-tab="argentina"' in body
-    assert "Argentina Production" in body
-    # Existing tabs unaffected
-    assert 'data-tab="volve"' in body
-    assert 'data-tab="force2020"' in body
-
-
-def test_integrate_adds_argentina_tab_content_to_index_html(
-    website_root: Path,
-) -> None:
-    website_integrator.integrate(website_root, _YEARS)
-    body = (website_root / "parquet" / "index.html").read_text()
-    assert 'id="argentina-tab"' in body
-    # Parquet + manifest download links are absolute (HF resolve base per
-    # ADR-0005; the landing no longer serves the bytes, ADR-0006).
-    for artifact in (
-        "argentina/wells.parquet",
-        "argentina/well_operator_history.parquet",
-        "argentina/well_events.parquet",
-        "argentina/monthly_production/_files.json",
-    ):
-        assert f'/{artifact}"' in body, f"missing data link to {artifact}"
-    # Schema-doc links stay relative — the docs ship alongside index.html.
-    for artifact in (
-        "argentina/README.md",
-        "argentina/schema.md",
-        "argentina/schema.json",
-        "argentina/schema.sql",
-    ):
-        assert f'"{artifact}"' in body, f"missing link to {artifact}"
-
-
-def test_integrate_argentina_tab_carries_source_attribution(
-    website_root: Path,
-) -> None:
-    """The Argentina tab content must include a per-dataset attribution
-    block — the global footer no longer carries Argentina source info."""
-    website_integrator.integrate(website_root, _YEARS)
-    body = (website_root / "parquet" / "index.html").read_text()
-
-    arg_open = body.index('id="argentina-tab"')
-    arg_close_marker = website_integrator.INDEX_TAB_CONTENT_END
-    arg_close = body.index(arg_close_marker)
-
-    block = body[arg_open:arg_close]
-    assert 'class="dataset-attribution"' in block
-    # Canonical landing page on datos.energia.gob.ar
-    assert "datos.energia.gob.ar/dataset/produccion-de-petroleo-y-gas-por-pozo" in block
-    # License is the portal-declared CC BY 4.0
-    assert "creativecommons.org/licenses/by/4.0" in block
-    assert "Secretar" in block  # Secretaría de Energía
-
-
-def test_integrate_renders_per_year_download_buttons(website_root: Path) -> None:
-    """Each year in the manifest gets a direct-download button with a
-    custom `download` filename so files don't collide as `data.parquet`
-    in the user's Downloads folder."""
-    website_integrator.integrate(website_root, _YEARS)
-    body = (website_root / "parquet" / "index.html").read_text()
-    # Spot-check first/last and a middle year.
-    for year in (_YEARS[0], 2015, _YEARS[-1]):
-        assert (
-            f'/argentina/monthly_production/anio={year}/data.parquet"' in body
-        ), f"missing per-year href for {year}"
-        assert f'download="monthly_production_{year}.parquet"' in body, (
-            f"missing custom download filename for {year}"
-        )
-    # The collapsible wraps them.
-    assert "<details" in body and "</details>" in body
-
-
-def test_integrate_index_html_button_appears_inside_tab_navigation(
-    website_root: Path,
-) -> None:
-    """The new button must live inside the existing `.tab-navigation` div
-    so the JavaScript tab handler picks it up."""
-    website_integrator.integrate(website_root, _YEARS)
-    body = (website_root / "parquet" / "index.html").read_text()
-    nav_open = body.index('class="tab-navigation"')
-    # The closing </div> of tab-navigation comes right before the
-    # `Volve Tab Content` comment.
-    nav_close = body.index("<!-- Volve Tab Content -->")
-    button_pos = body.index('data-tab="argentina"')
-    assert nav_open < button_pos < nav_close
-
-
-def test_integrate_index_html_content_appears_before_footer(
-    website_root: Path,
-) -> None:
-    """The new tab content div must come before `<footer>` so it lives
-    inside the page container next to the existing tab-content blocks."""
-    website_integrator.integrate(website_root, _YEARS)
-    body = (website_root / "parquet" / "index.html").read_text()
-    content_pos = body.index('id="argentina-tab"')
-    footer_pos = body.index("<footer>")
-    assert content_pos < footer_pos
-
-
 def test_integrate_is_idempotent_on_root_readme(website_root: Path) -> None:
-    website_integrator.integrate(website_root, _YEARS)
+    website_integrator.integrate(website_root)
     first = (website_root / "README.md").read_text()
-    website_integrator.integrate(website_root, _YEARS)
+    website_integrator.integrate(website_root)
     second = (website_root / "README.md").read_text()
-    assert first == second
-
-
-def test_integrate_is_idempotent_on_index_html(website_root: Path) -> None:
-    website_integrator.integrate(website_root, _YEARS)
-    first = (website_root / "parquet" / "index.html").read_text()
-    website_integrator.integrate(website_root, _YEARS)
-    second = (website_root / "parquet" / "index.html").read_text()
     assert first == second
 
 
 def test_integrate_does_not_duplicate_argentina_entries(website_root: Path) -> None:
     """Re-running must never accumulate copies of the inserted entries."""
     for _ in range(3):
-        website_integrator.integrate(website_root, _YEARS)
+        website_integrator.integrate(website_root)
     readme = (website_root / "README.md").read_text()
-    index = (website_root / "parquet" / "index.html").read_text()
     assert readme.count("### Argentina Production Data") == 1
-    assert index.count('data-tab="argentina"') == 1
-    assert index.count('id="argentina-tab"') == 1
 
 
 def test_integrate_writes_sentinel_markers(website_root: Path) -> None:
     """The sentinels are how the patch finds itself on a re-run; if they
     disappear, the patch will duplicate."""
-    website_integrator.integrate(website_root, _YEARS)
+    website_integrator.integrate(website_root)
     readme = (website_root / "README.md").read_text()
-    index = (website_root / "parquet" / "index.html").read_text()
     assert website_integrator.README_BEGIN in readme
     assert website_integrator.README_END in readme
-    assert website_integrator.INDEX_TAB_BUTTON_BEGIN in index
-    assert website_integrator.INDEX_TAB_BUTTON_END in index
-    assert website_integrator.INDEX_TAB_CONTENT_BEGIN in index
-    assert website_integrator.INDEX_TAB_CONTENT_END in index
 
 
 def test_integrate_replaces_stale_block_in_place(website_root: Path) -> None:
     """If the inserted block changes, re-running must overwrite the prior
     version rather than appending alongside it."""
-    website_integrator.integrate(website_root, _YEARS)
+    website_integrator.integrate(website_root)
     readme_path = website_root / "README.md"
     body = readme_path.read_text()
     # Doctor the file so the previous block contains stale text.
@@ -287,7 +129,14 @@ def test_integrate_replaces_stale_block_in_place(website_root: Path) -> None:
     readme_path.write_text(stale)
     assert "STALE STALE STALE" in readme_path.read_text()
 
-    website_integrator.integrate(website_root, _YEARS)
+    website_integrator.integrate(website_root)
     fresh = readme_path.read_text()
     assert "STALE STALE STALE" not in fresh
     assert fresh.count("### Argentina Production Data") == 1
+
+
+def test_integrate_writes_only_the_root_readme(website_root: Path) -> None:
+    """Pipelines emit data, never markup (ADR-0010): the README is the one
+    file the integrator touches."""
+    website_integrator.integrate(website_root)
+    assert sorted(p.name for p in website_root.rglob("*")) == ["README.md"]

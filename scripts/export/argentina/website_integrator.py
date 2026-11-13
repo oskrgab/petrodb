@@ -1,17 +1,12 @@
-"""Surface the Argentina dataset on the static site.
+"""Surface the Argentina dataset in the root ``README.md``.
 
-Two idempotent patches:
+One idempotent patch: an Argentina entry under the ``## Datasets``
+section with a copy-pasteable DuckDB query example, bracketed by sentinel
+HTML comments so re-running the export replaces the block in place rather
+than appending a duplicate.
 
-- Root ``README.md``: add an Argentina entry under the ``## Datasets``
-  section with a copy-pasteable DuckDB query example.
-- ``parquet/index.html``: add an Argentina tab alongside Volve and FORCE
-  2020, listing the three single-file tables, the partitioned
-  ``monthly_production`` series (manifest + per-year direct downloads),
-  and the schema documents.
-
-Both patches bracket the inserted region with sentinel HTML comments so
-re-running the export replaces the block in place rather than appending
-a duplicate.
+The Landing is not patched here: it is a prerendered site that reads the
+Dataset metadata under ``site/data/argentina/`` (ADR-0010).
 """
 
 import os
@@ -23,10 +18,8 @@ from pathlib import Path
 
 # `BASE_URL` is the HF resolve base in CI (ADR-0005); local runs fall through
 # to the dev Caddy host. `/argentina` matches this dataset's directory under
-# `parquet/`. Used for both the example queries and the parquet/_files.json
-# download links — the landing (Cloudflare) no longer carries the bytes
-# (ADR-0006), so those links must be absolute HF URLs. Schema-doc links stay
-# relative because the docs are still served alongside index.html.
+# `parquet/`. Used by the README's example query, which must name absolute
+# HF URLs because the Landing (Cloudflare) does not carry the bytes (ADR-0005).
 BASE_URL = os.environ.get("BASE_URL", "https://dev-petrodb.ocortez.com").rstrip("/")
 ARGENTINA_BASE_URL = f"{BASE_URL}/argentina"
 
@@ -37,27 +30,13 @@ ARGENTINA_BASE_URL = f"{BASE_URL}/argentina"
 README_BEGIN = "<!-- argentina:begin -->"
 README_END = "<!-- argentina:end -->"
 
-INDEX_TAB_BUTTON_BEGIN = "<!-- argentina-tab-button:begin -->"
-INDEX_TAB_BUTTON_END = "<!-- argentina-tab-button:end -->"
-INDEX_TAB_CONTENT_BEGIN = "<!-- argentina-tab-content:begin -->"
-INDEX_TAB_CONTENT_END = "<!-- argentina-tab-content:end -->"
-
 # ---------------------------------------------------------------------------
-# Anchors (only used on the first run; subsequent runs find the sentinels)
+# Anchor (only used on the first run; subsequent runs find the sentinels)
 # ---------------------------------------------------------------------------
 
 # Insert the README blurb above this header so it sits between FORCE 2020
 # and the Access Data section.
 README_ANCHOR = "## Access Data"
-
-# Insert the new tab button immediately before the closing </div> of the
-# tab-navigation block. Using the multi-line anchor avoids matching any of
-# the many other </div> tags in the file.
-INDEX_TAB_BUTTON_ANCHOR = "        </div>\n\n        <!-- Volve Tab Content -->"
-
-# Insert the new tab content immediately before <footer>, after the
-# force2020-tab block closes.
-INDEX_TAB_CONTENT_ANCHOR = "        <footer>"
 
 
 # ---------------------------------------------------------------------------
@@ -65,18 +44,13 @@ INDEX_TAB_CONTENT_ANCHOR = "        <footer>"
 # ---------------------------------------------------------------------------
 
 
-def integrate(website_root: Path, years: list[int]) -> None:
-    """Idempotently inject the Argentina dataset entry into the static site.
+def integrate(website_root: Path) -> None:
+    """Idempotently inject the Argentina dataset entry into the root README.
 
     ``website_root`` is the repo root: the directory that contains
-    ``README.md`` and ``parquet/index.html``. ``years`` is the list of
-    monthly_production hive partitions, used to render the per-year
-    download buttons. Re-running with the same inputs produces
-    byte-identical output.
+    ``README.md``. Re-running produces byte-identical output.
     """
-    website_root = Path(website_root)
-    _patch_root_readme(website_root / "README.md")
-    _patch_index_html(website_root / "parquet" / "index.html", sorted(years))
+    _patch_root_readme(Path(website_root) / "README.md")
 
 
 # ---------------------------------------------------------------------------
@@ -136,241 +110,6 @@ def _patch_root_readme(path: Path) -> None:
     )
     if new_text != text:
         path.write_text(new_text)
-
-
-# ---------------------------------------------------------------------------
-# parquet/index.html
-# ---------------------------------------------------------------------------
-
-
-def _index_tab_button_payload() -> str:
-    return """\
-            <button class="tab-button" data-tab="argentina">
-                Argentina Production
-                <span class="tab-count">4 files</span>
-            </button>
-"""
-
-
-def _index_tab_content_payload(years: list[int]) -> str:
-    year_buttons = "\n".join(
-        f'                        <a href="{ARGENTINA_BASE_URL}/monthly_production/anio={y}/data.parquet"'
-        f' download="monthly_production_{y}.parquet" class="download-button">\n'
-        f"                            <span>{y}</span>\n"
-        f'                            <span class="download-icon">⬇</span>\n'
-        f"                        </a>"
-        for y in years
-    )
-    year_range = f"{years[0]}–{years[-1]}" if years else "2006–present"
-    return f"""\
-        <!-- Argentina Tab Content -->
-        <div id="argentina-tab" class="tab-content">
-            <!-- Download Section -->
-            <div class="download-section">
-                <h2>Download Argentina Files</h2>
-                <p style="margin-bottom: 24px; color: var(--text-secondary);">
-                    Monthly production data for ~85,418 oil and gas wells in Argentina
-                    ({year_range}). Spanish column names preserved from source.
-                </p>
-                <div class="download-grid">
-                    <a href="{ARGENTINA_BASE_URL}/wells.parquet" class="download-button" download>
-                        <span>wells.parquet</span>
-                        <span class="download-icon">⬇</span>
-                    </a>
-                    <a href="{ARGENTINA_BASE_URL}/well_operator_history.parquet" class="download-button" download>
-                        <span>well_operator_history.parquet</span>
-                        <span class="download-icon">⬇</span>
-                    </a>
-                    <a href="{ARGENTINA_BASE_URL}/well_events.parquet" class="download-button" download>
-                        <span>well_events.parquet</span>
-                        <span class="download-icon">⬇</span>
-                    </a>
-                </div>
-
-                <h3 style="margin-top: 8px; margin-bottom: 12px;">
-                    monthly_production
-                    <span style="font-weight: normal; color: var(--text-secondary); font-size: 0.9em;">(hive-partitioned by year)</span>
-                </h3>
-                <div class="download-grid" style="margin-bottom: 12px;">
-                    <a href="{ARGENTINA_BASE_URL}/monthly_production/_files.json" class="download-button">
-                        <span>_files.json &nbsp;·&nbsp; manifest for read_parquet / httpfs</span>
-                        <span class="download-icon">{{}}</span>
-                    </a>
-                </div>
-                <details style="margin-bottom: 32px;">
-                    <summary style="cursor: pointer; padding: 8px 0; color: var(--text-secondary); font-family: 'IBM Plex Mono', monospace;">
-                        Download a specific year
-                    </summary>
-                    <div class="download-grid" style="grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 12px; margin-top: 12px; margin-bottom: 0;">
-{year_buttons}
-                    </div>
-                </details>
-
-                <div class="download-grid" style="margin-top: 16px;">
-                    <a href="argentina/README.md" class="download-button">
-                        <span>README.md</span>
-                        <span class="download-icon">📖</span>
-                    </a>
-                    <a href="argentina/schema.md" class="download-button">
-                        <span>schema.md</span>
-                        <span class="download-icon">📖</span>
-                    </a>
-                    <a href="argentina/schema.json" class="download-button">
-                        <span>schema.json</span>
-                        <span class="download-icon">{{}}</span>
-                    </a>
-                    <a href="argentina/schema.sql" class="download-button">
-                        <span>schema.sql</span>
-                        <span class="download-icon">⌘</span>
-                    </a>
-                </div>
-                <p class="file-size">Three single-file tables · {len(years)}-year partitioned monthly series · Spanish column names</p>
-            </div>
-
-            <!-- About Section -->
-            <section>
-                <h2>About This Dataset</h2>
-                <p>
-                    Monthly production data for the Argentine oil and gas industry,
-                    sourced from the <strong>Secretaría de Energía</strong> public datasets.
-                    Organized into four tables by per-well change frequency: a static well
-                    master, slowly-changing operator history, operational state events, and
-                    a gap-filled monthly time series of ~17.6 million rows.
-                </p>
-                <p>
-                    Spanish column names are preserved from the source
-                    (<code>idpozo</code>, <code>cuenca</code>, <code>prod_pet</code>, …).
-                    The full glossary of opaque codes (<code>tef</code>, <code>vida_util</code>,
-                    <code>formprod</code>) lives in <code>schema.md</code>.
-                </p>
-            </section>
-
-            <!-- Query Example Section -->
-            <section>
-                <h2>Quick Start with DuckDB</h2>
-                <p>
-                    Aggregate 2023 production by basin, joining the static well master
-                    to the hive-partitioned monthly series. The static host serves no
-                    directory listing, so the partition files are discovered from the
-                    <code>_files.json</code> manifest rather than globbed (ADR-0004):
-                </p>
-                <div class="code-block">
-                    <div class="code-header">
-                        <span class="code-dot"></span>
-                        <span class="code-dot"></span>
-                        <span class="code-dot"></span>
-                    </div>
-                    <pre><span class="keyword">import</span> json, urllib.request, duckdb
-
-<span class="comment"># Discover the 2023 partition from the manifest, then aggregate by basin</span>
-base = <span class="string">'{ARGENTINA_BASE_URL}/monthly_production/'</span>
-manifest = json.<span class="function">load</span>(urllib.request.<span class="function">urlopen</span>(base + <span class="string">'_files.json'</span>))
-urls = [base + p <span class="keyword">for</span> p <span class="keyword">in</span> manifest <span class="keyword">if</span> p.<span class="function">startswith</span>(<span class="string">'anio=2023/'</span>)]
-
-result = duckdb.<span class="function">sql</span>(<span class="function">f</span><span class="string">\"\"\"
-    SELECT w.cuenca,
-           SUM(m.prod_pet) AS oil_m3,
-           SUM(m.prod_gas) AS gas_mm3
-    FROM '{ARGENTINA_BASE_URL}/wells.parquet' w
-    JOIN read_parquet(?, hive_partitioning = true) m USING (idpozo)
-    WHERE m.anio = 2023
-    GROUP BY w.cuenca
-    ORDER BY oil_m3 DESC
-\"\"\"</span>, params=[urls]).<span class="function">df</span>()</pre>
-                </div>
-                <p>
-                    Three more canonical patterns (single-well lookup, year-range
-                    aggregation, manifest-driven access via <code>_files.json</code>) live
-                    in the dataset README.
-                </p>
-            </section>
-
-            <!-- Schema Documents Section -->
-            <section>
-                <h2>Schema Documents</h2>
-                <p>
-                    Full per-column documentation is published alongside the parquets:
-                </p>
-                <div class="schema-grid">
-                    <div class="table-card">
-                        <h3 class="table-name">README.md</h3>
-                        <p class="table-meta">Dataset overview + four canonical query examples</p>
-                        <div class="foreign-key-note">
-                            → <a href="argentina/README.md">Open README.md</a>
-                        </div>
-                    </div>
-                    <div class="table-card">
-                        <h3 class="table-name">schema.md</h3>
-                        <p class="table-meta">English column docs (Spanish identifiers preserved), four-bucket rationale, glossary</p>
-                        <div class="foreign-key-note">
-                            → <a href="argentina/schema.md">Open schema.md</a>
-                        </div>
-                    </div>
-                    <div class="table-card">
-                        <h3 class="table-name">schema.json</h3>
-                        <p class="table-meta">Machine-readable column list, types, primary &amp; foreign keys</p>
-                        <div class="foreign-key-note">
-                            → <a href="argentina/schema.json">Open schema.json</a>
-                        </div>
-                    </div>
-                    <div class="table-card">
-                        <h3 class="table-name">schema.sql</h3>
-                        <p class="table-meta">DDL that mirrors the published structure in a fresh DuckDB</p>
-                        <div class="foreign-key-note">
-                            → <a href="argentina/schema.sql">Open schema.sql</a>
-                        </div>
-                    </div>
-                </div>
-            </section>
-
-            <!-- Source & License -->
-            <section class="dataset-attribution">
-                <h2>Source &amp; License</h2>
-                <p>
-                    Data from <a href="https://datos.energia.gob.ar/dataset/produccion-de-petroleo-y-gas-por-pozo" target="_blank" rel="noopener">Producción de petróleo y gas por pozo (Capítulo IV)</a>,
-                    published by the <strong>Secretaría de Energía</strong> on the Argentine open data portal (<a href="https://datos.energia.gob.ar/" target="_blank" rel="noopener">datos.energia.gob.ar</a>).
-                </p>
-                <p>
-                    All three source CSVs (<code>produccin-de-pozos-de-gas-y-petrleo-*</code>, <code>capitulo-iv-pozos</code>, <code>listado-de-pozos-cargados-por-empresas-operadoras</code>) are resources of this same dataset package.
-                </p>
-                <p>
-                    Licensed under <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">Creative Commons Attribution 4.0</a> (as declared on the dataset's portal page).
-                </p>
-            </section>
-        </div>
-
-"""
-
-
-def _patch_index_html(path: Path, years: list[int]) -> None:
-    original = path.read_text()
-
-    button_block = (
-        f"{INDEX_TAB_BUTTON_BEGIN}\n{_index_tab_button_payload()}"
-        f"{INDEX_TAB_BUTTON_END}\n"
-    )
-    text = _replace_block_or_insert_before(
-        original,
-        INDEX_TAB_BUTTON_BEGIN,
-        INDEX_TAB_BUTTON_END,
-        INDEX_TAB_BUTTON_ANCHOR,
-        button_block,
-    )
-
-    content_block = (
-        f"{INDEX_TAB_CONTENT_BEGIN}\n{_index_tab_content_payload(years)}"
-        f"{INDEX_TAB_CONTENT_END}\n\n"
-    )
-    text = _replace_block_or_insert_before(
-        text,
-        INDEX_TAB_CONTENT_BEGIN,
-        INDEX_TAB_CONTENT_END,
-        INDEX_TAB_CONTENT_ANCHOR,
-        content_block,
-    )
-
-    if text != original:
-        path.write_text(text)
 
 
 # ---------------------------------------------------------------------------

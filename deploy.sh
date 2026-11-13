@@ -30,7 +30,7 @@ if command -v pnpm >/dev/null; then PNPM=(pnpm); else PNPM=(corepack pnpm); fi
 )
 
 # Publish the data, then the built Landing over it. The dev host serves both
-# from one root, so the Landing's pages replace the data tree's old index.html.
+# from one root.
 # --delete on the first pass prunes stale files, the previous build included.
 rsync -av --delete "$SCRIPT_DIR/parquet/" "$DEPLOY_TARGET/"
 rsync -av "$SCRIPT_DIR/site/build/" "$DEPLOY_TARGET/"
