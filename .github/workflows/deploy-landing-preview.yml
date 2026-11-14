@@ -45,7 +45,11 @@ jobs:
         uses: ./.github/actions/build-landing
 
       # Same guard as the main/stage deploy: the preview names the `main` base
-      # only, and carries no parquet and no `_files.json` (ADR-0005).
+      # only, and carries no parquet and no `_files.json` (ADR-0005). The
+      # Landing host guard of that step (issue #47) does not run here: a
+      # preview is served from `<branch>.<project>.pages.dev` by design, not
+      # from the host its `canonical` names, and main/stage run it before
+      # anything reaches the Landing host.
       - name: Verify no off-branch data host in the built output
         env:
           OTHER_BASE: ${{ vars.BASE_URL_STAGE }}
