@@ -303,6 +303,8 @@ jobs:
           code=000
           matched=no
           for ((attempt = 1; attempt <= POLL_ATTEMPTS; attempt++)); do
+            # No -L: the Landing serves its root directly (ADR-0007), so a
+            # redirect there is a hosting change this guard should surface.
             # curl prints 000 when nothing answered (DNS, TLS, connection),
             # and then writes no body: empty it so the last one cannot match.
             : >"$body"
