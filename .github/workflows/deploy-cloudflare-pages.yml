@@ -224,7 +224,7 @@ jobs:
           # The value of attribute $2 in the first tag of $page matching $1.
           attr_of() {
             { grep -oiE "$1" "$page" || true; } | head -n 1 \
-              | { grep -oiE "$2=[\"'][^\"']*" || true; } | head -n 1 \
+              | { grep -oiE "[[:space:]]$2=[\"'][^\"']*" || true; } | head -n 1 \
               | sed -E "s/^[^=]*=[\"']//"
           }
 
@@ -239,7 +239,7 @@ jobs:
           fi
           if [[ ! -f $page ]]; then
             found=$({ find "$tree" -name index.html -printf '%P\n' 2>/dev/null || true; } \
-              | sort | head -n 3 | paste -sd ' ')
+              | sort | head -n 3 | paste -sd ' ' || true)
             fail "no index.html at the root of $tree (index.html found at: ${found:-nowhere})"
           else
             canonical=$(attr_of "<link[^>]*rel=[\"']?canonical[\"' ][^>]*>" href)

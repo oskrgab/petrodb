@@ -150,6 +150,20 @@ def test_another_scheme_fails(tmp_path: Path) -> None:
     assert _run(tmp_path).returncode != 0
 
 
+def test_the_canonical_is_read_from_its_href_attribute_only(tmp_path: Path) -> None:
+    page = _page(canonical=None).replace(
+        "<meta charset",
+        '<link rel="canonical" data-href="https://petrodb.ocortez.com/"'
+        ' href="https://sumpalabs.com/petrodb/"><meta charset',
+    )
+    _stage(tmp_path, page=page)
+
+    result = _run(tmp_path)
+
+    assert result.returncode != 0
+    assert "canonical names https://sumpalabs.com/petrodb/" in result.stdout
+
+
 def test_a_root_page_without_a_canonical_fails(tmp_path: Path) -> None:
     _stage(tmp_path, page=_page(canonical=None))
 
