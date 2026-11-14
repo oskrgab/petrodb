@@ -267,3 +267,56 @@ jobs:
             pages deploy site/build/
             --project-name=${{ vars.CLOUDFLARE_PAGES_PROJECT }}
             --branch=${{ github.ref_name }}
+
+      # Reachability guard (issue #48): poll the public Landing URL until it
+      # answers 200 with the home page, and fail the job if it never does.
+      # The verify step above checks the tree; only this one can see a
+      # detached Pages custom domain or a broken DNS record.
+      #
+      # Limits, recorded rather than solved:
+      #   - `main` only. A `stage` push deploys to a branch preview URL, not
+      #     the custom domain, so stage has no public URL to poll; its tree is
+      #     covered by the verify step alone.
+      #   - Soft 404s. The host answers unmatched paths with the home page and
+      #     status 200, so a status code alone proves only that something
+      #     answered. This step therefore also requires LANDING_MARKER in the
+      #     body. Do not add a status-only check of a deeper path (a schema
+      #     doc, say): it passes even when that file is missing.
+      #
+      # Last on purpose: it depends on infrastructure outside the repo and can
+      # flake, and by now the HF upload and the Pages deploy have finished.
+      - name: Verify the Landing serves at its public URL
+        if: github.ref_name == 'main'
+        env:
+          # The home page's <title>, from site/src/routes/+page.svelte; a test
+          # fails if the two drift apart.
+          LANDING_MARKER: '<title>PetroDB: open petroleum datasets in Parquet</title>'
+          POLL_ATTEMPTS: 6
+          POLL_DELAY_SECONDS: 10
+        run: |
+          url=${PUBLIC_LANDING_URL:-}
+          if [[ -z $url ]]; then
+            echo "::error::Public URL guard: PUBLIC_LANDING_URL is empty or unset"
+            exit 1
+          fi
+          body=$(mktemp)
+          code=000
+          matched=no
+          for ((attempt = 1; attempt <= POLL_ATTEMPTS; attempt++)); do
+            # No -L: the Landing serves its root directly (ADR-0007), so a
+            # redirect there is a hosting change this guard should surface.
+            # curl prints 000 when nothing answered (DNS, TLS, connection),
+            # and then writes no body: empty it so the last one cannot match.
+            : >"$body"
+            code=$(curl -sS --max-time 15 -o "$body" -w '%{http_code}' "$url") || true
+            matched=no
+            if grep -qF -- "$LANDING_MARKER" "$body"; then matched=yes; fi
+            if [[ $code == 200 && $matched == yes ]]; then
+              echo "OK: $url serves the Landing (attempt $attempt of $POLL_ATTEMPTS)"
+              exit 0
+            fi
+            echo "Attempt $attempt of $POLL_ATTEMPTS: status $code, home page marker found: $matched"
+            if ((attempt < POLL_ATTEMPTS)); then sleep "$POLL_DELAY_SECONDS"; fi
+          done
+          echo "::error::Public URL guard: $url did not serve the Landing after $POLL_ATTEMPTS attempts (last status $code, home page marker found: $matched)"
+          exit 1
