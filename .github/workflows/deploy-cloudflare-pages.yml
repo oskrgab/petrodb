@@ -198,9 +198,9 @@ jobs:
       # Landing or the HF dataset card still names the dev Caddy host or the
       # *other* branch's resolve base.
       #
-      # The same step guards the Landing host (issue #47): the tree must have
-      # `index.html` at its root, and that page's `canonical` (and `og:url`,
-      # when it has one) must name PUBLIC_LANDING_URL's scheme and host. This
+      # The same step is the Landing host guard (issue #47): the tree must have
+      # `index.html` at its root, and every `canonical` and `og:url` in that
+      # page must name PUBLIC_LANDING_URL's scheme and host. This
       # catches a tree staged one directory deep, or a page that claims a host
       # it is not published at. Every check reports before the step fails.
       # Branch previews (deploy-landing-preview.yml) do not run this part: they
@@ -221,11 +221,35 @@ jobs:
               echo "${BASH_REMATCH[1],,}"
             fi
           }
-          # The value of attribute $2 in the first tag of $page matching $1.
-          attr_of() {
-            { grep -oiE "$1" "$page" || true; } | head -n 1 \
-              | { grep -oiE "[[:space:]]$2=[\"'][^\"']*" || true; } | head -n 1 \
-              | sed -E "s/^[^=]*=[\"']//"
+          # Every tag in $page matching ERE $1, ignoring case, one per line;
+          # the page's line breaks are folded first, so a tag may span lines.
+          tags_of() {
+            tr '\r\n\t' '   ' <"$page" | { grep -oiE "$1" || true; }
+          }
+          # The value of attribute $2 in tag $1, quoted or not; empty if none.
+          value_of() (
+            shopt -s nocasematch
+            re="[[:space:]]$2[[:space:]]*=[[:space:]]*(\"[^\"]*\"|'[^']*'|[^\"'[:space:]>]+)"
+            if [[ $1 =~ $re ]]; then
+              value=${BASH_REMATCH[1]}
+              value=${value#[\"\']}
+              echo "${value%[\"\']}"
+            fi
+          )
+          # Every tag matching ERE $2 must carry attribute $3 naming the
+          # Landing host; one it cannot read fails too. $1 names the tag in
+          # messages. Leaves the number of tags seen in $count.
+          check_tags() {
+            count=0
+            while IFS= read -r tag; do
+              count=$((count + 1))
+              url=$(value_of "$tag" "$3")
+              if [[ -z $url ]]; then
+                fail "$1 tag has no readable $3: $tag"
+              elif [[ -n $want && $(origin "$url") != "$want" ]]; then
+                fail "$1 names $url, not PUBLIC_LANDING_URL $landing"
+              fi
+            done < <(tags_of "$2")
           }
 
           tree=site/build
@@ -242,16 +266,13 @@ jobs:
               | sort | head -n 3 | paste -sd ' ' || true)
             fail "no index.html at the root of $tree (index.html found at: ${found:-nowhere})"
           else
-            canonical=$(attr_of "<link[^>]*rel=[\"']?canonical[\"' ][^>]*>" href)
-            og_url=$(attr_of "<meta[^>]*property=[\"']?og:url[\"' ][^>]*>" content)
-            if [[ -z $canonical ]]; then
+            is="[[:space:]]*=[[:space:]]*[\"']?"
+            ends="([\"'[:space:]/][^>]*)?>"
+            check_tags canonical "<link[^>]*[[:space:]]rel${is}canonical${ends}" href
+            if [[ $count -eq 0 ]]; then
               fail "no canonical link in $page"
-            elif [[ -n $want && $(origin "$canonical") != "$want" ]]; then
-              fail "canonical names $canonical, not PUBLIC_LANDING_URL $landing"
             fi
-            if [[ -n $og_url && -n $want && $(origin "$og_url") != "$want" ]]; then
-              fail "og:url names $og_url, not PUBLIC_LANDING_URL $landing"
-            fi
+            check_tags og:url "<meta[^>]*[[:space:]](property|name)${is}og:url${ends}" content
           fi
           if [[ $status -eq 0 ]]; then
             echo "OK: $page names the Landing host $want"
@@ -268,15 +289,15 @@ jobs:
             --project-name=${{ vars.CLOUDFLARE_PAGES_PROJECT }}
             --branch=${{ github.ref_name }}
 
-      # Reachability guard (issue #48): poll the public Landing URL until it
+      # Public URL guard (issue #48): poll the public Landing URL until it
       # answers 200 with the home page, and fail the job if it never does.
       # The verify step above checks the tree; only this one can see a
       # detached Pages custom domain or a broken DNS record.
       #
       # Limits, recorded rather than solved:
       #   - `main` only. A `stage` push deploys to a branch preview URL, not
-      #     the custom domain, so stage has no public URL to poll; its tree is
-      #     covered by the verify step alone.
+      #     the custom domain, so there is no custom domain to poll; its tree
+      #     is covered by the verify step alone.
       #   - Soft 404s. The host answers unmatched paths with the home page and
       #     status 200, so a status code alone proves only that something
       #     answered. This step therefore also requires LANDING_MARKER in the
