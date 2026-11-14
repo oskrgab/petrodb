@@ -198,9 +198,9 @@ jobs:
       # Landing or the HF dataset card still names the dev Caddy host or the
       # *other* branch's resolve base.
       #
-      # The same step guards the Landing host (issue #47): the tree must have
-      # `index.html` at its root, and that page's `canonical` (and `og:url`,
-      # when it has one) must name PUBLIC_LANDING_URL's scheme and host. This
+      # The same step is the Landing host guard (issue #47): the tree must have
+      # `index.html` at its root, and every `canonical` and `og:url` in that
+      # page must name PUBLIC_LANDING_URL's scheme and host. This
       # catches a tree staged one directory deep, or a page that claims a host
       # it is not published at. Every check reports before the step fails.
       # Branch previews (deploy-landing-preview.yml) do not run this part: they
@@ -289,15 +289,15 @@ jobs:
             --project-name=${{ vars.CLOUDFLARE_PAGES_PROJECT }}
             --branch=${{ github.ref_name }}
 
-      # Reachability guard (issue #48): poll the public Landing URL until it
+      # Public URL guard (issue #48): poll the public Landing URL until it
       # answers 200 with the home page, and fail the job if it never does.
       # The verify step above checks the tree; only this one can see a
       # detached Pages custom domain or a broken DNS record.
       #
       # Limits, recorded rather than solved:
       #   - `main` only. A `stage` push deploys to a branch preview URL, not
-      #     the custom domain, so stage has no public URL to poll; its tree is
-      #     covered by the verify step alone.
+      #     the custom domain, so there is no custom domain to poll; its tree
+      #     is covered by the verify step alone.
       #   - Soft 404s. The host answers unmatched paths with the home page and
       #     status 200, so a status code alone proves only that something
       #     answered. This step therefore also requires LANDING_MARKER in the
