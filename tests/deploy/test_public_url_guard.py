@@ -7,62 +7,29 @@ fails the job if the retry budget runs out. The tests run the step's own
 """
 
 import http.server
-import os
 import subprocess
 import threading
 from collections.abc import Iterator
-from pathlib import Path
 
 import pytest
 
-REPO = Path(__file__).resolve().parents[2]
-WORKFLOW = REPO / ".github" / "workflows" / "deploy-cloudflare-pages.yml"
+from tests.deploy.support import (
+    REPO_ROOT,
+    env_value,
+    run_step,
+    step_block,
+    step_script,
+    workflow_lines,
+)
+
 STEP = "Verify the Landing serves at its public URL"
 DEPLOY_STEP = "Deploy to Cloudflare Pages"
-HOME_PAGE_SOURCE = REPO / "site" / "src" / "routes" / "+page.svelte"
+HOME_PAGE_SOURCE = REPO_ROOT / "site" / "src" / "routes" / "+page.svelte"
+BUILT_HOME_PAGE = REPO_ROOT / "site" / "build" / "index.html"
 
 
-def _workflow_lines() -> list[str]:
-    return WORKFLOW.read_text().splitlines()
-
-
-def _step_block(name: str) -> list[str]:
-    """The lines of the step named ``name``, up to the next step or the end."""
-    lines = _workflow_lines()
-    start = next(i for i, line in enumerate(lines) if line.strip() == f"- name: {name}")
-    dash_indent = len(lines[start]) - len(lines[start].lstrip())
-    block = [lines[start]]
-    for line in lines[start + 1 :]:
-        if line.strip() and len(line) - len(line.lstrip()) <= dash_indent:
-            break
-        block.append(line)
-    return block
-
-
-def _step_script() -> str:
-    """The step's ``run: |`` block, dedented, read without a YAML parser."""
-    block = _step_block(STEP)
-    run = next(i for i, line in enumerate(block) if line.strip() == "run: |")
-    key_indent = len(block[run]) - len(block[run].lstrip())
-    body: list[str] = []
-    for line in block[run + 1 :]:
-        if line.strip() and len(line) - len(line.lstrip()) <= key_indent:
-            break
-        body.append(line)
-    indent = min(len(b) - len(b.lstrip()) for b in body if b.strip())
-    return "\n".join(b[indent:] for b in body) + "\n"
-
-
-def _step_env(key: str) -> str:
-    """The value of ``key`` in the step's ``env:`` map, unquoted."""
-    for line in _step_block(STEP):
-        stripped = line.strip()
-        if stripped.startswith(f"{key}:"):
-            value = stripped.split(":", 1)[1].strip()
-            if len(value) >= 2 and value[0] == value[-1] and value[0] in "'\"":
-                value = value[1:-1]
-            return value
-    raise AssertionError(f"{key} is not in the env of step {STEP!r}")
+def _marker() -> str:
+    return env_value("LANDING_MARKER", step_block(STEP))
 
 
 class _Server:
@@ -122,28 +89,17 @@ def _closed_port_url() -> str:
 
 
 def _home_page() -> str:
-    marker = _step_env("LANDING_MARKER")
-    return f"<!doctype html><html><head>{marker}</head><body>Datasets</body></html>"
+    return f"<!doctype html><html><head>{_marker()}</head><body>Datasets</body></html>"
 
 
 def _run(url: str | None, attempts: str = "3") -> subprocess.CompletedProcess[str]:
-    env = {k: v for k, v in os.environ.items() if k != "PUBLIC_LANDING_URL"}
-    env |= {
-        "LANDING_MARKER": _step_env("LANDING_MARKER"),
+    env = {
+        "LANDING_MARKER": _marker(),
         "POLL_ATTEMPTS": attempts,
         "POLL_DELAY_SECONDS": "0",
+        "PUBLIC_LANDING_URL": url,
     }
-    if url is not None:
-        env["PUBLIC_LANDING_URL"] = url
-    # GitHub runs `run:` blocks as `bash --noprofile --norc -eo pipefail {0}`.
-    return subprocess.run(
-        ["bash", "--noprofile", "--norc", "-eo", "pipefail", "-c", _step_script()],
-        check=False,
-        env=env,
-        capture_output=True,
-        text=True,
-        timeout=60,
-    )
+    return run_step(STEP, env)
 
 
 def test_the_landing_answering_200_with_its_home_page_passes(server: _Server) -> None:
@@ -227,14 +183,21 @@ def test_an_unset_public_url_fails_with_an_error(url: str | None) -> None:
 
 
 def test_the_marker_is_the_home_page_title_in_the_site_source() -> None:
-    marker = _step_env("LANDING_MARKER")
+    marker = _marker()
 
     assert marker.startswith("<title>")
     assert marker in HOME_PAGE_SOURCE.read_text()
 
 
+@pytest.mark.skipif(
+    not BUILT_HOME_PAGE.exists(), reason="no site/build; build the Landing first"
+)
+def test_the_marker_is_in_the_built_home_page() -> None:
+    assert _marker() in BUILT_HOME_PAGE.read_text()
+
+
 def test_the_step_runs_on_main_only() -> None:
-    block = [line.strip() for line in _step_block(STEP)]
+    block = [line.strip() for line in step_block(STEP)]
 
     assert "if: github.ref_name == 'main'" in block
 
@@ -242,7 +205,7 @@ def test_the_step_runs_on_main_only() -> None:
 def test_the_step_is_the_last_one_and_comes_after_the_pages_deploy() -> None:
     names = [
         line.strip()
-        for line in _workflow_lines()
+        for line in workflow_lines()
         if line.strip().startswith("- name: ")
     ]
 
@@ -251,7 +214,9 @@ def test_the_step_is_the_last_one_and_comes_after_the_pages_deploy() -> None:
 
 
 def test_it_polls_the_deploy_jobs_public_landing_url() -> None:
-    job_env = [line.strip() for line in _workflow_lines()]
-
-    assert "${PUBLIC_LANDING_URL" in _step_script()
-    assert "PUBLIC_LANDING_URL: https://petrodb.ocortez.com" in job_env
+    # The job's value, pinned by the Landing host guard's tests; the step
+    # must read it and never set its own.
+    assert "${PUBLIC_LANDING_URL" in step_script(STEP)
+    assert not any(
+        line.strip().startswith("PUBLIC_LANDING_URL:") for line in step_block(STEP)
+    )
