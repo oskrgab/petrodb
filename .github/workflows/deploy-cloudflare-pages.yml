@@ -67,6 +67,15 @@ jobs:
       # bases; the catalog must reference the host+revision where its own
       # bytes are reachable. Points at the HF resolve bases (ADR-0005).
       BASE_URL: ${{ github.ref_name == 'main' && vars.BASE_URL_MAIN || vars.BASE_URL_STAGE }}
+      # The host the Landing is published at, checked by the verify step
+      # against the `canonical` the built home page names (issue #47). A
+      # committed literal, deliberately: it MUST equal the host written in the
+      # site's page sources (`site/src/routes/+page.svelte`), and the guard
+      # compares these two independently maintained copies. Derived from the
+      # build output, or read by the site build (its PUBLIC_ prefix would let
+      # SvelteKit inline it), it would agree with whatever the build says and
+      # validate nothing.
+      PUBLIC_LANDING_URL: https://petrodb.ocortez.com
       # Umami's website id, inlined into the Landing build; unset, no tracker
       # loads. The tracker counts the production hostnames only, so a `stage`
       # build carries it without reporting. Branch previews and deploy.sh
@@ -188,10 +197,66 @@ jobs:
       # must carry no parquet and no `_files.json` (ADR-0005). Fails if the built
       # Landing or the HF dataset card still names the dev Caddy host or the
       # *other* branch's resolve base.
+      #
+      # The same step guards the Landing host (issue #47): the tree must have
+      # `index.html` at its root, and that page's `canonical` (and `og:url`,
+      # when it has one) must name PUBLIC_LANDING_URL's scheme and host. This
+      # catches a tree staged one directory deep, or a page that claims a host
+      # it is not published at. Every check reports before the step fails.
+      # Branch previews (deploy-landing-preview.yml) do not run this part: they
+      # are served from `<branch>.<project>.pages.dev` by design, so the tree
+      # is not published at the host its pages name, and main/stage run the
+      # guard before anything reaches the Landing host.
       - name: Verify no off-branch data host in the built output
         env:
           OTHER_BASE: ${{ github.ref_name == 'main' && vars.BASE_URL_STAGE || vars.BASE_URL_MAIN }}
-        run: python3 -m scripts.deploy.check_deploy_tree site/build hf/README.md
+        run: |
+          status=0
+          python3 -m scripts.deploy.check_deploy_tree site/build hf/README.md || status=1
+
+          fail() { echo "::error::Landing host guard: $1"; status=1; }
+          # scheme://host of a URL, lowercased; empty if it has no scheme.
+          origin() {
+            if [[ $1 =~ ^([A-Za-z][A-Za-z0-9+.-]*://[^/?#]+) ]]; then
+              echo "${BASH_REMATCH[1],,}"
+            fi
+          }
+          # The value of attribute $2 in the first tag of $page matching $1.
+          attr_of() {
+            { grep -oiE "$1" "$page" || true; } | head -n 1 \
+              | { grep -oiE "$2=[\"'][^\"']*" || true; } | head -n 1 \
+              | sed -E "s/^[^=]*=[\"']//"
+          }
+
+          tree=site/build
+          page=$tree/index.html
+          landing=${PUBLIC_LANDING_URL:-}
+          want=$(origin "$landing")
+          if [[ -z $landing ]]; then
+            fail "PUBLIC_LANDING_URL is empty or unset; set it in the deploy job env"
+          elif [[ -z $want ]]; then
+            fail "PUBLIC_LANDING_URL is not an absolute URL: '$landing'"
+          fi
+          if [[ ! -f $page ]]; then
+            found=$({ find "$tree" -name index.html -printf '%P\n' 2>/dev/null || true; } \
+              | sort | head -n 3 | paste -sd ' ')
+            fail "no index.html at the root of $tree (index.html found at: ${found:-nowhere})"
+          else
+            canonical=$(attr_of "<link[^>]*rel=[\"']?canonical[\"' ][^>]*>" href)
+            og_url=$(attr_of "<meta[^>]*property=[\"']?og:url[\"' ][^>]*>" content)
+            if [[ -z $canonical ]]; then
+              fail "no canonical link in $page"
+            elif [[ -n $want && $(origin "$canonical") != "$want" ]]; then
+              fail "canonical names $canonical, not PUBLIC_LANDING_URL $landing"
+            fi
+            if [[ -n $og_url && -n $want && $(origin "$og_url") != "$want" ]]; then
+              fail "og:url names $og_url, not PUBLIC_LANDING_URL $landing"
+            fi
+          fi
+          if [[ $status -eq 0 ]]; then
+            echo "OK: $page names the Landing host $want"
+          fi
+          exit "$status"
 
       - name: Deploy to Cloudflare Pages
         uses: cloudflare/wrangler-action@v3
