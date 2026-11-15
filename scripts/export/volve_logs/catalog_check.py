@@ -19,7 +19,11 @@ from pathlib import Path
 
 import duckdb
 
-from scripts.export.volve_logs.validator import PrePublishCheckError
+from scripts.export.volve_logs.validator import (
+    PrePublishCheckError,
+    check_unique_key,
+    check_wellbores_in_wells,
+)
 from scripts.transform.volve_logs.curve_catalog import curve_columns, curve_samples
 from scripts.transform.volve_logs.sql import path_literal
 
@@ -35,34 +39,14 @@ def check(catalog: Path, tables: dict[str, Path], wells: Path) -> None:
     with duckdb.connect() as con:
         con.execute(f"CREATE VIEW catalog AS SELECT * FROM read_parquet({path_literal(catalog)})")
         con.execute(f"CREATE VIEW wells AS SELECT * FROM read_parquet({path_literal(wells)})")
-        _check_unique_key(con)
-        _check_wellbores_in_wells(con)
+        check_unique_key(
+            con, "catalog", ("table_name", "source_wellbore", "mnemonic"), "Curve catalog key",
+            lambda *key: ", ".join(key),
+        )  # fmt: skip
+        check_wellbores_in_wells(con, "catalog", "Curve catalog ")
         _check_tables_are_known(con, set(tables))
         for name, parquet in sorted(tables.items()):
             _check_agrees_with_table(con, name, parquet)
-
-
-def _check_unique_key(con: duckdb.DuckDBPyConnection) -> None:
-    duplicate = con.execute(
-        "SELECT table_name, source_wellbore, mnemonic, count(*) FROM catalog "
-        "GROUP BY ALL HAVING count(*) > 1 ORDER BY ALL LIMIT 1"
-    ).fetchone()
-    if duplicate:
-        table, source, mnemonic, n = duplicate
-        raise PrePublishCheckError(
-            "duplicate Curve catalog key (table_name, source_wellbore, mnemonic): "
-            f"{table}, {source}, {mnemonic} appears {n} times"
-        )
-
-
-def _check_wellbores_in_wells(con: duckdb.DuckDBPyConnection) -> None:
-    missing = con.execute(
-        "SELECT DISTINCT c.npd_wellbore_code, c.source_wellbore FROM catalog c "
-        "ANTI JOIN wells w USING (npd_wellbore_code) ORDER BY ALL"
-    ).fetchall()
-    if missing:
-        listed = ", ".join(f"{code} ({source})" for code, source in missing)
-        raise PrePublishCheckError(f"Curve catalog npd_wellbore_code missing from wells: {listed}")
 
 
 def _check_tables_are_known(con: duckdb.DuckDBPyConnection, tables: set[str]) -> None:

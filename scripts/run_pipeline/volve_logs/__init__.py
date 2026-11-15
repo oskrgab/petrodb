@@ -31,8 +31,9 @@ def run(raw_dir: Path = RAW_DIR, output_dir: Path = OUTPUT_DIR) -> Path:
     ``log_curves.parquet`` in ``output_dir``; return the table's path."""
     output_dir = Path(output_dir)
     with duckdb.connect() as con:
-        expected_rows = interpretation_builder.build(con, Path(raw_dir))
-        curve_catalog.build(con, interpretation_builder.TABLE)
+        catalog = curve_catalog.CurveCatalog(con)
+        expected_rows = interpretation_builder.build(con, Path(raw_dir), catalog)
+        catalog.build(interpretation_builder.TABLE)
         return parquet_writer.write(
             con,
             output_dir,

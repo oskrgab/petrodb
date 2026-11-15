@@ -14,6 +14,8 @@ import urllib.request
 from collections.abc import Callable
 from pathlib import Path
 
+from scripts.transform.constants import SOURCE_REGISTER_TABLES
+
 REGISTER_DIR = "register"
 
 _FACTPAGES_CSV = (
@@ -25,7 +27,7 @@ _FACTPAGES_CSV = (
 # File name in the register folder -> the URL it is downloaded from.
 EXPORTS = {
     f"{table}.csv": _FACTPAGES_CSV.format(table=table)
-    for table in ("wellbore_development_all", "wellbore_exploration_all")
+    for table in SOURCE_REGISTER_TABLES
 }
 
 # ISO date (UTC) of the download, one line.

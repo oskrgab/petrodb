@@ -15,17 +15,9 @@ from __future__ import annotations
 
 import duckdb
 
+from scripts.transform.volve_logs.curve_catalog import curve_columns
 from scripts.transform.volve_logs.interpretation_builder import KEY_COLUMNS
 from scripts.transform.volve_logs.sql import identifier
-
-
-def curve_columns(con: duckdb.DuckDBPyConnection, relation: str) -> list[str]:
-    """The Curve columns of ``relation``, in its order: every column but the keys."""
-    return [
-        name
-        for name, *_ in con.execute(f"DESCRIBE SELECT * FROM {relation}").fetchall()
-        if name not in KEY_COLUMNS
-    ]
 
 
 def column_order(con: duckdb.DuckDBPyConnection, relation: str) -> list[str]:

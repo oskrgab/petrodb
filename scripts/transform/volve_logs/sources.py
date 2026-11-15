@@ -35,6 +35,8 @@ INPUT_FILE = "WLC_PETRO_COMPUTED_INPUT_1"
 OUTPUT_FILE = "WLC_PETRO_COMPUTED_OUTPUT_1"
 LAS = "LAS"
 DLIS = "DLIS"
+# Passed as the raw directory, an empty root gives each path within the Raw repo.
+IN_RAW_REPO = Path()
 
 
 def _interpretation_file(raw_dir: Path, folder: str, name: str) -> Path:
@@ -69,9 +71,9 @@ class LogSource:
         return self._path(raw_dir, f"{INPUT_FILE}.{self.file_format}")
 
     def output_path(self, raw_dir: Path) -> Path | None:
-        return self.unread_output_path(raw_dir) if self.has_output else None
+        return self.possible_output_path(raw_dir) if self.has_output else None
 
-    def unread_output_path(self, raw_dir: Path) -> Path:
+    def possible_output_path(self, raw_dir: Path) -> Path:
         """Where the output file would be, whether or not this source has one."""
         return self._path(raw_dir, f"{OUTPUT_FILE}.{self.file_format}")
 
@@ -146,12 +148,11 @@ def raw_files() -> tuple[str, ...]:
     input-only source names no output file: the build only checks that none is
     there.
     """
-    root = Path()  # an empty root leaves each path relative to the raw directory
     pairs = (
         path
         for source in SOURCES
-        for path in (source.input_path(root), source.output_path(root))
+        for path in (source.input_path(IN_RAW_REPO), source.output_path(IN_RAW_REPO))
         if path is not None
     )
-    singles = (source.path(root) for source in SINGLE_FILE_SOURCES)
+    singles = (source.path(IN_RAW_REPO) for source in SINGLE_FILE_SOURCES)
     return tuple(path.as_posix() for path in (*pairs, *singles))
