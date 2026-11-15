@@ -8,8 +8,14 @@ on it at any depth they share. A source with an input file only has every
 Interpreted curve NULL. A single interpretation file (the 15/9-19 sources) is
 divided into its Input and its Interpreted curves by the Curve catalog's
 committed list, ``curve_catalog.SINGLE_FILE_CURVE_KINDS``, and the two halves
-are joined like a pair; a mnemonic the list does not classify fails the build. Rows where every
-Curve is NULL are dropped.
+are joined like a pair; a mnemonic the list does not classify fails the build.
+
+A row is kept only where a Curve other than a flag (``FLAG_CURVES``) has a
+value. Rows where every other Curve is NULL are padding and are dropped: some
+files pad the whole Wellbore with samples whose only value is a flag, such as
+15/9-F-10's output, which carries ``CARB_FLAG = 0`` from 0 m down to where its
+interpretation starts. The row-count check counts source depths by the same
+rule.
 
 Every Curve column is DOUBLE and named with the source mnemonic verbatim; a
 mnemonic ``volve_descriptions`` does not list fails the build, so every
@@ -46,6 +52,9 @@ from scripts.transform.volve_logs.sql import identifier as _q
 TABLE = "petrophysical_interpretation"
 KEY_COLUMNS = ("npd_wellbore_code", "source_wellbore", DEPTH_COLUMN)
 DEPTH_DECIMALS = 4
+# Flags hold 0 or 1 wherever a file samples, padding included, so a value in
+# one of them alone does not make a row.
+FLAG_CURVES = frozenset({"BADDATA_FLAG", "CARB_FLAG", "COAL_FLAG", "SAND_FLAG"})
 DOCUMENTED_CURVES = tuple(
     name for name in COLUMN_DESCRIPTIONS[TABLE] if name not in KEY_COLUMNS
 )
@@ -86,13 +95,15 @@ def _curves(table: pa.Table) -> list[str]:
     return [name for name in table.column_names if name != DEPTH_COLUMN]
 
 
+def _not_flags(curves: list[str]) -> list[str]:
+    """The Curves whose values make a row worth keeping: every Curve but the flags."""
+    return [name for name in curves if name not in FLAG_CURVES]
+
+
 def _non_empty_depths(table: pa.Table) -> set[float]:
-    """Rounded depths where at least one Curve has a value."""
-    curves = _curves(table)
-    if not curves:
-        return set()
+    """Rounded depths where at least one Curve other than a flag has a value."""
     has_value = np.zeros(table.num_rows, dtype=bool)
-    for name in curves:
+    for name in _not_flags(_curves(table)):
         has_value |= pc.is_valid(table[name]).to_numpy(zero_copy_only=False)
     depths = np.round(table[DEPTH_COLUMN].to_numpy(), DEPTH_DECIMALS)
     return set(depths[has_value].tolist())
@@ -261,8 +272,8 @@ def _insert_source(con: duckdb.DuckDBPyConnection, source: _ReadSource) -> None:
         + [f"coalesce(i.{_q(c)}, o.{_q(c)}) AS {_q(c)}" for c in shared]
     )
     any_value = " OR ".join(
-        [f"i.{_q(c)} IS NOT NULL" for c in input_curves]
-        + [f"o.{_q(c)} IS NOT NULL" for c in output_curves]
+        [f"i.{_q(c)} IS NOT NULL" for c in _not_flags(input_curves)]
+        + [f"o.{_q(c)} IS NOT NULL" for c in _not_flags(output_curves)]
     ) or "false"
     con.execute(
         f"INSERT INTO {TABLE} BY NAME "

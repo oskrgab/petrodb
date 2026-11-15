@@ -271,10 +271,11 @@ def test_download_refuses_to_run_without_a_token(tmp_path: Path) -> None:
 
 
 def test_download_step_reads_the_raw_repo_with_a_secret_token() -> None:
-    # A read token of its own: the upload token never reaches this step.
+    # The Raw repo is public; the job's HF_TOKEN reads it, past the anonymous
+    # rate limit.
     token = env_value("HF_TOKEN", step_block(DOWNLOAD_STEP))
 
-    assert token == "${{ secrets.HF_RAW_READ_TOKEN }}"
+    assert token == "${{ secrets.HF_TOKEN }}"
 
 
 # --- The presence check ------------------------------------------------------

@@ -89,7 +89,12 @@ section, which has no output file, and the DLIS input and output pairs of
 eight more Wellbores, from
 `Well_logs_pr_WELL/<wellbore>/05.PETROPHYSICAL INTERPRETATION/`. A DLIS
 file must hold one frame, its depth index in tenths of an inch or in
-millimetres; the build converts it to metres, and stops on any other file. The folder
+millimetres; the build converts it to metres, and stops on any other file.
+A depth is kept only where a Curve other than the flags (`BADDATA_FLAG`,
+`CARB_FLAG`, `COAL_FLAG`, `SAND_FLAG`) has a value: some files pad the whole
+Wellbore with samples whose only value is a flag, 15/9-F-10's output from
+0 m, and those are dropped; the row-count check counts source depths the
+same way. The folder
 names the source, through the mapping in
 `scripts/transform/volve_logs/sources.py`: the Technical sidetrack's rows take the
 `npd_wellbore_code` of its parent, 15/9-F-11, and keep `15/9-F-11 T2` in
@@ -112,8 +117,8 @@ before either is moved into place; a failed check leaves no new file.
 The deploy workflow (`.github/workflows/deploy-cloudflare-pages.yml`) runs the
 same two commands, the download above and the build, on every `main` or
 `stage` deploy whose cache misses, then uploads the tables to the matching
-revision of `oskrgab/petrodb`. It downloads with a read token, the
-`HF_RAW_READ_TOKEN` secret. The cache is keyed on the pin, the pipeline
+revision of `oskrgab/petrodb`. It downloads with a token, the `HF_TOKEN`
+secret the upload uses too, since anonymous downloads are rate-limited. The cache is keyed on the pin, the pipeline
 sources, the committed `wells.parquet` and `schema.json`, and `uv.lock`; a
 deploy that changes none of them restores the tables without rebuilding. A
 failed check stops the deploy before anything is uploaded.
