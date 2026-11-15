@@ -121,7 +121,10 @@ def test_cache_holds_exactly_the_log_tables() -> None:
     block = "\n".join(step_block(CACHE_STEP))
 
     assert "path: ${{ env.VOLVE_LOG_TABLES }}" in block
-    assert _log_tables() == ["parquet/volve/petrophysical_interpretation.parquet"]
+    assert _log_tables() == [
+        "parquet/volve/petrophysical_interpretation.parquet",
+        "parquet/volve/log_curves.parquet",
+    ]
 
 
 def test_every_log_table_is_gitignored_and_listed_for_the_cache() -> None:

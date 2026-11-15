@@ -24,7 +24,7 @@ import pyarrow as pa
 import pyarrow.compute as pc
 
 from scripts.export.volve_descriptions import COLUMN_DESCRIPTIONS
-from scripts.transform.volve_logs import units
+from scripts.transform.volve_logs import curve_catalog, units
 from scripts.transform.volve_logs.las_reader import DEPTH_COLUMN, LasSourceError, read_las
 from scripts.transform.volve_logs.sources import LAS_SOURCES, LasSource
 from scripts.transform.volve_logs.sql import identifier as _q
@@ -82,7 +82,9 @@ def _read_output(source: LasSource, raw_dir: Path) -> pa.Table:
 def build(con: duckdb.DuckDBPyConnection, raw_dir: Path) -> dict[str, int]:
     """Create ``petrophysical_interpretation`` in ``con`` from the LAS sources under ``raw_dir``.
 
-    Returns the number of non-empty depth samples each ``source_wellbore`` has
+    Each Curve's source file is recorded for the Curve catalog
+    (``curve_catalog``). Returns the number of non-empty depth samples each
+    ``source_wellbore`` has
     in its source files, counted from the files themselves, for the
     pre-publish row-count check.
     """
@@ -112,13 +114,31 @@ def build(con: duckdb.DuckDBPyConnection, raw_dir: Path) -> dict[str, int]:
         + "".join(f", {_q(c)} DOUBLE" for c in curves)
         + ")"
     )
+    curve_catalog.create(con)
     expected_rows = {}
     for source, input_table, output_table in read:
         _insert_source(con, source, input_table, output_table)
+        _record_curve_sources(con, source, input_table, output_table)
         expected_rows[source.source_wellbore] = len(
             _non_empty_depths(input_table) | _non_empty_depths(output_table)
         )
     return expected_rows
+
+
+def _record_curve_sources(
+    con: duckdb.DuckDBPyConnection,
+    source: LasSource,
+    input_table: pa.Table,
+    output_table: pa.Table,
+) -> None:
+    """Note each Curve's file for the Curve catalog: the input file first, so a
+    mnemonic in both files is an Input curve named after the input file."""
+    in_raw_repo = Path()  # an empty root gives each path within the Raw repo
+    files = [(curve_catalog.INPUT, source.input_path(in_raw_repo), input_table)]
+    output_path = source.output_path(in_raw_repo)
+    if output_path is not None:
+        files.append((curve_catalog.INTERPRETED, output_path, output_table))
+    curve_catalog.record(con, TABLE, source.source_wellbore, files)
 
 
 def _insert_source(

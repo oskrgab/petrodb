@@ -46,6 +46,7 @@ def test_every_column_has_a_description_in_schema_json(exported: Path) -> None:
         "daily_production",
         "monthly_production",
         "petrophysical_interpretation",
+        "log_curves",
     }
     for table, meta in schema["tables"].items():
         assert meta["description"], table
@@ -179,6 +180,37 @@ def test_every_curve_has_one_unit_in_schema_json_and_schema_md(exported: Path) -
         for row in re.finditer(r"^\| `([^`]+)` \|(.*)\|\s*$", section, re.M)
     }
     assert md_units == {name: unit or "—" for name, unit in units.items()}
+
+
+def test_log_curves_documents_its_key_every_column_and_the_depth_unit(exported: Path) -> None:
+    table = json.loads((exported / "schema.json").read_text())["tables"]["log_curves"]
+    columns = [
+        (c["name"], c["type"], c["unit"], c["not_null"], c["primary_key"])
+        for c in table["columns"]
+    ]
+    assert columns == [
+        ("table_name", "TEXT", None, True, True),
+        ("npd_wellbore_code", "INTEGER", None, True, False),
+        ("source_wellbore", "TEXT", None, True, True),
+        ("mnemonic", "TEXT", None, True, True),
+        ("curve_kind", "TEXT", None, True, False),
+        ("unit", "TEXT", None, True, False),
+        ("source_unit", "TEXT", None, True, False),
+        ("first_depth_md", "DOUBLE", "m", True, False),
+        ("last_depth_md", "DOUBLE", "m", True, False),
+        ("sample_count", "INTEGER", None, True, False),
+        ("source_file", "TEXT", None, True, False),
+    ]
+    assert table["foreign_keys"] == [
+        {
+            "column": "npd_wellbore_code",
+            "references_table": "wells",
+            "references_column": "npd_wellbore_code",
+        }
+    ]
+    described = _md_descriptions((exported / "schema.md").read_text())["log_curves"]
+    assert "`input`" in described["curve_kind"] and "`interpreted`" in described["curve_kind"]
+    assert "Raw repo" in described["source_file"]
 
 
 def test_a_documented_curve_without_a_unit_is_an_error() -> None:

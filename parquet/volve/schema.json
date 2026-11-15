@@ -804,6 +804,129 @@
         }
       ],
       "indexes": []
+    },
+    "log_curves": {
+      "description": "The Curve catalog: one row per log table, Wellbore or Technical sidetrack, and Curve that has data there. Read it first to learn which Curves each one has, over which depths, and which raw file each came from, before reading any samples. One row per `(table_name, source_wellbore, mnemonic)`; a Curve that is empty for a `source_wellbore` has no row. Its depth range and sample count are those of the table it describes. Built with the log tables from the raw log files; the Parquet is not in git.",
+      "columns": [
+        {
+          "name": "table_name",
+          "type": "TEXT",
+          "unit": null,
+          "not_null": true,
+          "default_value": null,
+          "primary_key": true,
+          "comment": null,
+          "description": "The log table the Curve is a column of, such as `petrophysical_interpretation`."
+        },
+        {
+          "name": "npd_wellbore_code",
+          "type": "INTEGER",
+          "unit": null,
+          "not_null": true,
+          "default_value": null,
+          "primary_key": false,
+          "comment": null,
+          "description": "Wellbore the Curve was logged in. Joins to `wells`. For a Technical sidetrack, the code of its parent Wellbore."
+        },
+        {
+          "name": "source_wellbore",
+          "type": "TEXT",
+          "unit": null,
+          "not_null": true,
+          "default_value": null,
+          "primary_key": true,
+          "comment": null,
+          "description": "The operator's name for the logged Wellbore or Technical sidetrack, as in the log table's `source_wellbore`: a Wellbore, a Technical sidetrack such as `15/9-F-11 T2`, or the 15/9-F-11 top-hole section."
+        },
+        {
+          "name": "mnemonic",
+          "type": "TEXT",
+          "unit": null,
+          "not_null": true,
+          "default_value": null,
+          "primary_key": true,
+          "comment": null,
+          "description": "The Curve's source mnemonic: the name of its column in the log table."
+        },
+        {
+          "name": "curve_kind",
+          "type": "TEXT",
+          "unit": null,
+          "not_null": true,
+          "default_value": null,
+          "primary_key": false,
+          "comment": null,
+          "description": "`input` for an Input curve, a measurement the petrophysical interpretation took as input; `interpreted` for an Interpreted curve it computed. A Curve in both the input and the output file is an Input curve."
+        },
+        {
+          "name": "unit",
+          "type": "TEXT",
+          "unit": null,
+          "not_null": true,
+          "default_value": null,
+          "primary_key": false,
+          "comment": null,
+          "description": "The one unit documented for the Curve's column, as the schema documents write it."
+        },
+        {
+          "name": "source_unit",
+          "type": "TEXT",
+          "unit": null,
+          "not_null": true,
+          "default_value": null,
+          "primary_key": false,
+          "comment": null,
+          "description": "The unit as the source file spells it, such as `V/V` or `UNKNOWN`. The values are not converted: every spelling the build accepts means the documented unit."
+        },
+        {
+          "name": "first_depth_md",
+          "type": "DOUBLE",
+          "unit": "m",
+          "not_null": true,
+          "default_value": null,
+          "primary_key": false,
+          "comment": null,
+          "description": "Shallowest measured depth at which the Curve has a sample."
+        },
+        {
+          "name": "last_depth_md",
+          "type": "DOUBLE",
+          "unit": "m",
+          "not_null": true,
+          "default_value": null,
+          "primary_key": false,
+          "comment": null,
+          "description": "Deepest measured depth at which the Curve has a sample."
+        },
+        {
+          "name": "sample_count",
+          "type": "INTEGER",
+          "unit": null,
+          "not_null": true,
+          "default_value": null,
+          "primary_key": false,
+          "comment": null,
+          "description": "Number of depth samples at which the Curve has a value."
+        },
+        {
+          "name": "source_file",
+          "type": "TEXT",
+          "unit": null,
+          "not_null": true,
+          "default_value": null,
+          "primary_key": false,
+          "comment": null,
+          "description": "Path of the file the Curve was read from, within the Raw repo `oskrgab/petrodb-raw-volve`. A Curve in both files of a pair names the input file."
+        }
+      ],
+      "foreign_keys": [
+        {
+          "column": "npd_wellbore_code",
+          "references_table": "wells",
+          "references_column": "npd_wellbore_code"
+        }
+      ],
+      "indexes": []
     }
   }
 }

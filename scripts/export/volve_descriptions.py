@@ -44,6 +44,16 @@ TABLE_DESCRIPTIONS = {
         "wellbores carry them, ties by mnemonic, so the most common Curves "
         "come first. Built from the raw log files; the Parquet is not in git."
     ),
+    "log_curves": (
+        "The Curve catalog: one row per log table, Wellbore or Technical "
+        "sidetrack, and Curve that has data there. Read it first to learn "
+        "which Curves each one has, over which depths, and which raw file each came from, before "
+        "reading any samples. One row per `(table_name, source_wellbore, "
+        "mnemonic)`; a Curve that is empty for a `source_wellbore` has no row. Its "
+        "depth range and sample count are those of the table it describes. "
+        "Built with the log tables from the raw log files; the Parquet is not "
+        "in git."
+    ),
 }
 
 # Plain-English descriptions for every published column. The source column in
@@ -262,5 +272,41 @@ COLUMN_DESCRIPTIONS = {
             "in the other wellbores, so it is documented in the same unit."
         ),
         "RS": "Shallow resistivity.",
+    },
+    "log_curves": {
+        "table_name": (
+            "The log table the Curve is a column of, such as "
+            "`petrophysical_interpretation`."
+        ),
+        "npd_wellbore_code": (
+            "Wellbore the Curve was logged in. Joins to `wells`. For a "
+            "Technical sidetrack, the code of its parent Wellbore."
+        ),
+        "source_wellbore": (
+            "The operator's name for the logged Wellbore or Technical sidetrack, "
+            "as in the log table's `source_wellbore`: a Wellbore, a Technical sidetrack "
+            "such as `15/9-F-11 T2`, or the 15/9-F-11 top-hole section."
+        ),
+        "mnemonic": "The Curve's source mnemonic: the name of its column in the log table.",
+        "curve_kind": (
+            "`input` for an Input curve, a measurement the petrophysical "
+            "interpretation took as input; `interpreted` for an Interpreted "
+            "curve it computed. A Curve in both the input and the output file "
+            "is an Input curve."
+        ),
+        "unit": "The one unit documented for the Curve's column, as the schema documents write it.",
+        "source_unit": (
+            "The unit as the source file spells it, such as `V/V` or "
+            "`UNKNOWN`. The values are not converted: every spelling the build "
+            "accepts means the documented unit."
+        ),
+        "first_depth_md": "Shallowest measured depth at which the Curve has a sample.",
+        "last_depth_md": "Deepest measured depth at which the Curve has a sample.",
+        "sample_count": "Number of depth samples at which the Curve has a value.",
+        "source_file": (
+            "Path of the file the Curve was read from, within the Raw repo "
+            "`oskrgab/petrodb-raw-volve`. A Curve in both files of a pair "
+            "names the input file."
+        ),
     },
 }

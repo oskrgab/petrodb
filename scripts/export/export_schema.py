@@ -14,8 +14,9 @@ and relationships without needing access to the original database.
 
 The log tables are not in the SQLite database: their Parquet is built from
 raw log files by the Volve log pipeline (``scripts.run_pipeline.volve_logs``).
-Their definitions are added to the reflected metadata by ``add_log_tables``,
-one column per Curve described in ``volve_descriptions``. Each of their
+Their definitions are added to the reflected metadata by ``add_log_tables``:
+the interpretation table, one column per Curve described in
+``volve_descriptions``, and the Curve catalog ``log_curves``. Each of their
 columns also states its unit (``unit`` in schema.json, a Unit column in
 schema.md); a Curve's unit is the one the committed unit table
 (``scripts.transform.volve_logs.units``) documents for it. The export fails
@@ -60,6 +61,7 @@ SCHEMA_OUTPUT_DIR = REPO_ROOT / "parquet" / "volve"
 # has no unit (``null`` in schema.json, an em dash in schema.md).
 TABLE_UNITS = {
     "petrophysical_interpretation": {"depth_md": "m", **CURVE_UNITS},
+    "log_curves": {"first_depth_md": "m", "last_depth_md": "m"},
 }
 
 
@@ -106,6 +108,26 @@ def add_log_tables(metadata: MetaData) -> None:
         Column("source_wellbore", TEXT, primary_key=True),
         Column("depth_md", DOUBLE, primary_key=True),
         *(Column(name, DOUBLE) for name in DOCUMENTED_CURVES),
+    )
+    Table(
+        "log_curves",
+        metadata,
+        Column("table_name", TEXT, primary_key=True),
+        Column(
+            "npd_wellbore_code",
+            INTEGER,
+            ForeignKey("wells.npd_wellbore_code"),
+            nullable=False,
+        ),
+        Column("source_wellbore", TEXT, primary_key=True),
+        Column("mnemonic", TEXT, primary_key=True),
+        Column("curve_kind", TEXT, nullable=False),
+        Column("unit", TEXT, nullable=False),
+        Column("source_unit", TEXT, nullable=False),
+        Column("first_depth_md", DOUBLE, nullable=False),
+        Column("last_depth_md", DOUBLE, nullable=False),
+        Column("sample_count", INTEGER, nullable=False),
+        Column("source_file", TEXT, nullable=False),
     )
 
 
