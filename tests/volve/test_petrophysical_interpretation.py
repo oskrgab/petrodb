@@ -8,6 +8,7 @@ declares the fixture's columns with the committed declarations.
 
 from __future__ import annotations
 
+import json
 import shutil
 import subprocess
 import sys
@@ -208,6 +209,39 @@ def test_a_single_interpretation_file_gives_its_input_and_interpreted_curves_one
     )
     # 3666.8964 m holds only sentinels, so it is dropped.
     assert rows == [(3145, 3666.5916, 8.5, 0.2, 112.7), (3145, 3666.744, 8.5, None, 112.8)]
+
+
+def test_a_sample_where_only_the_perforation_flag_has_a_value_is_padding(
+    raw: Path, out: Path
+) -> None:
+    # The perforation flag is a flag like the others: 3666.8964 m holds it and
+    # sentinels only, so the row is dropped and not counted.
+    write_las(
+        single_file_path(raw, "15_9-19 A"),
+        [3666.5916, 3666.744, 3666.8964],
+        {
+            "BS": ("IN", [8.5, 8.5, SENTINEL]),
+            "PHIF": ("V/V", [0.2, SENTINEL, SENTINEL]),
+            "TEMP": ("DEGC", [112.7, 112.8, SENTINEL]),
+            "PERF_FLAG": ("UNITLESS", [1.0, 0.0, 1.0]),
+        },
+    )
+    columns = fixture_schema()
+    perf_flag = next(
+        c
+        for c in json.loads(SCHEMA.read_text())["tables"]["petrophysical_interpretation"]["columns"]
+        if c["name"] == "PERF_FLAG"
+    )
+    # Carried by one Wellbore, so ordered by mnemonic among those: after KLOGV.
+    columns.insert([c["name"] for c in columns].index("KLOGV") + 1, perf_flag)
+    write_schema(out / "schema.json", columns)
+    volve_logs.run(raw_dir=raw, output_dir=out)
+    rows = _rows(
+        out / TABLE,
+        "SELECT depth_md, PHIF, PERF_FLAG FROM {t} "
+        "WHERE source_wellbore = '15/9-19 A' ORDER BY depth_md",
+    )
+    assert rows == [(3666.5916, 0.2, 1.0), (3666.744, None, 0.0)]
 
 
 def test_15_9_19_bt2_is_a_technical_sidetrack_of_15_9_19_b(built: Path) -> None:
@@ -655,7 +689,7 @@ def test_padded_all_null_samples_are_dropped_and_not_counted(built: Path) -> Non
 
 
 def test_no_row_has_every_curve_but_the_flags_null_for_any_source(built: Path) -> None:
-    flags = {"BADDATA_FLAG", "CARB_FLAG", "COAL_FLAG", "SAND_FLAG"}
+    flags = {"BADDATA_FLAG", "CARB_FLAG", "COAL_FLAG", "PERF_FLAG", "SAND_FLAG"}
     curves = [
         name
         for name, *_ in _rows(built, "SELECT column_name FROM (DESCRIBE SELECT * FROM {t})")[3:]

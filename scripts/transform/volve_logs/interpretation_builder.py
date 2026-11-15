@@ -54,7 +54,9 @@ KEY_COLUMNS = ("npd_wellbore_code", "source_wellbore", DEPTH_COLUMN)
 DEPTH_DECIMALS = 4
 # Flags hold 0 or 1 wherever a file samples, padding included, so a value in
 # one of them alone does not make a row.
-FLAG_CURVES = frozenset({"BADDATA_FLAG", "CARB_FLAG", "COAL_FLAG", "SAND_FLAG"})
+FLAG_CURVES = frozenset(
+    {"BADDATA_FLAG", "CARB_FLAG", "COAL_FLAG", "PERF_FLAG", "SAND_FLAG"}
+)
 DOCUMENTED_CURVES = tuple(
     name for name in COLUMN_DESCRIPTIONS[TABLE] if name not in KEY_COLUMNS
 )

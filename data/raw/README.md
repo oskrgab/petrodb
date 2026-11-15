@@ -91,7 +91,7 @@ eight more Wellbores, from
 file must hold one frame, its depth index in tenths of an inch or in
 millimetres; the build converts it to metres, and stops on any other file.
 A depth is kept only where a Curve other than the flags (`BADDATA_FLAG`,
-`CARB_FLAG`, `COAL_FLAG`, `SAND_FLAG`) has a value: some files pad the whole
+`CARB_FLAG`, `COAL_FLAG`, `PERF_FLAG`, `SAND_FLAG`) has a value: some files pad the whole
 Wellbore with samples whose only value is a flag, 15/9-F-10's output from
 0 m, and those are dropped; the row-count check counts source depths the
 same way. The folder
