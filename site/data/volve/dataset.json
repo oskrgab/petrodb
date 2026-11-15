@@ -62,7 +62,7 @@
     }
   ],
   "source": {
-    "text": "Production data from the <a href=\"https://www.equinor.com/energy/volve-data-sharing\">Volve data village</a>, which Equinor released in 2018 together with the field's subsurface and operations data. PetroDB uses the daily and monthly sheets of <code>Volve production data.xlsx</code>."
+    "text": "Production data from the <a href=\"https://www.equinor.com/energy/volve-data-sharing\">Volve data village</a>, which Equinor released in 2018 together with the field's subsurface and operations data. PetroDB uses the daily and monthly sheets of <code>Volve production data.xlsx</code>. The type, purpose, content, completion year and parent of each wellbore in <code>wells</code> come from the Norwegian Offshore Directorate's wellbore register: contains data under the <a href=\"https://data.norge.no/nlod/en\">Norwegian Licence for Open Government Data (NLOD)</a> distributed by the Norwegian Offshore Directorate."
   },
   "licence": {
     "name": "Equinor Open Data Licence",

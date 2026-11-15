@@ -5,7 +5,8 @@ This script orchestrates the complete ETL pipeline to load production data
 from Excel into the SQLite database using pandas and SQLAlchemy Core.
 
 Pipeline:
-1. Extract unique wells from source data → load wells table
+1. Join the wellbores of the production source to the Volve wellbores of the
+   register snapshot → load wells table
 2. Transform and load daily production data → load daily_production table
 3. Transform and load monthly production data → load monthly_production table
 """
@@ -35,6 +36,12 @@ from constants import (
     WELLS_NPD_FIELD_NAME,
     WELLS_NPD_FACILITY_CODE,
     WELLS_NPD_FACILITY_NAME,
+    WELLS_WELLBORE_TYPE,
+    WELLS_PURPOSE,
+    WELLS_CONTENT,
+    WELLS_COMPLETION_YEAR,
+    WELLS_PARENT_NPD_WELLBORE_CODE,
+    WELLS_HAS_PRODUCTION,
     # Daily production columns
     DAILY_DATE,
     DAILY_NPD_WELLBORE_CODE,
@@ -98,6 +105,18 @@ from constants import (
     SOURCE_MONTHLY_WATER,
     SOURCE_MONTHLY_GI,
     SOURCE_MONTHLY_WI,
+    # Wellbore register snapshot
+    SOURCE_REGISTER_PATHS,
+    SOURCE_REGISTER_NAME,
+    SOURCE_REGISTER_NPDID,
+    SOURCE_REGISTER_FIELD_NAME,
+    SOURCE_REGISTER_FIELD_CODE,
+    SOURCE_REGISTER_WELL_TYPE,
+    SOURCE_REGISTER_PURPOSE,
+    SOURCE_REGISTER_CONTENT,
+    SOURCE_REGISTER_COMPLETION_YEAR,
+    SOURCE_REGISTER_PARENT_NAME,
+    VOLVE_NPD_FIELD_CODE,
 )
 
 
@@ -135,20 +154,42 @@ def load_table(
     return len(production_df)
 
 
-def load_wells_table(daily_df: pd.DataFrame, engine) -> int:
+def read_register(paths=SOURCE_REGISTER_PATHS) -> pd.DataFrame:
+    """Read the register snapshot: every wellbore of both CSV exports, as text.
+
+    Values are stripped (the exports pad some empty fields with spaces) and an
+    empty value is None.
     """
-    Extract unique wells from daily production data and load into wells table.
+    columns = [
+        SOURCE_REGISTER_NAME,
+        SOURCE_REGISTER_NPDID,
+        SOURCE_REGISTER_FIELD_NAME,
+        SOURCE_REGISTER_FIELD_CODE,
+        SOURCE_REGISTER_WELL_TYPE,
+        SOURCE_REGISTER_PURPOSE,
+        SOURCE_REGISTER_CONTENT,
+        SOURCE_REGISTER_COMPLETION_YEAR,
+        SOURCE_REGISTER_PARENT_NAME,
+    ]
+    frames = [
+        pd.read_csv(path, usecols=columns, dtype=str, keep_default_na=False)
+        for path in paths
+    ]
+    register = pd.concat(frames, ignore_index=True)
+    return register.apply(lambda column: column.str.strip()).replace("", None)
 
-    Args:
-        daily_df: DataFrame containing daily production data
-        engine: SQLAlchemy engine
 
-    Returns:
-        Number of wells loaded
+def build_wells(daily_df: pd.DataFrame, register_df: pd.DataFrame) -> pd.DataFrame:
     """
-    print(f"\n[1/3] Loading {TABLE_WELLS}...")
+    One row per Wellbore the register assigns to Volve, joined to the production source.
 
-    wells_df = daily_df[[
+    The production source's columns are kept as they are for the Wellbores it
+    names and are NULL for the others, except the name and the field, which
+    the register gives for every Wellbore. The parent Wellbore is resolved from
+    the register's name to its NPD code. Raises if a producing Wellbore or a
+    parent is missing from the Volve Wellbores of the register.
+    """
+    production = daily_df[[
         SOURCE_DAILY_NPD_WELL_BORE_CODE,
         SOURCE_DAILY_WELL_BORE_CODE,
         SOURCE_DAILY_NPD_WELL_BORE_NAME,
@@ -156,9 +197,7 @@ def load_wells_table(daily_df: pd.DataFrame, engine) -> int:
         SOURCE_DAILY_NPD_FIELD_NAME,
         SOURCE_DAILY_NPD_FACILITY_CODE,
         SOURCE_DAILY_NPD_FACILITY_NAME,
-    ]].drop_duplicates()
-
-    column_mapping = {
+    ]].drop_duplicates().rename(columns={
         SOURCE_DAILY_NPD_WELL_BORE_CODE: WELLS_NPD_WELLBORE_CODE,
         SOURCE_DAILY_WELL_BORE_CODE: WELLS_WELLBORE_CODE,
         SOURCE_DAILY_NPD_WELL_BORE_NAME: WELLS_WELLBORE_NAME,
@@ -166,9 +205,80 @@ def load_wells_table(daily_df: pd.DataFrame, engine) -> int:
         SOURCE_DAILY_NPD_FIELD_NAME: WELLS_NPD_FIELD_NAME,
         SOURCE_DAILY_NPD_FACILITY_CODE: WELLS_NPD_FACILITY_CODE,
         SOURCE_DAILY_NPD_FACILITY_NAME: WELLS_NPD_FACILITY_NAME,
-    }
+    })
 
-    return load_table(wells_df, TABLE_WELLS, column_mapping, engine)
+    npdid_by_name = dict(zip(register_df[SOURCE_REGISTER_NAME], register_df[SOURCE_REGISTER_NPDID]))
+    volve = register_df[
+        register_df[SOURCE_REGISTER_FIELD_CODE] == str(VOLVE_NPD_FIELD_CODE)
+    ]
+    completion_year = pd.to_numeric(volve[SOURCE_REGISTER_COMPLETION_YEAR]).astype("Int64")
+    register = pd.DataFrame({
+        WELLS_NPD_WELLBORE_CODE: volve[SOURCE_REGISTER_NPDID].astype("int64"),
+        "register_name": volve[SOURCE_REGISTER_NAME],
+        "register_field_code": volve[SOURCE_REGISTER_FIELD_CODE].astype("int64"),
+        "register_field_name": volve[SOURCE_REGISTER_FIELD_NAME],
+        WELLS_WELLBORE_TYPE: volve[SOURCE_REGISTER_WELL_TYPE],
+        WELLS_PURPOSE: volve[SOURCE_REGISTER_PURPOSE],
+        WELLS_CONTENT: volve[SOURCE_REGISTER_CONTENT],
+        # The register gives 0 for a Wellbore that was never drilled.
+        WELLS_COMPLETION_YEAR: completion_year.where(completion_year != 0),
+        WELLS_PARENT_NPD_WELLBORE_CODE: pd.array(
+            [None if name is None else int(npdid_by_name[name])
+             for name in volve[SOURCE_REGISTER_PARENT_NAME]],
+            dtype="Int64",
+        ),
+    })
+
+    missing = set(production[WELLS_NPD_WELLBORE_CODE]) - set(register[WELLS_NPD_WELLBORE_CODE])
+    if missing:
+        raise ValueError(f"producing wellbores missing from the register: {sorted(missing)}")
+    orphans = set(register[WELLS_PARENT_NPD_WELLBORE_CODE].dropna()) - set(register[WELLS_NPD_WELLBORE_CODE])
+    if orphans:
+        raise ValueError(f"parent wellbores outside Volve in the register: {sorted(orphans)}")
+
+    wells = register.merge(production, on=WELLS_NPD_WELLBORE_CODE, how="left", indicator=True)
+    wells[WELLS_HAS_PRODUCTION] = wells.pop("_merge") == "both"
+    for column, fallback in (
+        (WELLS_WELLBORE_NAME, "register_name"),
+        (WELLS_NPD_FIELD_CODE, "register_field_code"),
+        (WELLS_NPD_FIELD_NAME, "register_field_name"),
+    ):
+        wells[column] = wells[column].fillna(wells[fallback])
+    wells[WELLS_NPD_FIELD_CODE] = wells[WELLS_NPD_FIELD_CODE].astype("int64")
+    wells[WELLS_NPD_FACILITY_CODE] = wells[WELLS_NPD_FACILITY_CODE].astype("Int64")
+
+    return wells[[
+        WELLS_NPD_WELLBORE_CODE,
+        WELLS_WELLBORE_CODE,
+        WELLS_WELLBORE_NAME,
+        WELLS_NPD_FIELD_CODE,
+        WELLS_NPD_FIELD_NAME,
+        WELLS_NPD_FACILITY_CODE,
+        WELLS_NPD_FACILITY_NAME,
+        WELLS_WELLBORE_TYPE,
+        WELLS_PURPOSE,
+        WELLS_CONTENT,
+        WELLS_COMPLETION_YEAR,
+        WELLS_PARENT_NPD_WELLBORE_CODE,
+        WELLS_HAS_PRODUCTION,
+    ]].sort_values(WELLS_NPD_WELLBORE_CODE, ignore_index=True)
+
+
+def load_wells_table(daily_df: pd.DataFrame, register_df: pd.DataFrame, engine) -> int:
+    """
+    Build the wells table from the production source and the register snapshot and load it.
+
+    Args:
+        daily_df: DataFrame containing daily production data
+        register_df: The register snapshot, from read_register()
+        engine: SQLAlchemy engine
+
+    Returns:
+        Number of wells loaded
+    """
+    print(f"\n[1/3] Loading {TABLE_WELLS}...")
+    wells_df = build_wells(daily_df, register_df)
+    return load_table(wells_df, TABLE_WELLS, {c: c for c in wells_df.columns}, engine)
 
 
 def load_daily_production_table(daily_df: pd.DataFrame, engine) -> int:
@@ -386,6 +496,12 @@ def main():
         print("Please ensure the Volve dataset is downloaded and placed in the data/ directory")
         return
 
+    missing_register = [p for p in SOURCE_REGISTER_PATHS if not Path(p).exists()]
+    if missing_register:
+        print(f"✗ ERROR: Register snapshot not found: {', '.join(missing_register)}")
+        print("Run `uv run python -m scripts.raw_repo.volve fetch-register` first")
+        return
+
     if not Path(DATABASE_PATH).exists():
         print(f"✗ ERROR: Database not found: {DATABASE_PATH}")
         print("Please run create_tables.py first to create the database schema")
@@ -396,9 +512,10 @@ def main():
     print(f"Loading Excel file: {SHEET_DAILY}, {SHEET_MONTHLY}")
     daily_df = pd.read_excel(SOURCE_EXCEL_PATH, sheet_name=SHEET_DAILY)
     monthly_df = pd.read_excel(SOURCE_EXCEL_PATH, sheet_name=SHEET_MONTHLY)
+    register_df = read_register()
 
     try:
-        wells_count = load_wells_table(daily_df, engine)
+        wells_count = load_wells_table(daily_df, register_df, engine)
         daily_count = load_daily_production_table(daily_df, engine)
         monthly_count = load_monthly_production_table(monthly_df, engine)
 

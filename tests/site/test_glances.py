@@ -118,10 +118,12 @@ def test_lookups_are_written_beside_the_glances(monkeypatch: pytest.MonkeyPatch)
     assert [(lk.dataset, lk.name) for lk in glances.LOOKUPS] == [("petrobras_3w", "event_classes.json")]
     monkeypatch.setattr(glances, "LOOKUPS", [
         glances.Lookup("volve", "first_well.json",
-                       "SELECT min(wellbore_name) FROM '{base}/volve/wells.parquet'",
+                       "SELECT min(wellbore_name) FROM '{base}/volve/wells.parquet' WHERE has_production",
                        lambda rows: {"well": rows[0][0]}),
     ])
-    assert json.loads(glances.build("volve")["first_well.json"]) == {"well": "15/9-F-1"}
+    # The first producing Wellbore by name. Without the filter DuckDB answers
+    # min() from Parquet statistics, which it truncates to 8 bytes.
+    assert json.loads(glances.build("volve")["first_well.json"]) == {"well": "15/9-F-1 C"}
 
 
 @pytest.mark.parametrize(
@@ -129,7 +131,7 @@ def test_lookups_are_written_beside_the_glances(monkeypatch: pytest.MonkeyPatch)
     [
         # Facts about the committed data, checked by hand against the parquet.
         ("argentina", "85,417 wells, 2006–2025"),
-        ("volve", "7 wells, 2007–2016"),
+        ("volve", "27 wells, 2007–2016"),
         ("force_2020", "108 wells"),
     ],
 )

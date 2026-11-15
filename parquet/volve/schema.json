@@ -193,7 +193,7 @@
       ]
     },
     "wells": {
-      "description": "One row per wellbore in the Volve field: its identifiers and the field and facility it belongs to. Seven wellbores, all produced through the M\u00e6rsk Inspirer production unit.",
+      "description": "One row per wellbore the public wellbore register of the Norwegian Offshore Directorate assigns to the Volve field, drilled or not: its identifiers, the register's classification and the wellbore it was drilled from. The production columns come from Equinor's production report and are empty for a wellbore without production; `has_production` marks the wellbores that have production rows.",
       "columns": [
         {
           "name": "npd_wellbore_code",
@@ -207,11 +207,11 @@
         {
           "name": "wellbore_code",
           "type": "TEXT",
-          "not_null": true,
+          "not_null": false,
           "default_value": null,
           "primary_key": false,
           "comment": null,
-          "description": "Equinor's wellbore code, prefixed with the country (e.g. `NO 15/9-F-12 H`)."
+          "description": "Equinor's wellbore code, prefixed with the country (e.g. `NO 15/9-F-12 H`), from the production report. Empty for a wellbore without production."
         },
         {
           "name": "wellbore_name",
@@ -243,23 +243,83 @@
         {
           "name": "npd_facility_code",
           "type": "INTEGER",
-          "not_null": true,
+          "not_null": false,
           "default_value": null,
           "primary_key": false,
           "comment": null,
-          "description": "NPD identifier of the facility the wellbore produced through."
+          "description": "NPD identifier of the facility the wellbore produced through. Empty for a wellbore without production."
         },
         {
           "name": "npd_facility_name",
+          "type": "TEXT",
+          "not_null": false,
+          "default_value": null,
+          "primary_key": false,
+          "comment": null,
+          "description": "Facility the wellbore produced through: the `M\u00c6RSK INSPIRER` jack-up production unit. Empty for a wellbore without production."
+        },
+        {
+          "name": "wellbore_type",
           "type": "TEXT",
           "not_null": true,
           "default_value": null,
           "primary_key": false,
           "comment": null,
-          "description": "Facility the wellbore produced through: the `M\u00c6RSK INSPIRER` jack-up production unit on every row."
+          "description": "Register well type: `DEVELOPMENT` for the wellbores drilled to develop the field, `EXPLORATION` for those drilled to find and appraise it (source `wlbWellType`)."
+        },
+        {
+          "name": "purpose",
+          "type": "TEXT",
+          "not_null": true,
+          "default_value": null,
+          "primary_key": false,
+          "comment": null,
+          "description": "What the register says the wellbore was drilled for: `PRODUCTION`, `INJECTION` or `OBSERVATION` for a development wellbore, `WILDCAT` or `APPRAISAL` for an exploration one (source `wlbPurpose`)."
+        },
+        {
+          "name": "content",
+          "type": "TEXT",
+          "not_null": false,
+          "default_value": null,
+          "primary_key": false,
+          "comment": null,
+          "description": "What the register says the wellbore found or carries, such as `OIL`, `WATER`, `SHOWS`, `DRY` or `NOT APPLICABLE` (source `wlbContent`). Empty for a wellbore that was never drilled."
+        },
+        {
+          "name": "completion_year",
+          "type": "INTEGER",
+          "not_null": false,
+          "default_value": null,
+          "primary_key": false,
+          "comment": null,
+          "description": "Year the wellbore was completed, from the register (source `wlbCompletionYear`). Empty for a wellbore that was never drilled."
+        },
+        {
+          "name": "parent_npd_wellbore_code",
+          "type": "INTEGER",
+          "not_null": false,
+          "default_value": null,
+          "primary_key": false,
+          "comment": null,
+          "description": "`npd_wellbore_code` of the wellbore this one was sidetracked or re-entered from, itself a row of this table (source `wlbDiskosWellboreParent`). Empty for a wellbore drilled from the surface."
+        },
+        {
+          "name": "has_production",
+          "type": "BOOLEAN",
+          "not_null": true,
+          "default_value": null,
+          "primary_key": false,
+          "comment": null,
+          "description": "True when the wellbore has rows in `daily_production` and `monthly_production`, false otherwise."
         }
       ],
-      "foreign_keys": [],
+      "foreign_keys": [
+        {
+          "column": "parent_npd_wellbore_code",
+          "references_table": "wells",
+          "references_column": "npd_wellbore_code"
+        }
+      ],
       "indexes": []
     },
     "monthly_production": {

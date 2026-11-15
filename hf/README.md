@@ -41,6 +41,10 @@ Each Dataset keeps the licence of its source:
   non-commercial purposes, share it and adapt it, but the data itself may not
   be sold. Credit Equinor and the former Volve licence partners (ExxonMobil
   Exploration & Production Norway AS and Bayerngas Norge AS), and link to the
-  licence.
+  licence. `volve/wells.parquet` also takes the type, purpose, content,
+  completion year and parent of each wellbore from the Norwegian Offshore
+  Directorate's wellbore register: it contains data under the Norwegian
+  Licence for Open Government Data (NLOD) (<https://data.norge.no/nlod/en>)
+  distributed by the Norwegian Offshore Directorate.
 - `force_2020/`, `argentina/`, `petrobras_3w/`: CC BY 4.0, with the attribution
   each Dataset's page on the landing gives.

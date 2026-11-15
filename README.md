@@ -190,6 +190,7 @@ parquet/                      # the data tree: parquet files + schema documents
 ## Acknowledgments
 
 - **Equinor** and the former Volve licence partners (ExxonMobil Exploration & Production Norway AS and Bayerngas Norge AS) - Volve field dataset
+- **Norwegian Offshore Directorate** - wellbore register, the source of the register columns of the Volve `wells` table
 - **FORCE (Norwegian Oil and Gas Association)** and **Xeek** - FORCE 2020 ML Competition dataset
 
 ## License
@@ -200,4 +201,7 @@ See original license terms:
   Based on CC BY 4.0: the data may be shared and adapted, for commercial use too, but may not be
   sold. Credit Equinor and the former Volve licence partners and link to the licence; see
   [`LICENSE-VOLVE-DATA.md`](LICENSE-VOLVE-DATA.md).
+- Volve `wells` table, register columns: contains data under the Norwegian Licence for Open
+  Government Data (NLOD), https://data.norge.no/nlod/en, distributed by the Norwegian Offshore
+  Directorate.
 - FORCE 2020: https://xeek.ai/challenges/force-well-logs

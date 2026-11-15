@@ -72,19 +72,29 @@ Monthly volumes per wellbore, from Equinor's monthly production report. One row 
 
 ### `wells`
 
-One row per wellbore in the Volve field: its identifiers and the field and facility it belongs to. Seven wellbores, all produced through the Mærsk Inspirer production unit.
+One row per wellbore the public wellbore register of the Norwegian Offshore Directorate assigns to the Volve field, drilled or not: its identifiers, the register's classification and the wellbore it was drilled from. The production columns come from Equinor's production report and are empty for a wellbore without production; `has_production` marks the wellbores that have production rows.
 
 **Columns:**
 
 | Column | Type | Nullable | Primary Key | Description |
 |--------|------|----------|-------------|-------------|
 | `npd_wellbore_code` | INTEGER | No | ✓ | Wellbore identifier assigned by the Norwegian Offshore Directorate (formerly the Norwegian Petroleum Directorate, NPD). The key every production row joins on. |
-| `wellbore_code` | TEXT | No |  | Equinor's wellbore code, prefixed with the country (e.g. `NO 15/9-F-12 H`). |
+| `wellbore_code` | TEXT | Yes |  | Equinor's wellbore code, prefixed with the country (e.g. `NO 15/9-F-12 H`), from the production report. Empty for a wellbore without production. |
 | `wellbore_name` | TEXT | No |  | NPD wellbore name (e.g. `15/9-F-12`, a well in block 15/9). Use this to label wells. |
 | `npd_field_code` | INTEGER | No |  | NPD field identifier. The same value on every row: Volve. |
 | `npd_field_name` | TEXT | No |  | Field name: `VOLVE` on every row. |
-| `npd_facility_code` | INTEGER | No |  | NPD identifier of the facility the wellbore produced through. |
-| `npd_facility_name` | TEXT | No |  | Facility the wellbore produced through: the `MÆRSK INSPIRER` jack-up production unit on every row. |
+| `npd_facility_code` | INTEGER | Yes |  | NPD identifier of the facility the wellbore produced through. Empty for a wellbore without production. |
+| `npd_facility_name` | TEXT | Yes |  | Facility the wellbore produced through: the `MÆRSK INSPIRER` jack-up production unit. Empty for a wellbore without production. |
+| `wellbore_type` | TEXT | No |  | Register well type: `DEVELOPMENT` for the wellbores drilled to develop the field, `EXPLORATION` for those drilled to find and appraise it (source `wlbWellType`). |
+| `purpose` | TEXT | No |  | What the register says the wellbore was drilled for: `PRODUCTION`, `INJECTION` or `OBSERVATION` for a development wellbore, `WILDCAT` or `APPRAISAL` for an exploration one (source `wlbPurpose`). |
+| `content` | TEXT | Yes |  | What the register says the wellbore found or carries, such as `OIL`, `WATER`, `SHOWS`, `DRY` or `NOT APPLICABLE` (source `wlbContent`). Empty for a wellbore that was never drilled. |
+| `completion_year` | INTEGER | Yes |  | Year the wellbore was completed, from the register (source `wlbCompletionYear`). Empty for a wellbore that was never drilled. |
+| `parent_npd_wellbore_code` | INTEGER | Yes |  | `npd_wellbore_code` of the wellbore this one was sidetracked or re-entered from, itself a row of this table (source `wlbDiskosWellboreParent`). Empty for a wellbore drilled from the surface. |
+| `has_production` | BOOLEAN | No |  | True when the wellbore has rows in `daily_production` and `monthly_production`, false otherwise. |
+
+**Foreign Keys:**
+
+- `parent_npd_wellbore_code` → `wells.npd_wellbore_code`
 
 ---
 
@@ -93,4 +103,5 @@ One row per wellbore in the Volve field: its identifiers and the field and facil
 ```
 daily_production.npd_wellbore_code → wells.npd_wellbore_code
 monthly_production.npd_wellbore_code → wells.npd_wellbore_code
+wells.parent_npd_wellbore_code → wells.npd_wellbore_code
 ```
