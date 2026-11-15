@@ -16,6 +16,7 @@ import pytest
 
 from scripts.export.volve_logs import validator
 from scripts.run_pipeline import volve_logs
+from scripts.transform.volve_logs.interpretation_builder import CurveDisagreementError
 from tests.volve.log_fixtures import (
     SENTINEL,
     WELLBORES,
@@ -137,7 +138,7 @@ def test_a_shared_mnemonic_that_disagrees_stops_the_build(raw: Path, out: Path) 
         [1000.2, 1000.3],
         {"VSH": ("V/V", [0.5, 0.61])},
     )
-    with pytest.raises(Exception, match=r"15/9-F-1\b.*VSH.*1000\.3"):
+    with pytest.raises(CurveDisagreementError, match=r"15/9-F-1\b.*VSH.*1000\.3"):
         volve_logs.run(raw_dir=raw, output_dir=out)
     assert not (out / TABLE).exists()
 

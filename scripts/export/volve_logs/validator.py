@@ -18,15 +18,11 @@ import duckdb
 
 from scripts.transform.volve_logs.interpretation_builder import KEY_COLUMNS
 from scripts.transform.volve_logs.las_reader import SENTINEL
+from scripts.transform.volve_logs.sql import identifier, path_literal
 
 
 class PrePublishCheckError(Exception):
     """The written table breaks a pre-publish check."""
-
-
-def sql_path(path: Path) -> str:
-    """``path`` as a quoted SQL string literal."""
-    return "'" + str(path).replace("'", "''") + "'"
 
 
 def check(parquet: Path, wells: Path, expected_rows: dict[str, int]) -> None:
@@ -34,9 +30,9 @@ def check(parquet: Path, wells: Path, expected_rows: dict[str, int]) -> None:
     with duckdb.connect() as con:
         con.execute(
             "CREATE VIEW written AS SELECT * FROM "
-            f"read_parquet({sql_path(parquet)}, file_row_number = true)"
+            f"read_parquet({path_literal(parquet)}, file_row_number = true)"
         )
-        con.execute(f"CREATE VIEW wells AS SELECT * FROM read_parquet({sql_path(wells)})")
+        con.execute(f"CREATE VIEW wells AS SELECT * FROM read_parquet({path_literal(wells)})")
         _check_unique_key(con)
         _check_wellbores_in_wells(con)
         _check_depth_increases(con)
@@ -111,10 +107,9 @@ def _check_no_sentinel(con: duckdb.DuckDBPyConnection) -> None:
         if name not in KEY_COLUMNS
     ]
     for name in curves:
-        quoted = '"' + name.replace('"', '""') + '"'
         hit = con.execute(
             f"SELECT source_wellbore, depth_md FROM written "
-            f"WHERE {quoted} = {SENTINEL} ORDER BY ALL LIMIT 1"
+            f"WHERE {identifier(name)} = {SENTINEL} ORDER BY ALL LIMIT 1"
         ).fetchone()
         if hit:
             raise PrePublishCheckError(

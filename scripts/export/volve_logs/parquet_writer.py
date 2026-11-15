@@ -13,6 +13,7 @@ import duckdb
 
 from scripts.export.volve_logs import validator
 from scripts.transform.volve_logs.interpretation_builder import KEY_COLUMNS, TABLE
+from scripts.transform.volve_logs.sql import path_literal
 
 FILENAME = f"{TABLE}.parquet"
 
@@ -31,7 +32,7 @@ def write(
     try:
         con.execute(
             f"COPY (SELECT * FROM {TABLE} ORDER BY {order}) "
-            f"TO {validator.sql_path(pending)} (FORMAT parquet)"
+            f"TO {path_literal(pending)} (FORMAT parquet)"
         )
         validator.check(pending, wells, expected_rows)
         pending.replace(final)

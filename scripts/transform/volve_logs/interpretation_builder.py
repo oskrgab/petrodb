@@ -23,6 +23,7 @@ import pyarrow.compute as pc
 from scripts.export.volve_descriptions import COLUMN_DESCRIPTIONS
 from scripts.transform.volve_logs.las_reader import DEPTH_COLUMN, read_las
 from scripts.transform.volve_logs.sources import LAS_PAIRS, LasPair
+from scripts.transform.volve_logs.sql import identifier as _q
 
 TABLE = "petrophysical_interpretation"
 KEY_COLUMNS = ("npd_wellbore_code", "source_wellbore", DEPTH_COLUMN)
@@ -38,10 +39,6 @@ class CurveDisagreementError(Exception):
 
 class UndocumentedCurveError(Exception):
     """A source mnemonic has no description, so it cannot be published."""
-
-
-def _q(name: str) -> str:
-    return '"' + name.replace('"', '""') + '"'
 
 
 def _curves(table: pa.Table) -> list[str]:
@@ -71,7 +68,11 @@ def build(con: duckdb.DuckDBPyConnection, raw_dir: Path) -> dict[str, int]:
         (pair, read_las(pair.input_path(raw_dir)), read_las(pair.output_path(raw_dir)))
         for pair in LAS_PAIRS
     ]
-    present = {name for _, i, o in pairs for name in _curves(i) + _curves(o)}
+    present = {
+        name
+        for _, input_table, output_table in pairs
+        for name in _curves(input_table) + _curves(output_table)
+    }
     undocumented = sorted(present - set(DOCUMENTED_CURVES))
     if undocumented:
         raise UndocumentedCurveError(
@@ -102,14 +103,15 @@ def _insert_pair(
     output_table: pa.Table,
 ) -> None:
     rounded = f"round({DEPTH_COLUMN}, {DEPTH_DECIMALS}) AS {DEPTH_COLUMN}"
-    con.register("las_input_arrow", input_table)
-    con.register("las_output_arrow", output_table)
-    try:
-        con.execute(f"CREATE OR REPLACE TEMP TABLE las_input AS SELECT * REPLACE ({rounded}) FROM las_input_arrow")
-        con.execute(f"CREATE OR REPLACE TEMP TABLE las_output AS SELECT * REPLACE ({rounded}) FROM las_output_arrow")
-    finally:
-        con.unregister("las_input_arrow")
-        con.unregister("las_output_arrow")
+    for name, table in (("las_input", input_table), ("las_output", output_table)):
+        con.register(f"{name}_arrow", table)
+        try:
+            con.execute(
+                f"CREATE OR REPLACE TEMP TABLE {name} AS "
+                f"SELECT * REPLACE ({rounded}) FROM {name}_arrow"
+            )
+        finally:
+            con.unregister(f"{name}_arrow")
 
     input_curves, output_curves = _curves(input_table), _curves(output_table)
     shared = [c for c in input_curves if c in output_curves]
