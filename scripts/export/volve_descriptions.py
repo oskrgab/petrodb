@@ -85,8 +85,8 @@ COLUMN_DESCRIPTIONS = {
             "the surface."
         ),
         "has_production": (
-            "True when the wellbore has rows in `daily_production` and "
-            "`monthly_production`, false otherwise."
+            "True when the wellbore has rows in the production tables, "
+            "`daily_production` and `monthly_production`; false otherwise."
         ),
     },
     "daily_production": {

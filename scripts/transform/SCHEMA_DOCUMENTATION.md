@@ -141,7 +141,7 @@ npd_facility_name: "Volve Platform"
 - This table should be populated first (before fact tables)
 - Contains only time-independent attributes
 - Built from the production source joined to the register snapshot in `data/raw/volve/register/`
-- Well type is NOT included (it can change over time, e.g., producer → injector)
+- The production well type (`well_type`, e.g. producer → injector) is NOT included: it changes over time and is recorded per day in `daily_production`. `wellbore_type` and `purpose` are the register's fixed classification
 
 ---
 

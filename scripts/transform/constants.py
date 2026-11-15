@@ -181,8 +181,8 @@ SHEET_DAILY = "Daily Production Data"
 SHEET_MONTHLY = "Monthly Production Data"
 
 # Wellbore register snapshot in the local raw directory, a plain download of
-# the Volve Raw repo (data/raw/README.md). Fetched with
-# `uv run python -m scripts.raw_repo.volve fetch-register`.
+# the Volve Raw repo at its pin (data/raw/README.md). The file names are the
+# ones scripts/raw_repo/volve/register.py gives the exports.
 SOURCE_REGISTER_PATHS = (
     "data/raw/volve/register/wellbore_development_all.csv",
     "data/raw/volve/register/wellbore_exploration_all.csv",

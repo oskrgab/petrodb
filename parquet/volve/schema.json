@@ -310,7 +310,7 @@
           "default_value": null,
           "primary_key": false,
           "comment": null,
-          "description": "True when the wellbore has rows in `daily_production` and `monthly_production`, false otherwise."
+          "description": "True when the wellbore has rows in the production tables, `daily_production` and `monthly_production`; false otherwise."
         }
       ],
       "foreign_keys": [

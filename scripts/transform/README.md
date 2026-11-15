@@ -42,8 +42,10 @@ This creates `database/volve.db` with three empty tables:
 ### 2. Load Data
 
 ```bash
-# From project root; the register snapshot must be in data/raw/volve/register/
-uv run python -m scripts.raw_repo.volve fetch-register   # or download it from the Raw repo
+# From project root. The register snapshot must be in data/raw/volve/register/:
+# download it from the Raw repo at the pin (data/raw/README.md), e.g.
+#   hf download oskrgab/petrodb-raw-volve --repo-type dataset \
+#     --revision "$(cat data/raw/volve.pin)" --local-dir data/raw/volve --include "register/*"
 uv run python scripts/transform/load_data.py
 ```
 

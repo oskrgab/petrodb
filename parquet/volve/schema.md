@@ -90,7 +90,7 @@ One row per wellbore the public wellbore register of the Norwegian Offshore Dire
 | `content` | TEXT | Yes |  | What the register says the wellbore found or carries, such as `OIL`, `WATER`, `SHOWS`, `DRY` or `NOT APPLICABLE` (source `wlbContent`). Empty for a wellbore that was never drilled. |
 | `completion_year` | INTEGER | Yes |  | Year the wellbore was completed, from the register (source `wlbCompletionYear`). Empty for a wellbore that was never drilled. |
 | `parent_npd_wellbore_code` | INTEGER | Yes |  | `npd_wellbore_code` of the wellbore this one was sidetracked or re-entered from, itself a row of this table (source `wlbDiskosWellboreParent`). Empty for a wellbore drilled from the surface. |
-| `has_production` | BOOLEAN | No |  | True when the wellbore has rows in `daily_production` and `monthly_production`, false otherwise. |
+| `has_production` | BOOLEAN | No |  | True when the wellbore has rows in the production tables, `daily_production` and `monthly_production`; false otherwise. |
 
 **Foreign Keys:**
 

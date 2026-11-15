@@ -212,6 +212,9 @@ def build_wells(daily_df: pd.DataFrame, register_df: pd.DataFrame) -> pd.DataFra
         register_df[SOURCE_REGISTER_FIELD_CODE] == str(VOLVE_NPD_FIELD_CODE)
     ]
     completion_year = pd.to_numeric(volve[SOURCE_REGISTER_COMPLETION_YEAR]).astype("Int64")
+    unknown_parents = set(volve[SOURCE_REGISTER_PARENT_NAME].dropna()) - set(npdid_by_name)
+    if unknown_parents:
+        raise ValueError(f"parent wellbores missing from the register: {sorted(unknown_parents)}")
     register = pd.DataFrame({
         WELLS_NPD_WELLBORE_CODE: volve[SOURCE_REGISTER_NPDID].astype("int64"),
         "register_name": volve[SOURCE_REGISTER_NAME],
@@ -274,7 +277,7 @@ def load_wells_table(daily_df: pd.DataFrame, register_df: pd.DataFrame, engine) 
         engine: SQLAlchemy engine
 
     Returns:
-        Number of wells loaded
+        Number of Wellbores loaded
     """
     print(f"\n[1/3] Loading {TABLE_WELLS}...")
     wells_df = build_wells(daily_df, register_df)
