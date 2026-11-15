@@ -69,3 +69,21 @@ LAS_SOURCES: tuple[LasSource, ...] = (
     LasSource("15_9-F-12", "15/9-F-12", 5599),
     LasSource("15_9-F-15 D", "15/9-F-15 D", 7289),
 )
+
+
+def raw_files() -> tuple[str, ...]:
+    """Every file the pipeline reads, as a path within the Raw repo.
+
+    Paths use ``/`` and keep upstream names, spaces and ``&`` included. The
+    deploy workflow downloads exactly these from the Raw repo at the pin, so a
+    source added here is fetched in CI with no change to the workflow. An
+    input-only source names no output file: the build only checks that none is
+    there.
+    """
+    root = Path()  # an empty root leaves each path relative to the raw directory
+    return tuple(
+        path.as_posix()
+        for source in LAS_SOURCES
+        for path in (source.input_path(root), source.output_path(root))
+        if path is not None
+    )
