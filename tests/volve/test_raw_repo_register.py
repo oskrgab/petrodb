@@ -3,6 +3,8 @@
 import datetime as dt
 from pathlib import Path
 
+import pytest
+
 from scripts.raw_repo.volve import __main__ as cli
 from scripts.raw_repo.volve import register
 
@@ -45,3 +47,31 @@ def test_fetch_register_defaults_to_the_local_raw_directory() -> None:
         cli.LOCAL_RAW_DIR
         == Path(__file__).resolve().parents[2] / "data" / "raw" / "volve"
     )
+
+
+def _not_a_register_export(url: str) -> bytes:
+    return b"<html><body>Service unavailable</body></html>\n"
+
+
+def test_fetch_register_refuses_a_download_that_is_not_a_register_export(
+    tmp_path: Path,
+) -> None:
+    raw_dir = tmp_path / "raw" / "volve"
+    with pytest.raises(register.RegisterError, match="not a wellbore register CSV export"):
+        register.fetch_register(raw_dir, fetch=_not_a_register_export)
+    assert not (raw_dir / "register").exists()
+
+
+def test_fetch_register_command_reports_a_bad_download_without_a_traceback(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fetch_register = register.fetch_register
+    monkeypatch.setattr(
+        register,
+        "fetch_register",
+        lambda raw_dir: fetch_register(raw_dir, fetch=_not_a_register_export),
+    )
+    with pytest.raises(SystemExit) as exit_info:
+        cli.main(["fetch-register", str(tmp_path / "raw" / "volve")])
+    assert str(exit_info.value).startswith("error: ")
+    assert "not a wellbore register CSV export" in str(exit_info.value)

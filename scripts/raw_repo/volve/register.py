@@ -60,7 +60,7 @@ def fetch_register(
     for name, body in bodies.items():
         first_line = body.split(b"\n", 1)[0]
         if b"wlbWellboreName" not in first_line:
-            raise ValueError(
+            raise RegisterError(
                 f"{name}: the download is not a wellbore register CSV export"
             )
 

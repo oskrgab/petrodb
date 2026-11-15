@@ -34,6 +34,7 @@ from tests.volve.log_fixtures import (
     TOP_HOLE,
     WELLBORES,
     build_raw_tree,
+    committed_catalog_schema,
     dlis_pair_paths,
     fixture_schema,
     pair_paths,
@@ -47,6 +48,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 WELLS = REPO_ROOT / "parquet" / "volve" / "wells.parquet"
 SCHEMA = REPO_ROOT / "parquet" / "volve" / "schema.json"
 TABLE = "petrophysical_interpretation.parquet"
+CATALOG = "log_curves.parquet"
 
 
 @pytest.fixture
@@ -454,6 +456,29 @@ def test_output_that_differs_from_schema_json_stops_the_build(
     with pytest.raises(schema_check.SchemaMismatchError, match=message):
         volve_logs.run(raw_dir=raw, output_dir=out)
     assert not (out / TABLE).exists()
+
+
+@pytest.mark.parametrize(
+    ("change", "message"),
+    [
+        (
+            _declare("sample_count", type="DOUBLE"),
+            r"log_curves .*sample_count: BIGINT in the file, schema\.json declares DOUBLE",
+        ),
+        (_declare("unit", name="units"), r"log_curves .*columns are .*unit.*; schema\.json declares .*units"),
+    ],
+    ids=["type", "name"],
+)
+def test_a_curve_catalog_that_differs_from_schema_json_stops_the_build(
+    raw: Path, out: Path, change, message: str
+) -> None:
+    catalog_columns = committed_catalog_schema()
+    change(catalog_columns)
+    write_schema(out / "schema.json", fixture_schema(), catalog_columns)
+    with pytest.raises(schema_check.SchemaMismatchError, match=message):
+        volve_logs.run(raw_dir=raw, output_dir=out)
+    assert not (out / TABLE).exists()
+    assert not (out / CATALOG).exists()
 
 
 def test_a_column_the_file_requires_but_schema_json_declares_nullable_is_a_mismatch(
