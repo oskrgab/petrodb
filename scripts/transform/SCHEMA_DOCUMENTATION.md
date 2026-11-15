@@ -100,19 +100,25 @@ graph TD
 ## Table 1: wells (Master/Dimension Table)
 
 ### Purpose
-Contains one row per unique wellbore in the Volve field. Stores static attributes that do not change over time.
+Contains one row per wellbore the public wellbore register assigns to the Volve field, with or without production. Stores static attributes that do not change over time. The published column descriptions are in `parquet/volve/schema.md`.
 
 ### Schema
 
 | Column Name | Type | Constraints | Description |
 |------------|------|-------------|-------------|
 | `npd_wellbore_code` | INTEGER | PRIMARY KEY | NPD unique wellbore identifier |
-| `wellbore_code` | TEXT | NOT NULL | Well bore code (e.g., "NO 15/9-F-1 C") |
+| `wellbore_code` | TEXT | | Well bore code (e.g., "NO 15/9-F-1 C"); NULL without production |
 | `wellbore_name` | TEXT | NOT NULL | NPD well bore name |
 | `npd_field_code` | INTEGER | NOT NULL | NPD field code (3420717 for Volve) |
 | `npd_field_name` | TEXT | NOT NULL | Field name |
-| `npd_facility_code` | INTEGER | NOT NULL | NPD facility code |
-| `npd_facility_name` | TEXT | NOT NULL | Facility name |
+| `npd_facility_code` | INTEGER | | NPD facility code; NULL without production |
+| `npd_facility_name` | TEXT | | Facility name; NULL without production |
+| `wellbore_type` | TEXT | NOT NULL | Register well type (DEVELOPMENT, EXPLORATION) |
+| `purpose` | TEXT | NOT NULL | Register purpose (PRODUCTION, INJECTION, OBSERVATION, WILDCAT, APPRAISAL) |
+| `content` | TEXT | | Register content; NULL if never drilled |
+| `completion_year` | INTEGER | | Register completion year; NULL if never drilled |
+| `parent_npd_wellbore_code` | INTEGER | FK → wells | Wellbore this one was drilled from |
+| `has_production` | BOOLEAN | NOT NULL | Wellbore has production rows |
 
 ### Primary Key
 - `npd_wellbore_code`
@@ -134,7 +140,8 @@ npd_facility_name: "Volve Platform"
 ### Notes
 - This table should be populated first (before fact tables)
 - Contains only time-independent attributes
-- Well type is NOT included (it can change over time, e.g., producer → injector)
+- Built from the production source joined to the register snapshot in `data/raw/volve/register/`
+- The production well type (`well_type`, e.g. producer → injector) is NOT included: it changes over time and is recorded per day in `daily_production`. `wellbore_type` and `purpose` are the register's fixed classification
 
 ---
 

@@ -56,6 +56,46 @@ def test_schema_md_carries_the_same_descriptions(exported: Path) -> None:
         assert described[table] == expected, table
 
 
+def test_wells_documents_every_column_with_its_nullability(exported: Path) -> None:
+    # The production source's columns are empty for a Wellbore without
+    # production; the register's content and completion year are empty for a
+    # Wellbore that was never drilled, and the parent for an initial one.
+    columns = json.loads((exported / "schema.json").read_text())["tables"]["wells"]["columns"]
+    nullable = {c["name"]: not c["not_null"] for c in columns}
+    assert nullable == {
+        "npd_wellbore_code": False,
+        "wellbore_code": True,
+        "wellbore_name": False,
+        "npd_field_code": False,
+        "npd_field_name": False,
+        "npd_facility_code": True,
+        "npd_facility_name": True,
+        "wellbore_type": False,
+        "purpose": False,
+        "content": True,
+        "completion_year": True,
+        "parent_npd_wellbore_code": True,
+        "has_production": False,
+    }
+    md_rows = {
+        row[1]: row[2].split("|")[1].strip()
+        for row in re.finditer(r"^\| `([^`]+)` \|(.*)\|\s*$", _wells_section(exported), re.M)
+    }
+    assert {name: flag == "Yes" for name, flag in md_rows.items()} == nullable
+    sql = (exported / "schema.sql").read_text()
+    wells_ddl = sql[sql.index("CREATE TABLE wells") :].split(";", 1)[0]
+    for name, is_nullable in nullable.items():
+        line = next(
+            line for line in wells_ddl.splitlines() if line.strip().startswith(f"{name} ")
+        )
+        assert ("NOT NULL" not in line) == is_nullable, line
+
+
+def _wells_section(exported: Path) -> str:
+    markdown = (exported / "schema.md").read_text()
+    return markdown[markdown.index("### `wells`") :].split("\n---\n", 1)[0]
+
+
 def test_published_documents_are_current(exported: Path) -> None:
     for name in ("schema.json", "schema.md", "schema.sql"):
         assert (PUBLISHED / name).read_text() == (exported / name).read_text(), (

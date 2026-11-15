@@ -39,6 +39,16 @@ WELLS_NPD_FIELD_NAME = "npd_field_name"
 WELLS_NPD_FACILITY_CODE = "npd_facility_code"
 WELLS_NPD_FACILITY_NAME = "npd_facility_name"
 
+# From the wellbore register snapshot
+WELLS_WELLBORE_TYPE = "wellbore_type"
+WELLS_PURPOSE = "purpose"
+WELLS_CONTENT = "content"
+WELLS_COMPLETION_YEAR = "completion_year"
+WELLS_PARENT_NPD_WELLBORE_CODE = "parent_npd_wellbore_code"
+
+# True for a Wellbore with rows in the production tables
+WELLS_HAS_PRODUCTION = "has_production"
+
 
 # =============================================================================
 # DAILY PRODUCTION TABLE COLUMNS
@@ -141,6 +151,17 @@ SOURCE_MONTHLY_WATER = "Water"
 SOURCE_MONTHLY_GI = "GI"
 SOURCE_MONTHLY_WI = "WI"
 
+# Wellbore register snapshot columns (the register's CSV exports)
+SOURCE_REGISTER_NAME = "wlbWellboreName"
+SOURCE_REGISTER_NPDID = "wlbNpdidWellbore"
+SOURCE_REGISTER_FIELD_NAME = "wlbField"
+SOURCE_REGISTER_FIELD_CODE = "fldNpdidField"
+SOURCE_REGISTER_WELL_TYPE = "wlbWellType"
+SOURCE_REGISTER_PURPOSE = "wlbPurpose"
+SOURCE_REGISTER_CONTENT = "wlbContent"
+SOURCE_REGISTER_COMPLETION_YEAR = "wlbCompletionYear"
+SOURCE_REGISTER_PARENT_NAME = "wlbDiskosWellboreParent"
+
 
 # =============================================================================
 # DATABASE CONFIGURATION
@@ -158,3 +179,14 @@ SOURCE_EXCEL_PATH = "data/production/Volve production data.xlsx"
 # Sheet names
 SHEET_DAILY = "Daily Production Data"
 SHEET_MONTHLY = "Monthly Production Data"
+
+# Wellbore register snapshot in the local raw directory, a plain download of
+# the Volve Raw repo at its pin (data/raw/README.md). The file names are the
+# ones scripts/raw_repo/volve/register.py gives the exports.
+SOURCE_REGISTER_PATHS = (
+    "data/raw/volve/register/wellbore_development_all.csv",
+    "data/raw/volve/register/wellbore_exploration_all.csv",
+)
+
+# NPD field code of Volve: the register rows with it are the Volve Wellbores.
+VOLVE_NPD_FIELD_CODE = 3420717

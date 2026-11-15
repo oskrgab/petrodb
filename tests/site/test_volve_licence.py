@@ -71,3 +71,19 @@ def test_licence_file_gives_the_terms_in_the_licence_own_words() -> None:
     assert "You may not sell the Licensed Material." in text
     assert "Share the Licensed Material and/or the Adapted Material" in text
     assert "Create, produce and reproduce Adapted Material" in text
+
+
+# wells.parquet takes its register columns from the Norwegian Offshore
+# Directorate's wellbore register, published under NLOD, which asks for its
+# own attribution beside Equinor's.
+REGISTER_LICENCE_NAME = "Norwegian Licence for Open Government Data (NLOD)"
+REGISTER_LICENCE_URL = "https://data.norge.no/nlod/en"
+REGISTER_HOLDER = "Norwegian Offshore Directorate"
+
+
+@pytest.mark.parametrize("surface", SURFACES)
+def test_every_surface_credits_the_wellbore_register_under_nlod(surface: str) -> None:
+    text = " ".join((REPO_ROOT / surface).read_text().split())
+    assert REGISTER_LICENCE_NAME in text
+    assert REGISTER_LICENCE_URL in text
+    assert REGISTER_HOLDER in text

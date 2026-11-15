@@ -19,7 +19,7 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 import pandas as pd
-from sqlalchemy import create_engine
+from sqlalchemy import Boolean, Integer, MetaData, Table, create_engine
 
 # Using absolute imports from project root
 from scripts.transform.constants import (
@@ -45,6 +45,23 @@ from scripts.export.export_utils import (
     get_file_size_mb,
     validate_row_count,
 )
+
+
+def parquet_dtypes(table: Table) -> Dict[str, str]:
+    """
+    pandas dtypes that keep a column's SQL type in Parquet.
+
+    SQLite hands pandas a nullable INTEGER column holding NULLs as floats and
+    a BOOLEAN column as 0/1 integers; without these they would be published
+    as DOUBLE and BIGINT.
+    """
+    dtypes = {}
+    for column in table.columns:
+        if isinstance(column.type, Boolean):
+            dtypes[column.name] = "boolean"
+        elif isinstance(column.type, Integer) and column.nullable:
+            dtypes[column.name] = "Int64"
+    return dtypes
 
 
 def export_table_to_parquet(
@@ -85,6 +102,7 @@ def export_table_to_parquet(
         # 1. Read from SQLite
         # Use read_sql_query for better control over date parsing if needed
         df = pd.read_sql_query(f"SELECT * FROM {table_name}", engine)
+        df = df.astype(parquet_dtypes(Table(table_name, MetaData(), autoload_with=engine)))
         
         # Ensure date columns are proper datetime objects if they look like dates
         if "date" in df.columns:
