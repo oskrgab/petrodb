@@ -91,8 +91,11 @@ def test_the_catalog_has_one_row_per_source_wellbore_and_curve_with_data(built: 
          DLIS_INPUT_FILE.format("15_9-F-15 B")),
         (TABLE, 6046, "15/9-F-15 B", "SW", "interpreted", "v/v", "V/V", 3500.152, 3500.152, 1,
          DLIS_OUTPUT_FILE.format("15_9-F-15 B")),
-        # 15/9-F-10: the padded output adds no samples; RHOB is in both files,
-        # so it is an Input curve named after the input file and its spelling.
+        # 15/9-F-10: the padded output adds no samples, not even to the
+        # carbonate flag it holds there; RHOB is in both files, so it is an
+        # Input curve named after the input file and its spelling.
+        (TABLE, 6099, "15/9-F-10", "CARB_FLAG", "interpreted", "unitless", "UNITLESS",
+         4850.13, 4850.4348, 3, DLIS_OUTPUT_FILE.format("15_9-F-10")),
         (TABLE, 6099, "15/9-F-10", "GR", "input", "gAPI", "GAPI", 4850.13, 4850.4348, 3,
          DLIS_INPUT_FILE.format("15_9-F-10")),
         (TABLE, 6099, "15/9-F-10", "PHIF", "interpreted", "v/v", "V/V", 4850.13, 4850.4348, 3,

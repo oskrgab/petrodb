@@ -130,13 +130,14 @@ def dlis_pair_paths(raw: Path, folder: str) -> tuple[Path, Path]:
 def build_raw_tree(raw: Path) -> Path:
     """The fixture raw directory. 15/9-F-1 carries the interesting cases.
 
-    15/9-F-1, input at 1000.0 .. 1000.4 m, output at 1000.2 .. 1000.5 m:
+    15/9-F-1, input at 1000.0 .. 1000.4 m, output at 1000.2 .. 1000.6 m:
 
     - 1000.0: every Input curve is a sentinel, and the output has no sample:
       an all-NULL row, dropped;
     - 1000.1: GR is a sentinel, RHOB is not;
     - 1000.2 .. 1000.4: both files, VSH in both and equal;
-    - 1000.5: only the output has a sample.
+    - 1000.5: only the output has a sample;
+    - 1000.6: only the coal flag has a value, 0: a flag-only row, dropped.
 
     15/9-F-12 has depths in feet steps written with float noise, and a
     geomodel permeability export whose KLOGH must not be read.
@@ -153,11 +154,11 @@ def build_raw_tree(raw: Path) -> Path:
     )
     write_las(
         pair_paths(raw, "15_9-F-1")[1],
-        [1000.2, 1000.3, 1000.4, 1000.5],
+        [1000.2, 1000.3, 1000.4, 1000.5, 1000.6],
         {
-            "PHIF": ("V/V", [0.21, 0.22, 0.23, 0.24]),
-            "COAL_FLAG": ("unitless", [0.0, 1.0, 0.0, 0.0]),
-            "VSH": ("V/V", [0.5, 0.6, SENTINEL, SENTINEL]),
+            "PHIF": ("V/V", [0.21, 0.22, 0.23, 0.24, SENTINEL]),
+            "COAL_FLAG": ("unitless", [0.0, 1.0, 0.0, 0.0, 0.0]),
+            "VSH": ("V/V", [0.5, 0.6, SENTINEL, SENTINEL, SENTINEL]),
         },
     )
     for folder in WELLBORES:
@@ -210,8 +211,9 @@ def build_dlis_pairs(raw: Path) -> None:
     Indexes are in tenths of an inch (60 = 0.1524 m) unless said otherwise.
 
     - 15/9-F-10: input at 4850.13 .. 4850.4348 m; the output pads the Wellbore
-      from 0 m with all-NULL samples down to the same three depths. RHOB is in
-      both files, spelled ``G/CC`` and ``G/C3``, and equal.
+      from 0 m down to the same three depths with samples where only the
+      carbonate flag has a value, 0, as the real file does. RHOB is in both
+      files, spelled ``G/CC`` and ``G/C3``, and equal.
     - 15/9-F-15: the input starts at 0 m with two all-NULL samples.
     - 15/9-F-15 B: both indexes in millimetres.
     - The rest: two input depths, an Interpreted curve at the second.
@@ -230,6 +232,7 @@ def build_dlis_pairs(raw: Path) -> None:
         {
             "PHIF": ("V/V", [SENTINEL, SENTINEL, SENTINEL, 0.21, 0.22, 0.23]),
             "RHOB": ("G/C3", [SENTINEL, SENTINEL, SENTINEL, 2.31, 2.32, SENTINEL]),
+            "CARB_FLAG": ("UNITLESS", [0.0, 0.0, 0.0, 0.0, 1.0, 0.0]),
         },
     )
     write_dlis(
@@ -259,12 +262,12 @@ def build_dlis_pairs(raw: Path) -> None:
 
 # GR: all 17 Wellbores; SW: the six plain LAS pairs and seven DLIS pairs;
 # PHIF: 15/9-F-1, 15/9-F-11 and 15/9-F-10; RHOB: 15/9-F-1 and 15/9-F-10; the
-# rest one each, by mnemonic. A Wellbore counts once: VSH is in both files of
+# rest one each (CARB_FLAG 15/9-F-10), by mnemonic. A Wellbore counts once: VSH is in both files of
 # 15/9-F-1, RHOB in both files of 15/9-F-10, GR in both 15/9-F-11 sources
 # (the Technical sidetrack and the top-hole section).
 FIXTURE_COLUMNS = [
     "npd_wellbore_code", "source_wellbore", "depth_md",
-    "GR", "SW", "PHIF", "RHOB", "COAL_FLAG", "KLOGH", "ROP", "VSH",
+    "GR", "SW", "PHIF", "RHOB", "CARB_FLAG", "COAL_FLAG", "KLOGH", "ROP", "VSH",
 ]  # fmt: skip
 
 

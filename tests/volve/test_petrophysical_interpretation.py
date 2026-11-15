@@ -201,7 +201,9 @@ def test_columns_are_the_key_then_the_source_mnemonics_unchanged_all_double(buil
         ("depth_md", "DOUBLE"),
     ]
     curves = dict(columns[3:])
-    assert set(curves) == {"GR", "RHOB", "ROP", "VSH", "PHIF", "COAL_FLAG", "SW", "KLOGH"}
+    assert set(curves) == {
+        "GR", "RHOB", "ROP", "VSH", "PHIF", "CARB_FLAG", "COAL_FLAG", "SW", "KLOGH"
+    }
     assert set(curves.values()) == {"DOUBLE"}
 
 
@@ -217,7 +219,7 @@ def test_the_table_is_one_row_group(built: Path) -> None:
 
 
 def test_no_sentinel_remains(built: Path) -> None:
-    curves = ["GR", "RHOB", "ROP", "VSH", "PHIF", "COAL_FLAG", "SW", "KLOGH"]
+    curves = ["GR", "RHOB", "ROP", "VSH", "PHIF", "CARB_FLAG", "COAL_FLAG", "SW", "KLOGH"]
     hits = _rows(built, "SELECT count(*) FROM {t} WHERE " + " OR ".join(f"{c} = {SENTINEL}" for c in curves))
     assert hits == [(0,)]
 
@@ -516,6 +518,27 @@ def test_a_dlis_pair_joins_input_and_interpreted_curves_at_depths_in_metres(
     ]
 
 
+def test_rows_where_only_flags_have_a_value_are_padding_and_dropped(built: Path) -> None:
+    # 15/9-F-10's output pads 0 .. 0.3048 m with the carbonate flag at 0 and
+    # every other Curve absent; 15/9-F-1's output ends at 1000.6 m with only
+    # the coal flag. A flag is kept where another Curve has a value.
+    rows = _rows(
+        built,
+        "SELECT source_wellbore, depth_md, CARB_FLAG, COAL_FLAG FROM {t} "
+        "WHERE source_wellbore IN ('15/9-F-1', '15/9-F-10') ORDER BY ALL",
+    )
+    assert rows == [
+        ("15/9-F-1", 1000.1, None, None),
+        ("15/9-F-1", 1000.2, None, 0.0),
+        ("15/9-F-1", 1000.3, None, 1.0),
+        ("15/9-F-1", 1000.4, None, 0.0),
+        ("15/9-F-1", 1000.5, None, 0.0),
+        ("15/9-F-10", 4850.13, 0.0, None),
+        ("15/9-F-10", 4850.2824, 1.0, None),
+        ("15/9-F-10", 4850.4348, 0.0, None),
+    ]
+
+
 def test_a_dlis_depth_index_in_millimetres_is_converted_to_metres(built: Path) -> None:
     rows = _rows(
         built,
@@ -534,10 +557,12 @@ def test_padded_all_null_samples_are_dropped_and_not_counted(built: Path) -> Non
     assert rows == [(2540.0, 70.0, 0.8)]
 
 
-def test_no_row_has_every_curve_null_for_any_source(built: Path) -> None:
+def test_no_row_has_every_curve_but_the_flags_null_for_any_source(built: Path) -> None:
+    flags = {"BADDATA_FLAG", "CARB_FLAG", "COAL_FLAG", "SAND_FLAG"}
     curves = [
         name
         for name, *_ in _rows(built, "SELECT column_name FROM (DESCRIBE SELECT * FROM {t})")[3:]
+        if name not in flags
     ]
     empty = _rows(
         built,
