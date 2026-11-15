@@ -202,8 +202,10 @@ COLUMN_DESCRIPTIONS = {
             "`source_wellbore` for one of its sources."
         ),
         "depth_md": (
-            "Measured depth along the wellbore, rounded to four "
-            "decimals so that equality joins are stable. The depth reference "
+            "Measured depth along the wellbore, in metres, rounded to four "
+            "decimals so that equality joins are stable. Source files that "
+            "index depth in tenths of an inch or in millimetres are converted "
+            "to metres before rounding. The depth reference "
             "is the one the source file uses; it is not normalised."
         ),
         "ABDCQF01": "Bulk density from quadrant 1 of an azimuthal density measurement while drilling.",
@@ -212,7 +214,15 @@ COLUMN_DESCRIPTIONS = {
         "ABDCQF04": "Bulk density from quadrant 4 of an azimuthal density measurement while drilling.",
         "BS": "Bit size: nominal diameter of the drilled hole.",
         "CALI": "Caliper: measured borehole diameter.",
+        "DRHB": (
+            "Density correction applied to `ROBB`, the bulk density from the "
+            "bottom of the borehole, measured while drilling."
+        ),
         "DRHO": "Density correction applied to the bulk density.",
+        "DRHU": (
+            "Density correction applied to `ROBU`, the bulk density from the "
+            "top of the borehole, measured while drilling."
+        ),
         "DT": "Compressional sonic slowness.",
         "DTS": "Shear sonic slowness.",
         "GR": "Natural gamma ray.",
@@ -230,6 +240,14 @@ COLUMN_DESCRIPTIONS = {
         "RD": "Deep resistivity.",
         "RHOB": "Bulk density.",
         "RM": "Medium resistivity.",
+        "ROBB": (
+            "Bulk density from the bottom of the borehole, measured while "
+            "drilling by a rotating density tool."
+        ),
+        "ROBU": (
+            "Bulk density from the top of the borehole, measured while "
+            "drilling by a rotating density tool."
+        ),
         "ROP": "Rate of penetration while drilling.",
         "ROP5_RM": (
             "Rate of penetration while drilling, a second recording. Its file "
@@ -251,6 +269,7 @@ COLUMN_DESCRIPTIONS = {
         "CARB_FLAG": "Lithology flag: 1 where the interpretation marks carbonate, 0 elsewhere.",
         "COAL_FLAG": "Lithology flag: 1 where the interpretation marks coal, 0 elsewhere.",
         "KLOGH": "Horizontal permeability computed from the logs.",
+        "PHID": "Porosity computed from the bulk density, as a fraction.",
         "PHIF": "Final effective porosity from the interpretation, as a fraction.",
         "SAND_FLAG": "Lithology flag: 1 where the interpretation marks sand, 0 elsewhere.",
         "SW": "Water saturation from the interpretation, as a fraction of pore volume.",

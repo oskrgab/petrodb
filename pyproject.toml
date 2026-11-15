@@ -6,6 +6,7 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "contextily>=1.6.2",
+    "dlisio>=1.0.5",
     "duckdb>=1.5.2",
     "lasio>=0.32",
     "marimo[recommended]>=0.19.7",
@@ -19,6 +20,7 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    "dliswriter>=1.2.0",
     "pytest>=9.0.3",
     "pytest-mock>=3.15.1",
     "ruff>=0.14.14",

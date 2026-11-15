@@ -1,4 +1,4 @@
-"""Join each source's LAS files into the ``petrophysical_interpretation`` table.
+"""Join each source's LAS or DLIS files into the ``petrophysical_interpretation`` table.
 
 The input and output files of a pair share a depth grid, so they are joined on
 ``depth_md`` (rounded to four decimals): Input curves and Interpreted curves
@@ -25,8 +25,9 @@ import pyarrow.compute as pc
 
 from scripts.export.volve_descriptions import COLUMN_DESCRIPTIONS
 from scripts.transform.volve_logs import units
-from scripts.transform.volve_logs.las_reader import DEPTH_COLUMN, LasSourceError, read_las
-from scripts.transform.volve_logs.sources import LAS_SOURCES, LasSource
+from scripts.transform.volve_logs.dlis_reader import read_dlis
+from scripts.transform.volve_logs.las_reader import DEPTH_COLUMN, read_las
+from scripts.transform.volve_logs.sources import DLIS, LAS, SOURCES, LogSource, SourceFileError
 from scripts.transform.volve_logs.sql import identifier as _q
 
 TABLE = "petrophysical_interpretation"
@@ -35,6 +36,9 @@ DEPTH_DECIMALS = 4
 DOCUMENTED_CURVES = tuple(
     name for name in COLUMN_DESCRIPTIONS[TABLE] if name not in KEY_COLUMNS
 )
+
+
+READERS = {LAS: read_las, DLIS: read_dlis}
 
 
 class CurveDisagreementError(Exception):
@@ -61,7 +65,7 @@ def _non_empty_depths(table: pa.Table) -> set[float]:
     return set(depths[has_value].tolist())
 
 
-def _read_output(source: LasSource, raw_dir: Path) -> pa.Table:
+def _read_output(source: LogSource, raw_dir: Path) -> pa.Table:
     """The output file, or a table with no samples for a source with none.
 
     An output file beside an input-only source means the mapping is out of
@@ -71,24 +75,28 @@ def _read_output(source: LasSource, raw_dir: Path) -> pa.Table:
     if path is None:
         unexpected = source.unread_output_path(raw_dir)
         if unexpected.exists():
-            raise LasSourceError(
+            raise SourceFileError(
                 f"{source.source_wellbore} is mapped as input-only, "
                 f"but has an output file: {unexpected}"
             )
         return pa.table({DEPTH_COLUMN: pa.array([], pa.float64())})
-    return read_las(path)
+    return READERS[source.file_format](path)
 
 
 def build(con: duckdb.DuckDBPyConnection, raw_dir: Path) -> dict[str, int]:
-    """Create ``petrophysical_interpretation`` in ``con`` from the LAS sources under ``raw_dir``.
+    """Create ``petrophysical_interpretation`` in ``con`` from the sources under ``raw_dir``.
 
     Returns the number of non-empty depth samples each ``source_wellbore`` has
     in its source files, counted from the files themselves, for the
     pre-publish row-count check.
     """
     read = [
-        (source, read_las(source.input_path(raw_dir)), _read_output(source, raw_dir))
-        for source in LAS_SOURCES
+        (
+            source,
+            READERS[source.file_format](source.input_path(raw_dir)),
+            _read_output(source, raw_dir),
+        )
+        for source in SOURCES
     ]
     present = {
         name
@@ -123,7 +131,7 @@ def build(con: duckdb.DuckDBPyConnection, raw_dir: Path) -> dict[str, int]:
 
 def _insert_source(
     con: duckdb.DuckDBPyConnection,
-    source: LasSource,
+    source: LogSource,
     input_table: pa.Table,
     output_table: pa.Table,
 ) -> None:

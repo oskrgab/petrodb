@@ -453,7 +453,7 @@
           "default_value": null,
           "primary_key": true,
           "comment": null,
-          "description": "Measured depth along the wellbore, rounded to four decimals so that equality joins are stable. The depth reference is the one the source file uses; it is not normalised."
+          "description": "Measured depth along the wellbore, in metres, rounded to four decimals so that equality joins are stable. Source files that index depth in tenths of an inch or in millimetres are converted to metres before rounding. The depth reference is the one the source file uses; it is not normalised."
         },
         {
           "name": "ABDCQF01",
@@ -516,6 +516,16 @@
           "description": "Caliper: measured borehole diameter."
         },
         {
+          "name": "DRHB",
+          "type": "DOUBLE",
+          "unit": "g/cm\u00b3",
+          "not_null": false,
+          "default_value": null,
+          "primary_key": false,
+          "comment": null,
+          "description": "Density correction applied to `ROBB`, the bulk density from the bottom of the borehole, measured while drilling."
+        },
+        {
           "name": "DRHO",
           "type": "DOUBLE",
           "unit": "g/cm\u00b3",
@@ -524,6 +534,16 @@
           "primary_key": false,
           "comment": null,
           "description": "Density correction applied to the bulk density."
+        },
+        {
+          "name": "DRHU",
+          "type": "DOUBLE",
+          "unit": "g/cm\u00b3",
+          "not_null": false,
+          "default_value": null,
+          "primary_key": false,
+          "comment": null,
+          "description": "Density correction applied to `ROBU`, the bulk density from the top of the borehole, measured while drilling."
         },
         {
           "name": "DT",
@@ -636,6 +656,26 @@
           "description": "Medium resistivity."
         },
         {
+          "name": "ROBB",
+          "type": "DOUBLE",
+          "unit": "g/cm\u00b3",
+          "not_null": false,
+          "default_value": null,
+          "primary_key": false,
+          "comment": null,
+          "description": "Bulk density from the bottom of the borehole, measured while drilling by a rotating density tool."
+        },
+        {
+          "name": "ROBU",
+          "type": "DOUBLE",
+          "unit": "g/cm\u00b3",
+          "not_null": false,
+          "default_value": null,
+          "primary_key": false,
+          "comment": null,
+          "description": "Bulk density from the top of the borehole, measured while drilling by a rotating density tool."
+        },
+        {
           "name": "ROP",
           "type": "DOUBLE",
           "unit": "m/h",
@@ -744,6 +784,16 @@
           "primary_key": false,
           "comment": null,
           "description": "Horizontal permeability computed from the logs."
+        },
+        {
+          "name": "PHID",
+          "type": "DOUBLE",
+          "unit": "v/v",
+          "not_null": false,
+          "default_value": null,
+          "primary_key": false,
+          "comment": null,
+          "description": "Porosity computed from the bulk density, as a fraction."
         },
         {
           "name": "PHIF",

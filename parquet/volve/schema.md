@@ -80,14 +80,16 @@ Well-log Curves of Equinor's petrophysical interpretation, one row per depth sam
 |--------|------|------|----------|-------------|-------------|
 | `npd_wellbore_code` | INTEGER | — | No |  | Wellbore the row belongs to. Joins to `wells`. For a Technical sidetrack, the code of its parent Wellbore. |
 | `source_wellbore` | TEXT | — | No | ✓ | The operator's name for the logged wellbore, such as `15/9-F-1 A`, taken from the folder the source files sit in. Usually the name of the Wellbore in `npd_wellbore_code`. A Technical sidetrack, such as `15/9-F-11 T2`, is a re-drilled section the register does not count as a Wellbore: its rows carry the `npd_wellbore_code` of its parent Wellbore (`15/9-F-11`) and keep the Technical sidetrack's name here. The 15/9-F-11 top-hole section is `15/9-F-11`: it has Input curves only, and it overlaps the depths of `15/9-F-11 T2` with different values. Filter on `npd_wellbore_code` for everything logged under a Wellbore, on `source_wellbore` for one of its sources. |
-| `depth_md` | DOUBLE | m | No | ✓ | Measured depth along the wellbore, rounded to four decimals so that equality joins are stable. The depth reference is the one the source file uses; it is not normalised. |
+| `depth_md` | DOUBLE | m | No | ✓ | Measured depth along the wellbore, in metres, rounded to four decimals so that equality joins are stable. Source files that index depth in tenths of an inch or in millimetres are converted to metres before rounding. The depth reference is the one the source file uses; it is not normalised. |
 | `ABDCQF01` | DOUBLE | g/cm³ | Yes |  | Bulk density from quadrant 1 of an azimuthal density measurement while drilling. |
 | `ABDCQF02` | DOUBLE | g/cm³ | Yes |  | Bulk density from quadrant 2 of an azimuthal density measurement while drilling. |
 | `ABDCQF03` | DOUBLE | g/cm³ | Yes |  | Bulk density from quadrant 3 of an azimuthal density measurement while drilling. |
 | `ABDCQF04` | DOUBLE | g/cm³ | Yes |  | Bulk density from quadrant 4 of an azimuthal density measurement while drilling. |
 | `BS` | DOUBLE | in | Yes |  | Bit size: nominal diameter of the drilled hole. |
 | `CALI` | DOUBLE | in | Yes |  | Caliper: measured borehole diameter. |
+| `DRHB` | DOUBLE | g/cm³ | Yes |  | Density correction applied to `ROBB`, the bulk density from the bottom of the borehole, measured while drilling. |
 | `DRHO` | DOUBLE | g/cm³ | Yes |  | Density correction applied to the bulk density. |
+| `DRHU` | DOUBLE | g/cm³ | Yes |  | Density correction applied to `ROBU`, the bulk density from the top of the borehole, measured while drilling. |
 | `DT` | DOUBLE | µs/ft | Yes |  | Compressional sonic slowness. |
 | `DTS` | DOUBLE | µs/ft | Yes |  | Shear sonic slowness. |
 | `GR` | DOUBLE | gAPI | Yes |  | Natural gamma ray. |
@@ -99,6 +101,8 @@ Well-log Curves of Equinor's petrophysical interpretation, one row per depth sam
 | `RD` | DOUBLE | ohm·m | Yes |  | Deep resistivity. |
 | `RHOB` | DOUBLE | g/cm³ | Yes |  | Bulk density. |
 | `RM` | DOUBLE | ohm·m | Yes |  | Medium resistivity. |
+| `ROBB` | DOUBLE | g/cm³ | Yes |  | Bulk density from the bottom of the borehole, measured while drilling by a rotating density tool. |
+| `ROBU` | DOUBLE | g/cm³ | Yes |  | Bulk density from the top of the borehole, measured while drilling by a rotating density tool. |
 | `ROP` | DOUBLE | m/h | Yes |  | Rate of penetration while drilling. |
 | `ROP5_RM` | DOUBLE | m/h | Yes |  | Rate of penetration while drilling, a second recording. Its file leaves the unit unknown; its values lie in the range `ROP` has in the other wellbores, so it is documented in the same unit. |
 | `RPCEHM` | DOUBLE | ohm·m | Yes |  | Propagation resistivity while drilling, from the phase shift of the high-frequency signal. |
@@ -110,6 +114,7 @@ Well-log Curves of Equinor's petrophysical interpretation, one row per depth sam
 | `CARB_FLAG` | DOUBLE | unitless | Yes |  | Lithology flag: 1 where the interpretation marks carbonate, 0 elsewhere. |
 | `COAL_FLAG` | DOUBLE | unitless | Yes |  | Lithology flag: 1 where the interpretation marks coal, 0 elsewhere. |
 | `KLOGH` | DOUBLE | mD | Yes |  | Horizontal permeability computed from the logs. |
+| `PHID` | DOUBLE | v/v | Yes |  | Porosity computed from the bulk density, as a fraction. |
 | `PHIF` | DOUBLE | v/v | Yes |  | Final effective porosity from the interpretation, as a fraction. |
 | `SAND_FLAG` | DOUBLE | unitless | Yes |  | Lithology flag: 1 where the interpretation marks sand, 0 elsewhere. |
 | `SW` | DOUBLE | v/v | Yes |  | Water saturation from the interpretation, as a fraction of pore volume. |

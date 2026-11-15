@@ -107,13 +107,13 @@ def test_petrophysical_interpretation_documents_its_key_and_every_curve(exported
         ("depth_md", "DOUBLE", True, True),
     ]
     curves = columns[3:]
-    # Every Curve the LAS sources carry, named with the source mnemonic.
+    # Every Curve the LAS and DLIS sources carry, named with the source mnemonic.
     assert [name for name, *_ in curves] == [
-        "ABDCQF01", "ABDCQF02", "ABDCQF03", "ABDCQF04", "BS", "CALI", "DRHO",
-        "DT", "DTS", "GR", "NBGRCFM", "NPHI", "PEF", "RACEHM", "RACELM", "RD",
-        "RHOB", "RM", "ROP", "ROP5_RM", "RPCEHM", "RPCELM", "RS", "RT",
-        "BADDATA_FLAG", "BVW", "CARB_FLAG", "COAL_FLAG", "KLOGH", "PHIF",
-        "SAND_FLAG", "SW", "VCARB", "VSH",
+        "ABDCQF01", "ABDCQF02", "ABDCQF03", "ABDCQF04", "BS", "CALI", "DRHB",
+        "DRHO", "DRHU", "DT", "DTS", "GR", "NBGRCFM", "NPHI", "PEF", "RACEHM",
+        "RACELM", "RD", "RHOB", "RM", "ROBB", "ROBU", "ROP", "ROP5_RM",
+        "RPCEHM", "RPCELM", "RS", "RT", "BADDATA_FLAG", "BVW", "CARB_FLAG",
+        "COAL_FLAG", "KLOGH", "PHID", "PHIF", "SAND_FLAG", "SW", "VCARB", "VSH",
     ]  # fmt: skip
     assert {(type_, not_null, pk) for _, type_, not_null, pk in curves} == {
         ("DOUBLE", False, False)
@@ -139,7 +139,7 @@ def test_every_curve_has_one_unit_in_schema_json_and_schema_md(exported: Path) -
         **{name: "g/cm³" for name in ("ABDCQF01", "ABDCQF02", "ABDCQF03", "ABDCQF04")},
         "BS": "in",
         "CALI": "in",
-        "DRHO": "g/cm³",
+        **{name: "g/cm³" for name in ("DRHB", "DRHO", "DRHU", "ROBB", "ROBU")},
         "DT": "µs/ft",
         "DTS": "µs/ft",
         "GR": "gAPI",
@@ -151,7 +151,7 @@ def test_every_curve_has_one_unit_in_schema_json_and_schema_md(exported: Path) -
         "ROP": "m/h",
         "ROP5_RM": "m/h",
         **{name: "unitless" for name in ("BADDATA_FLAG", "CARB_FLAG", "COAL_FLAG", "SAND_FLAG")},
-        **{name: "v/v" for name in ("BVW", "PHIF", "SW", "VCARB", "VSH")},
+        **{name: "v/v" for name in ("BVW", "PHID", "PHIF", "SW", "VCARB", "VSH")},
         "KLOGH": "mD",
     }  # fmt: skip
     markdown = (exported / "schema.md").read_text()

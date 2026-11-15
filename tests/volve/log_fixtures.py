@@ -1,18 +1,28 @@
-"""Synthetic LAS files laid out like the Volve Raw repo, written at test time.
+"""Synthetic LAS and DLIS files laid out like the Volve Raw repo, written at test time.
 
-Every file is generated with ``lasio`` into a temporary directory; no real log
-file and no network is needed. The tree holds, under the upstream folder
-names, one LAS pair for each of the eight Wellbores the petrophysical
-interpretation reads as LAS pairs, the LAS pair of the Technical sidetrack
-15/9-F-11 T2, and the input file of the 15/9-F-11 top-hole section. Beside
-them sits a geomodel permeability export the build must not read.
+Every file is generated into a temporary directory, LAS with ``lasio`` and
+DLIS with ``dliswriter``; no real log file and no network is needed. The tree
+holds, under the upstream folder names, one LAS pair for each of the eight
+Wellbores the petrophysical interpretation reads as LAS pairs, the LAS pair of
+the Technical sidetrack 15/9-F-11 T2, the input file of the 15/9-F-11 top-hole
+section, and one DLIS pair for each of the eight Wellbores read as DLIS
+pairs. Beside them sits a geomodel permeability export the build must not
+read.
 """
 
 from __future__ import annotations
 
+import logging
+import warnings
 from pathlib import Path
 
 import lasio
+import numpy as np
+from dliswriter import DLISFile
+
+# dliswriter warns on every unit outside the RP66 list; the Volve files use
+# such spellings ("0.1 in", "API", "UNKNOWN"), and so do the fixtures.
+logging.getLogger("dliswriter").setLevel(logging.ERROR)
 
 SENTINEL = -999.25
 INTERPRETATION = "05.PETROPHYSICAL INTERPRETATION"
@@ -35,6 +45,18 @@ TECHNICAL_SIDETRACK = ("15_9-F-11 T2", "15/9-F-11 T2", 7078)
 # The 15/9-F-11 top-hole section: an input file and no output file.
 TOP_HOLE = ("15_9-F-11", "15/9-F-11", 7078)
 
+# The Wellbores whose interpretation exists only as DLIS.
+DLIS_WELLBORES = {
+    "15_9-F-4": ("15/9-F-4", 5693),
+    "15_9-F-5": ("15/9-F-5", 5769),
+    "15_9-F-10": ("15/9-F-10", 6099),
+    "15_9-F-14": ("15/9-F-14", 5351),
+    "15_9-F-15": ("15/9-F-15", 6184),
+    "15_9-F-15 A": ("15/9-F-15 A", 5785),
+    "15_9-F-15 B": ("15/9-F-15 B", 6046),
+    "15_9-F-15 C": ("15/9-F-15 C", 5794),
+}
+
 Curves = dict[str, tuple[str, list[float]]]  # mnemonic -> (unit, values)
 
 
@@ -53,12 +75,54 @@ def write_las(path: Path, depths: list[float], curves: Curves, well: str = "") -
     return path
 
 
-def pair_paths(raw: Path, folder: str) -> tuple[Path, Path]:
+def write_dlis(
+    path: Path,
+    index: list[float],
+    curves: Curves,
+    index_unit: str = "0.1 in",
+    frames: int = 1,
+) -> Path:
+    """A DLIS file with one logical file and a DEPTH-indexed frame of the given Curves.
+
+    The index is written as the Volve files write it: 32-bit integers in
+    ``index_unit`` (tenths of an inch, or millimetres); Curves are 32-bit
+    floats with ``-999.25`` for an absent value. ``frames`` > 1 repeats the
+    frame under another name, as a file with several frames would hold.
+    """
+    dlis = DLISFile()
+    logical_file = dlis.add_logical_file()
+    logical_file.add_origin("ORIGIN", well_name="SOME OTHER NAME")
+    data = {"DEPTH": np.asarray(index, dtype=np.int32)}
+    data |= {name: np.asarray(values, dtype=np.float32) for name, (_, values) in curves.items()}
+    for frame in range(frames):
+        suffix = "" if frame == 0 else f"_{frame}"
+        channels = [
+            logical_file.add_channel(f"DEPTH{suffix}", data=data["DEPTH"], units=index_unit)
+        ] + [
+            logical_file.add_channel(f"{name}{suffix}", data=data[name], units=unit or None)
+            for name, (unit, _) in curves.items()
+        ]
+        logical_file.add_frame(str(frame), channels=channels, index_type="BOREHOLE-DEPTH")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with warnings.catch_warnings():
+        # dliswriter times the write and averages an empty list of timings.
+        warnings.simplefilter("ignore", RuntimeWarning)
+        # The default output buffer is 4 GB, allocated on every write.
+        dlis.write(path, output_chunk_size=2**16)
+    return path
+
+
+def pair_paths(raw: Path, folder: str, extension: str = "LAS") -> tuple[Path, Path]:
+    """The input and output file of ``folder``'s interpretation."""
     base = raw / "Well_logs_pr_WELL" / folder / INTERPRETATION
     return (
-        base / "WLC_PETRO_COMPUTED_INPUT_1.LAS",
-        base / "WLC_PETRO_COMPUTED_OUTPUT_1.LAS",
+        base / f"WLC_PETRO_COMPUTED_INPUT_1.{extension}",
+        base / f"WLC_PETRO_COMPUTED_OUTPUT_1.{extension}",
     )
+
+
+def dlis_pair_paths(raw: Path, folder: str) -> tuple[Path, Path]:
+    return pair_paths(raw, folder, "DLIS")
 
 
 def build_raw_tree(raw: Path) -> Path:
@@ -134,4 +198,58 @@ def build_raw_tree(raw: Path) -> Path:
             "ROP": ("m/hr", [12.0, SENTINEL, SENTINEL]),
         },
     )
+    build_dlis_pairs(raw)
     return raw
+
+
+def build_dlis_pairs(raw: Path) -> None:
+    """One DLIS pair per DLIS Wellbore. 15/9-F-10 carries the interesting cases.
+
+    Indexes are in tenths of an inch (60 = 0.1524 m) unless said otherwise.
+
+    - 15/9-F-10: input at 4850.13 .. 4850.4348 m; the output pads the well
+      from 0 m with all-NULL samples down to the same three depths. RHOB is in
+      both files, spelled ``G/CC`` and ``G/C3``, and equal.
+    - 15/9-F-15: the input starts at 0 m with two all-NULL samples.
+    - 15/9-F-15 B: both indexes in millimetres.
+    - The rest: two input depths, an Interpreted curve at the second.
+    """
+    write_dlis(
+        dlis_pair_paths(raw, "15_9-F-10")[0],
+        [1909500, 1909560, 1909620],
+        {
+            "GR": ("GAPI", [80.5, 81.5, 82.5]),
+            "RHOB": ("G/CC", [2.31, 2.32, SENTINEL]),
+        },
+    )
+    write_dlis(
+        dlis_pair_paths(raw, "15_9-F-10")[1],
+        [0, 60, 120, 1909500, 1909560, 1909620],
+        {
+            "PHIF": ("V/V", [SENTINEL, SENTINEL, SENTINEL, 0.21, 0.22, 0.23]),
+            "RHOB": ("G/C3", [SENTINEL, SENTINEL, SENTINEL, 2.31, 2.32, SENTINEL]),
+        },
+    )
+    write_dlis(
+        dlis_pair_paths(raw, "15_9-F-15")[0],
+        [0, 60, 1000000],
+        {"GR": ("GAPI", [SENTINEL, SENTINEL, 70.0])},
+    )
+    write_dlis(dlis_pair_paths(raw, "15_9-F-15")[1], [1000000], {"SW": ("V/V", [0.8])})
+    write_dlis(
+        dlis_pair_paths(raw, "15_9-F-15 B")[0],
+        [3500000, 3500152],
+        {"GR": ("GAPI", [60.0, 61.0])},
+        index_unit="mm",
+    )
+    write_dlis(
+        dlis_pair_paths(raw, "15_9-F-15 B")[1],
+        [3500152],
+        {"SW": ("V/V", [0.7])},
+        index_unit="mm",
+    )
+    for folder in DLIS_WELLBORES:
+        if folder in ("15_9-F-10", "15_9-F-15", "15_9-F-15 B"):
+            continue
+        write_dlis(dlis_pair_paths(raw, folder)[0], [1000000, 1000060], {"GR": ("API", [80.0, 81.0])})
+        write_dlis(dlis_pair_paths(raw, folder)[1], [1000060], {"SW": ("v/v_decimal", [0.9])})
