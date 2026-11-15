@@ -55,7 +55,7 @@ From the repo root, with the [Hugging Face CLI](https://huggingface.co/docs/hugg
 hf download oskrgab/petrodb-raw-volve --repo-type dataset \
   --revision "$(cat data/raw/volve.pin)" --local-dir data/raw/volve
 
-# Only the files the log pipeline reads (about 90 MB); bash
+# Only the files the log pipeline reads (in bash, for mapfile)
 mapfile -t files < <(uv run python -m scripts.run_pipeline.volve_logs --list-raw-files)
 hf download oskrgab/petrodb-raw-volve "${files[@]}" --repo-type dataset \
   --revision "$(cat data/raw/volve.pin)" --local-dir data/raw/volve

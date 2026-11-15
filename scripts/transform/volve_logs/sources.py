@@ -60,7 +60,7 @@ def raw_files() -> tuple[str, ...]:
     deploy workflow downloads exactly these from the Raw repo at the pin, so a
     source added here is fetched in CI with no change to the workflow.
     """
-    root = Path()
+    root = Path()  # an empty root leaves each path relative to the raw directory
     return tuple(
         path.as_posix()
         for pair in LAS_PAIRS

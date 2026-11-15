@@ -170,13 +170,13 @@ jobs:
       # a few dozen files, not the 16 GB Raw repo. The pipeline prints the
       # list, so a source added there is fetched with no change here. A token
       # is required, since anonymous downloads are rate-limited per IP
-      # (ADR-0011); HF_RAW_READ_TOKEN is a read token, and the upload token
-      # stands in while it is unset. The pin is read and checked by the
-      # pipeline's own read_pin.
+      # (ADR-0011): HF_RAW_READ_TOKEN, a read token, never the upload token,
+      # so this step holds no write credentials. The pin is read and checked
+      # by the pipeline's own read_pin.
       - name: Download the raw files the Volve log pipeline reads
         if: steps.cache-volve-logs.outputs.cache-hit != 'true'
         env:
-          HF_TOKEN: ${{ secrets.HF_RAW_READ_TOKEN || secrets.HF_TOKEN }}
+          HF_TOKEN: ${{ secrets.HF_RAW_READ_TOKEN }}
           RAW_REPO: oskrgab/petrodb-raw-volve
         run: |
           if [[ -z ${HF_TOKEN:-} ]]; then
