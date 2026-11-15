@@ -14,8 +14,10 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from scripts.raw_repo.volve import RAW_REPO_DOCS_DIR, register
+from scripts.transform.volve_logs.sources import LOG_TREE
 
-BY_WELLBORE_DIR = "Well_logs_pr_WELL"
+# The tree the log pipeline reads, under its upstream name.
+BY_WELLBORE_DIR = LOG_TREE
 BY_TYPE_DIR = "Well_logs"
 
 # Files an operating system or an office suite leaves behind, not upstream data:

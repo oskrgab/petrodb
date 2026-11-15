@@ -312,10 +312,28 @@ FIXTURE_COLUMNS = [
 ]  # fmt: skip
 
 
-def write_schema(path: Path, columns: list[dict]) -> None:
+def write_schema(
+    path: Path, columns: list[dict], catalog_columns: list[dict] | None = None
+) -> None:
+    """A ``schema.json`` declaring ``columns`` for the interpretation table and
+    ``catalog_columns`` (by default the committed ones) for the Curve catalog."""
+    if catalog_columns is None:
+        catalog_columns = committed_catalog_schema()
     path.write_text(
-        json.dumps({"tables": {"petrophysical_interpretation": {"columns": columns}}})
+        json.dumps(
+            {
+                "tables": {
+                    "petrophysical_interpretation": {"columns": columns},
+                    "log_curves": {"columns": catalog_columns},
+                }
+            }
+        )
     )
+
+
+def committed_catalog_schema() -> list[dict]:
+    """The committed declarations of the Curve catalog, ``log_curves``."""
+    return json.loads(SCHEMA.read_text())["tables"]["log_curves"]["columns"]
 
 
 def fixture_schema() -> list[dict]:

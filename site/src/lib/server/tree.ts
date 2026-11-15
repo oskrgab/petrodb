@@ -60,6 +60,24 @@ export function listTree(root: string): TreeTable[] | null {
 }
 
 /**
+ * A Dataset's listing for the site build. With no committed listing (Petrobras
+ * 3W, built in CI whole) the tree on disk is listed. Otherwise the committed
+ * listing is extended with each table in `generated` that is on disk: tables
+ * built in CI beside committed ones (the Volve log tables), which the Glances
+ * command leaves out of `files.json`. A generated table that is not on disk is
+ * not listed.
+ */
+export function listDataset(
+  root: string,
+  committed: TreeTable[] | null,
+  generated: string[],
+): TreeTable[] | null {
+  if (!committed) return listTree(root);
+  const built = (listTree(root) ?? []).filter((t) => generated.includes(t.name));
+  return [...committed, ...built];
+}
+
+/**
  * `num_rows` from a parquet file's footer: a Thrift (compact protocol)
  * FileMetaData whose field 3 is the row count. Only the footer is read.
  */

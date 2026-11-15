@@ -3,9 +3,9 @@
 The table is laid out as ``layout`` declares: one row group, rows sorted by
 the key columns, the key columns first and then the Curves the most Wellbores
 carry. Each file is written beside its final name. The table is checked by
-``validator`` and against the committed ``schema.json`` by ``schema_check``,
-and the catalog, ``log_curves.parquet``, by ``catalog_check`` against the
-written table; both are moved into place only when every check passes. A
+``validator``, the catalog, ``log_curves.parquet``, by ``catalog_check``
+against the written table, and both against the committed ``schema.json`` by
+``schema_check``. Both are moved into place only when every check passes. A
 failed build leaves no new file and keeps previously built ones untouched.
 """
 
@@ -53,6 +53,7 @@ def write(
         )
         validator.check(pending, wells, expected_rows)
         schema_check.check(pending, schema)
+        schema_check.check(catalog_pending, schema, curve_catalog.CATALOG)
         catalog_check.check(catalog_pending, {TABLE: pending}, wells)
         pending.replace(final)
         catalog_pending.replace(catalog_final)

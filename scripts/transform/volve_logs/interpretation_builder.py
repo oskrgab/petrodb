@@ -27,7 +27,7 @@ column order is the writer's (``scripts.export.volve_logs.layout``).
 from __future__ import annotations
 
 from dataclasses import dataclass
-from pathlib import Path, PurePath
+from pathlib import Path
 
 import duckdb
 import numpy as np
@@ -40,6 +40,7 @@ from scripts.transform.volve_logs.dlis_reader import read_dlis
 from scripts.transform.volve_logs.las_reader import DEPTH_COLUMN, read_las
 from scripts.transform.volve_logs.sources import (
     DLIS,
+    IN_RAW_REPO,
     LAS,
     SINGLE_FILE_SOURCES,
     SOURCES,
@@ -47,14 +48,16 @@ from scripts.transform.volve_logs.sources import (
     SingleFileSource,
     SourceFileError,
 )
-from scripts.transform.volve_logs.sql import identifier as _q
+from scripts.transform.volve_logs.sql import identifier
 
 TABLE = "petrophysical_interpretation"
 KEY_COLUMNS = ("npd_wellbore_code", "source_wellbore", DEPTH_COLUMN)
 DEPTH_DECIMALS = 4
 # Flags hold 0 or 1 wherever a file samples, padding included, so a value in
 # one of them alone does not make a row.
-FLAG_CURVES = frozenset({"BADDATA_FLAG", "CARB_FLAG", "COAL_FLAG", "SAND_FLAG"})
+FLAG_CURVES = frozenset(
+    {"BADDATA_FLAG", "CARB_FLAG", "COAL_FLAG", "PERF_FLAG", "SAND_FLAG"}
+)
 DOCUMENTED_CURVES = tuple(
     name for name in COLUMN_DESCRIPTIONS[TABLE] if name not in KEY_COLUMNS
 )
@@ -75,20 +78,35 @@ class UnclassifiedCurveError(Exception):
     """A single interpretation file carries a Curve the committed list does not classify."""
 
 
+# The Interpreted curves of a source with an input file only: no samples.
+_NO_SAMPLES = pa.table({DEPTH_COLUMN: pa.array([], pa.float64())})
+
+
 @dataclass(frozen=True)
 class _ReadSource:
-    """One ``source_wellbore`` as read: the table of its input file and the
-    table of its Interpreted curves, each with the file it came from (a path
-    within the Raw repo). For a pair the second is the output file, which may
-    repeat Input curves; for a single file both halves name that file; an
-    input-only source has no second file (``None``) and an empty table."""
+    """One ``source_wellbore`` as read: its Input curves and its Interpreted
+    curves, each with the file they came from. For a pair the second is the
+    output file, which may repeat Input curves; for a single file both halves
+    name that file; an input-only source has none (``None``)."""
 
     source_wellbore: str
     npd_wellbore_code: int
-    input_file: PurePath
-    input_table: pa.Table
-    interpreted_file: PurePath | None
-    interpreted_table: pa.Table
+    input: curve_catalog.CurveFile
+    interpreted: curve_catalog.CurveFile | None
+
+    @property
+    def input_table(self) -> pa.Table:
+        return self.input.table
+
+    @property
+    def interpreted_table(self) -> pa.Table:
+        return self.interpreted.table if self.interpreted else _NO_SAMPLES
+
+    @property
+    def files(self) -> list[curve_catalog.CurveFile]:
+        """The files in the order that names a mnemonic in both: input first,
+        so such a Curve is an Input curve named after the input file."""
+        return [self.input] + ([self.interpreted] if self.interpreted else [])
 
 
 def _curves(table: pa.Table) -> list[str]:
@@ -109,32 +127,32 @@ def _non_empty_depths(table: pa.Table) -> set[float]:
     return set(depths[has_value].tolist())
 
 
-def _read_output(source: LogSource, raw_dir: Path) -> pa.Table:
-    """The output file, or a table with no samples for a source with none.
+def _read_output(source: LogSource, raw_dir: Path) -> pa.Table | None:
+    """The output file, or ``None`` for a source with none.
 
     An output file beside an input-only source means the mapping is out of
     date, so it stops the build rather than being ignored.
     """
     path = source.output_path(raw_dir)
     if path is None:
-        unexpected = source.unread_output_path(raw_dir)
+        unexpected = source.possible_output_path(raw_dir)
         if unexpected.exists():
             raise SourceFileError(
                 f"{source.source_wellbore} is mapped as input-only, "
                 f"but has an output file: {unexpected}"
             )
-        return pa.table({DEPTH_COLUMN: pa.array([], pa.float64())})
+        return None
     return READERS[source.file_format](path)
 
 
-def build(con: duckdb.DuckDBPyConnection, raw_dir: Path) -> dict[str, int]:
+def build(
+    con: duckdb.DuckDBPyConnection, raw_dir: Path, catalog: curve_catalog.CurveCatalog
+) -> dict[str, int]:
     """Create ``petrophysical_interpretation`` in ``con`` from the sources under ``raw_dir``.
 
-    Each Curve's source file is recorded for the Curve catalog
-    (``curve_catalog``). Returns the number of non-empty depth samples each
-    ``source_wellbore`` has
-    in its source files, counted from the files themselves, for the
-    pre-publish row-count check.
+    Each Curve's source file is recorded in ``catalog``. Returns the number of
+    non-empty depth samples each ``source_wellbore`` has in its source files,
+    counted from the files themselves, for the pre-publish row-count check.
     """
     read = [_read_pair(source, raw_dir) for source in SOURCES] + [
         _read_single_file(source, raw_dir) for source in SINGLE_FILE_SOURCES
@@ -155,22 +173,17 @@ def build(con: duckdb.DuckDBPyConnection, raw_dir: Path) -> dict[str, int]:
         f"CREATE OR REPLACE TABLE {TABLE} ("
         "npd_wellbore_code BIGINT NOT NULL, source_wellbore VARCHAR NOT NULL, "
         f"{DEPTH_COLUMN} DOUBLE NOT NULL"
-        + "".join(f", {_q(c)} DOUBLE" for c in curves)
+        + "".join(f", {identifier(c)} DOUBLE" for c in curves)
         + ")"
     )
-    curve_catalog.create(con)
     expected_rows = {}
     for source in read:
         _insert_source(con, source)
-        _record_curve_sources(con, source)
+        catalog.record(TABLE, source.source_wellbore, source.files)
         expected_rows[source.source_wellbore] = len(
             _non_empty_depths(source.input_table) | _non_empty_depths(source.interpreted_table)
         )
     return expected_rows
-
-
-# An empty root gives each path within the Raw repo.
-_IN_RAW_REPO = Path()
 
 
 def _read_pair(source: LogSource, raw_dir: Path) -> _ReadSource:
@@ -179,14 +192,17 @@ def _read_pair(source: LogSource, raw_dir: Path) -> _ReadSource:
     input_table = read(source.input_path(raw_dir))
     output_table = _read_output(source, raw_dir)
     units.check(source.input_path(raw_dir), input_table)
-    units.check(source.output_path(raw_dir), output_table)
+    interpreted = None
+    if output_table is not None:
+        units.check(source.output_path(raw_dir), output_table)
+        interpreted = curve_catalog.CurveFile(
+            curve_catalog.INTERPRETED, source.output_path(IN_RAW_REPO), output_table
+        )
     return _ReadSource(
         source.source_wellbore,
         source.npd_wellbore_code,
-        source.input_path(_IN_RAW_REPO),
-        input_table,
-        source.output_path(_IN_RAW_REPO),
-        output_table,
+        curve_catalog.CurveFile(curve_catalog.INPUT, source.input_path(IN_RAW_REPO), input_table),
+        interpreted,
     )
 
 
@@ -196,14 +212,12 @@ def _read_single_file(source: SingleFileSource, raw_dir: Path) -> _ReadSource:
     table = read_las(path)
     units.check(path, table)
     input_table, interpreted_table = _split_by_kind(path, table)
-    file = source.path(_IN_RAW_REPO)
+    file = source.path(IN_RAW_REPO)
     return _ReadSource(
         source.source_wellbore,
         source.npd_wellbore_code,
-        file,
-        input_table,
-        file,
-        interpreted_table,
+        curve_catalog.CurveFile(curve_catalog.INPUT, file, input_table),
+        curve_catalog.CurveFile(curve_catalog.INTERPRETED, file, interpreted_table),
     )
 
 
@@ -225,21 +239,14 @@ def _split_by_kind(path: Path, table: pa.Table) -> tuple[pa.Table, pa.Table]:
     return of_kind(curve_catalog.INPUT), of_kind(curve_catalog.INTERPRETED)
 
 
-def _record_curve_sources(con: duckdb.DuckDBPyConnection, source: _ReadSource) -> None:
-    """Note each Curve's file for the Curve catalog: the input file first, so a
-    mnemonic in both files is an Input curve named after the input file."""
-    files = [(curve_catalog.INPUT, source.input_file, source.input_table)]
-    if source.interpreted_file is not None:
-        files.append(
-            (curve_catalog.INTERPRETED, source.interpreted_file, source.interpreted_table)
-        )
-    curve_catalog.record(con, TABLE, source.source_wellbore, files)
-
-
 def _insert_source(con: duckdb.DuckDBPyConnection, source: _ReadSource) -> None:
-    input_table, output_table = source.input_table, source.interpreted_table
+    """Insert the rows of ``source``: its Input curves and its Interpreted
+    curves joined on depth, a mnemonic in both checked and merged."""
     rounded = f"round({DEPTH_COLUMN}, {DEPTH_DECIMALS}) AS {DEPTH_COLUMN}"
-    for name, table in (("las_input", input_table), ("las_output", output_table)):
+    for name, table in (
+        ("input_samples", source.input_table),
+        ("interpreted_samples", source.interpreted_table),
+    ):
         con.register(f"{name}_arrow", table)
         try:
             con.execute(
@@ -249,13 +256,14 @@ def _insert_source(con: duckdb.DuckDBPyConnection, source: _ReadSource) -> None:
         finally:
             con.unregister(f"{name}_arrow")
 
-    input_curves, output_curves = _curves(input_table), _curves(output_table)
-    shared = [c for c in input_curves if c in output_curves]
+    input_curves = _curves(source.input_table)
+    interpreted_curves = _curves(source.interpreted_table)
+    shared = [c for c in input_curves if c in interpreted_curves]
     for name in shared:
         disagreement = con.execute(
-            f"SELECT i.{DEPTH_COLUMN}, i.{_q(name)}, o.{_q(name)} "
-            f"FROM las_input i JOIN las_output o USING ({DEPTH_COLUMN}) "
-            f"WHERE i.{_q(name)} IS DISTINCT FROM o.{_q(name)} "
+            f"SELECT i.{DEPTH_COLUMN}, i.{identifier(name)}, interp.{identifier(name)} "
+            f"FROM input_samples i JOIN interpreted_samples interp USING ({DEPTH_COLUMN}) "
+            f"WHERE i.{identifier(name)} IS DISTINCT FROM interp.{identifier(name)} "
             f"ORDER BY i.{DEPTH_COLUMN} LIMIT 1"
         ).fetchone()
         if disagreement:
@@ -267,20 +275,21 @@ def _insert_source(con: duckdb.DuckDBPyConnection, source: _ReadSource) -> None:
             )
 
     selected = (
-        [f"i.{_q(c)}" for c in input_curves if c not in shared]
-        + [f"o.{_q(c)}" for c in output_curves if c not in shared]
-        + [f"coalesce(i.{_q(c)}, o.{_q(c)}) AS {_q(c)}" for c in shared]
+        [f"i.{identifier(c)}" for c in input_curves if c not in shared]
+        + [f"interp.{identifier(c)}" for c in interpreted_curves if c not in shared]
+        + [f"coalesce(i.{identifier(c)}, interp.{identifier(c)}) AS {identifier(c)}" for c in shared]
     )
     any_value = " OR ".join(
-        [f"i.{_q(c)} IS NOT NULL" for c in _not_flags(input_curves)]
-        + [f"o.{_q(c)} IS NOT NULL" for c in _not_flags(output_curves)]
+        [f"i.{identifier(c)} IS NOT NULL" for c in _not_flags(input_curves)]
+        + [f"interp.{identifier(c)} IS NOT NULL" for c in _not_flags(interpreted_curves)]
     ) or "false"
     con.execute(
         f"INSERT INTO {TABLE} BY NAME "
         f"SELECT $npd AS npd_wellbore_code, $source AS source_wellbore, "
-        f"coalesce(i.{DEPTH_COLUMN}, o.{DEPTH_COLUMN}) AS {DEPTH_COLUMN}"
+        f"coalesce(i.{DEPTH_COLUMN}, interp.{DEPTH_COLUMN}) AS {DEPTH_COLUMN}"
         + "".join(f", {column}" for column in selected)
-        + f" FROM las_input i FULL OUTER JOIN las_output o ON i.{DEPTH_COLUMN} = o.{DEPTH_COLUMN} "
+        + " FROM input_samples i FULL OUTER JOIN interpreted_samples interp "
+        f"ON i.{DEPTH_COLUMN} = interp.{DEPTH_COLUMN} "
         f"WHERE {any_value}",
         {"npd": source.npd_wellbore_code, "source": source.source_wellbore},
     )

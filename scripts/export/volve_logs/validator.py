@@ -15,11 +15,13 @@ failure raises ``PrePublishCheckError`` and stops the build:
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
 
 import duckdb
 
 from scripts.export.volve_logs import layout
+from scripts.transform.volve_logs.curve_catalog import curve_columns
 from scripts.transform.volve_logs.las_reader import SENTINEL
 from scripts.transform.volve_logs.sql import identifier, path_literal
 
@@ -40,8 +42,11 @@ def check(parquet: Path, wells: Path, expected_rows: dict[str, int]) -> None:
             f"read_parquet({path_literal(parquet)}, file_row_number = true)"
         )
         con.execute(f"CREATE VIEW wells AS SELECT * FROM read_parquet({path_literal(wells)})")
-        _check_unique_key(con)
-        _check_wellbores_in_wells(con)
+        check_unique_key(
+            con, "written", ("source_wellbore", "depth_md"), "key",
+            lambda source, depth: f"{source} at {depth} m",
+        )  # fmt: skip
+        check_wellbores_in_wells(con, "written", "")
         _check_depth_increases(con)
         _check_row_counts(con, expected_rows)
         _check_no_sentinel(con)
@@ -49,28 +54,37 @@ def check(parquet: Path, wells: Path, expected_rows: dict[str, int]) -> None:
         _check_column_order(con)
 
 
-def _check_unique_key(con: duckdb.DuckDBPyConnection) -> None:
+def check_unique_key(
+    con: duckdb.DuckDBPyConnection,
+    relation: str,
+    key: tuple[str, ...],
+    name: str,
+    describe: Callable[..., str],
+) -> None:
+    """Raise if two rows of ``relation`` share ``key``; ``describe`` words the
+    duplicated key values for the error, which calls the key ``name``."""
+    columns = ", ".join(key)
     duplicate = con.execute(
-        "SELECT source_wellbore, depth_md, count(*) FROM written "
+        f"SELECT {columns}, count(*) FROM {relation} "
         "GROUP BY ALL HAVING count(*) > 1 ORDER BY ALL LIMIT 1"
     ).fetchone()
     if duplicate:
-        source, depth, n = duplicate
+        *values, n = duplicate
         raise PrePublishCheckError(
-            f"duplicate key (source_wellbore, depth_md): {source} at {depth} m appears {n} times"
+            f"duplicate {name} ({columns}): {describe(*values)} appears {n} times"
         )
 
 
-def _check_wellbores_in_wells(
-    con: duckdb.DuckDBPyConnection
-) -> None:
+def check_wellbores_in_wells(con: duckdb.DuckDBPyConnection, relation: str, label: str) -> None:
+    """Raise if an ``npd_wellbore_code`` of ``relation`` is not in the ``wells`` view;
+    ``label`` names the relation at the start of the error."""
     missing = con.execute(
-        "SELECT DISTINCT t.npd_wellbore_code, t.source_wellbore FROM written t "
+        f"SELECT DISTINCT t.npd_wellbore_code, t.source_wellbore FROM {relation} t "
         "ANTI JOIN wells w USING (npd_wellbore_code) ORDER BY ALL"
     ).fetchall()
     if missing:
         listed = ", ".join(f"{code} ({source})" for code, source in missing)
-        raise PrePublishCheckError(f"npd_wellbore_code missing from wells: {listed}")
+        raise PrePublishCheckError(f"{label}npd_wellbore_code missing from wells: {listed}")
 
 
 def _check_depth_increases(con: duckdb.DuckDBPyConnection) -> None:
@@ -110,7 +124,7 @@ def _check_row_counts(
 
 
 def _check_no_sentinel(con: duckdb.DuckDBPyConnection) -> None:
-    for name in layout.curve_columns(con, WRITTEN_COLUMNS):
+    for name in curve_columns(con, WRITTEN_COLUMNS):
         hit = con.execute(
             f"SELECT source_wellbore, depth_md FROM written "
             f"WHERE {identifier(name)} = {SENTINEL} ORDER BY ALL LIMIT 1"

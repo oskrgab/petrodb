@@ -39,7 +39,7 @@ TABLE_DESCRIPTIONS = {
         "column: the source files spell it several ways, and the values are kept as "
         "the source gives them, never converted. Samples are at the source "
         "depths; nothing is resampled. A source depth is kept only where a "
-        "Curve other than the lithology and bad-data flags has a value: some "
+        "Curve other than the lithology, bad-data and perforation flags has a value: some "
         "files pad the wellbore with samples whose only value is a flag, and "
         "those are dropped. The file is a single row group, sorted "
         "by `npd_wellbore_code`, `source_wellbore` and `depth_md`; the key "

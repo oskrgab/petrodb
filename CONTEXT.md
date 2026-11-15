@@ -23,7 +23,7 @@ One public source republished by PetroDB as a self-contained set of tables with 
 _Avoid_: "database" (nothing is served by a database), "repository" (the site was once titled "PetroData Repository"; the name is PetroDB).
 
 **Raw repo**:
-A Hugging Face dataset repo holding one Dataset's upstream source files unmodified, laid out as upstream lays them out. One per Dataset. A pipeline reads it at a pinned commit and publishes the tables it builds to the Dataset; the Raw repo itself is never queried by consumers.
+A Hugging Face dataset repo holding one Dataset's upstream source files with their bytes unmodified, laid out as upstream lays them out except for the adjustments its README records. One per Dataset. A pipeline reads it at a pinned commit and publishes the tables it builds to the Dataset; the Raw repo itself is never queried by consumers.
 _Avoid_: "mirror" (a Raw repo may be filled by scraping or by hand, not only by copying a host), "raw dataset" (the Dataset is the published tables).
 
 **Landing**:
@@ -43,6 +43,10 @@ _Avoid_: "well" for a single Wellbore, the operator's wellbore names (`F-4 AH`, 
 **Technical sidetrack**:
 A re-drilled section of a Wellbore that the register does not count as a Wellbore of its own (`15/9-F-11 T2`, `15/9-19 BT2`). It has no `npd_wellbore_code`: its data belongs to the parent Wellbore and keeps the operator's name as a label.
 _Avoid_: "wellbore" for a Technical sidetrack, bare "sidetrack" (the lettered sidetracks `A`, `B`, `C` are Wellbores).
+
+**Top-hole section**:
+The upper part of a Wellbore, drilled and logged first; its logs may sit in a file of their own. The 15/9-F-11 top-hole section has Input curves only and is a `source_wellbore` of its own, `15/9-F-11`: it lies inside the depth range of the Technical sidetrack `15/9-F-11 T2` but holds different values, so the two are never merged.
+_Avoid_: "Technical sidetrack" (a top-hole section is not re-drilled), "wellbore" for the section alone.
 
 **Curve**:
 One quantity sampled against depth along a Wellbore, named by its source mnemonic (`GR`, `RHOB`, `PHIF`).

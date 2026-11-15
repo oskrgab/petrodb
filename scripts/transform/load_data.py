@@ -179,15 +179,19 @@ def read_register(paths=SOURCE_REGISTER_PATHS) -> pd.DataFrame:
     return register.apply(lambda column: column.str.strip()).replace("", None)
 
 
-def build_wells(daily_df: pd.DataFrame, register_df: pd.DataFrame) -> pd.DataFrame:
+def build_wells(
+    daily_df: pd.DataFrame, monthly_df: pd.DataFrame, register_df: pd.DataFrame
+) -> pd.DataFrame:
     """
     One row per Wellbore the register assigns to Volve, joined to the production source.
 
-    The production source's columns are kept as they are for the Wellbores it
-    names and are NULL for the others, except the name and the field, which
-    the register gives for every Wellbore. The parent Wellbore is resolved from
-    the register's name to its NPD code. Raises if a producing Wellbore or a
-    parent is missing from the Volve Wellbores of the register.
+    The daily sheet's columns are kept as they are for the Wellbores it names
+    and are NULL for the others, except the name and the field, which the
+    register gives for every Wellbore. ``has_production`` is true for a
+    Wellbore with rows in the daily or the monthly sheet. The parent Wellbore
+    is resolved from the register's name to its NPD code. Raises if a
+    producing Wellbore or a parent is missing from the Volve Wellbores of the
+    register.
     """
     production = daily_df[[
         SOURCE_DAILY_NPD_WELL_BORE_CODE,
@@ -232,15 +236,18 @@ def build_wells(daily_df: pd.DataFrame, register_df: pd.DataFrame) -> pd.DataFra
         ),
     })
 
-    missing = set(production[WELLS_NPD_WELLBORE_CODE]) - set(register[WELLS_NPD_WELLBORE_CODE])
+    # The monthly sheet's first row holds units, not a Wellbore.
+    monthly_codes = pd.to_numeric(monthly_df[SOURCE_MONTHLY_NPD_CODE], errors="coerce").dropna()
+    producing = set(production[WELLS_NPD_WELLBORE_CODE]) | set(monthly_codes.astype("int64"))
+    missing = producing - set(register[WELLS_NPD_WELLBORE_CODE])
     if missing:
         raise ValueError(f"producing wellbores missing from the register: {sorted(missing)}")
     orphans = set(register[WELLS_PARENT_NPD_WELLBORE_CODE].dropna()) - set(register[WELLS_NPD_WELLBORE_CODE])
     if orphans:
         raise ValueError(f"parent wellbores outside Volve in the register: {sorted(orphans)}")
 
-    wells = register.merge(production, on=WELLS_NPD_WELLBORE_CODE, how="left", indicator=True)
-    wells[WELLS_HAS_PRODUCTION] = wells.pop("_merge") == "both"
+    wells = register.merge(production, on=WELLS_NPD_WELLBORE_CODE, how="left")
+    wells[WELLS_HAS_PRODUCTION] = wells[WELLS_NPD_WELLBORE_CODE].isin(producing)
     for column, fallback in (
         (WELLS_WELLBORE_NAME, "register_name"),
         (WELLS_NPD_FIELD_CODE, "register_field_code"),
@@ -267,12 +274,15 @@ def build_wells(daily_df: pd.DataFrame, register_df: pd.DataFrame) -> pd.DataFra
     ]].sort_values(WELLS_NPD_WELLBORE_CODE, ignore_index=True)
 
 
-def load_wells_table(daily_df: pd.DataFrame, register_df: pd.DataFrame, engine) -> int:
+def load_wells_table(
+    daily_df: pd.DataFrame, monthly_df: pd.DataFrame, register_df: pd.DataFrame, engine
+) -> int:
     """
     Build the wells table from the production source and the register snapshot and load it.
 
     Args:
         daily_df: DataFrame containing daily production data
+        monthly_df: DataFrame containing monthly production data, as read
         register_df: The register snapshot, from read_register()
         engine: SQLAlchemy engine
 
@@ -280,7 +290,7 @@ def load_wells_table(daily_df: pd.DataFrame, register_df: pd.DataFrame, engine) 
         Number of Wellbores loaded
     """
     print(f"\n[1/3] Loading {TABLE_WELLS}...")
-    wells_df = build_wells(daily_df, register_df)
+    wells_df = build_wells(daily_df, monthly_df, register_df)
     return load_table(wells_df, TABLE_WELLS, {c: c for c in wells_df.columns}, engine)
 
 
@@ -518,7 +528,7 @@ def main():
     register_df = read_register()
 
     try:
-        wells_count = load_wells_table(daily_df, register_df, engine)
+        wells_count = load_wells_table(daily_df, monthly_df, register_df, engine)
         daily_count = load_daily_production_table(daily_df, engine)
         monthly_count = load_monthly_production_table(monthly_df, engine)
 

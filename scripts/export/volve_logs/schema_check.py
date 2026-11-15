@@ -1,7 +1,8 @@
-"""Compare the written ``petrophysical_interpretation.parquet`` with the committed ``schema.json``.
+"""Compare a written log table with its declaration in the committed ``schema.json``.
 
-The table is not in git, so nothing else would catch the schema documents and
-the published bytes drifting apart. The check fails on any difference in
+The build checks both files it writes, ``petrophysical_interpretation.parquet``
+and the Curve catalog ``log_curves.parquet``. Neither is in git, so nothing
+else would catch the schema documents and the published bytes drifting apart. The check fails on any difference in
 column names, order, types or nullability:
 
 - names and order must be the same list;
@@ -32,9 +33,10 @@ class SchemaMismatchError(PrePublishCheckError):
     """The written table differs from the committed ``schema.json``."""
 
 
-def check(parquet: Path, schema: Path) -> None:
-    """Raise ``SchemaMismatchError`` listing every way ``parquet`` differs from ``schema``."""
-    declared = json.loads(Path(schema).read_text())["tables"][TABLE]["columns"]
+def check(parquet: Path, schema: Path, table: str = TABLE) -> None:
+    """Raise ``SchemaMismatchError`` listing every way ``parquet`` differs from
+    what ``schema`` declares for ``table``."""
+    declared = json.loads(Path(schema).read_text())["tables"][table]["columns"]
     source = f"read_parquet({path_literal(parquet)})"
     with duckdb.connect() as con:
         written = [row[:2] for row in con.execute(f"DESCRIBE SELECT * FROM {source}").fetchall()]
@@ -75,4 +77,4 @@ def check(parquet: Path, schema: Path) -> None:
         if name in required and not column["not_null"]:
             problems.append(f"{name}: required in the file, schema.json declares it nullable")
     if problems:
-        raise SchemaMismatchError(f"{TABLE} differs from {schema}: " + "; ".join(problems))
+        raise SchemaMismatchError(f"{table} differs from {schema}: " + "; ".join(problems))

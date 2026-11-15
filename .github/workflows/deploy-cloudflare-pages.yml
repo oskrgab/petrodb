@@ -20,7 +20,9 @@ name: Deploy (Hugging Face data + Cloudflare landing)
 #   - push to `stage`  → HF `stage` branch  + wrangler --branch stage  → preview deployment
 #
 # Trigger: any push to main/stage that touches deployable content — committed
-# datasets under `parquet/`, the 3W and Volve log pipeline sources and the
+# datasets under `parquet/`, the 3W and Volve log pipeline sources (for the
+# Volve logs, every module the pipeline imports, the package __init__ files and
+# the production export they pull in included) and the
 # Volve Raw repo pin (their outputs are gitignored and rebuilt in CI), the
 # site sources, the Glances command, this
 # workflow file, or the Landing build action it shares with the preview
@@ -55,6 +57,14 @@ on:
       - 'scripts/export/volve_logs/**'
       - 'scripts/export/volve_descriptions.py'
       - 'scripts/run_pipeline/volve_logs/**'
+      - 'scripts/__init__.py'
+      - 'scripts/transform/__init__.py'
+      - 'scripts/transform/constants.py'
+      - 'scripts/export/__init__.py'
+      - 'scripts/export/export_constants.py'
+      - 'scripts/export/export_utils.py'
+      - 'scripts/export/parquet_export.py'
+      - 'scripts/run_pipeline/__init__.py'
       - 'scripts/deploy/**'
       - 'scripts/site/**'
       - 'site/**'
@@ -117,8 +127,9 @@ jobs:
               'scripts/run_pipeline/petrobras_3w/**'
             ) }}-${{ env.BASE_URL }}
 
-      # The key is the Raw repo pin, the pipeline's own sources, the committed
-      # files its pre-publish checks read (`wells.parquet`, `schema.json`) and
+      # The key is the Raw repo pin, every module the pipeline imports (its
+      # own sources, and the package __init__ files and the production export
+      # they pull in), the committed files its pre-publish checks read (`wells.parquet`, `schema.json`) and
       # uv.lock (the readers' versions shape the output): a hit skips the
       # checks, so anything they depend on must miss the cache when it
       # changes. No BASE_URL: the log tables carry no URL, so `main` and
@@ -136,6 +147,14 @@ jobs:
               'scripts/export/volve_logs/**',
               'scripts/export/volve_descriptions.py',
               'scripts/run_pipeline/volve_logs/**',
+              'scripts/__init__.py',
+              'scripts/transform/__init__.py',
+              'scripts/transform/constants.py',
+              'scripts/export/__init__.py',
+              'scripts/export/export_constants.py',
+              'scripts/export/export_utils.py',
+              'scripts/export/parquet_export.py',
+              'scripts/run_pipeline/__init__.py',
               'parquet/volve/wells.parquet',
               'parquet/volve/schema.json',
               'uv.lock'

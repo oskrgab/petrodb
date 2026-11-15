@@ -8,6 +8,7 @@ declares the fixture's columns with the committed declarations.
 
 from __future__ import annotations
 
+import json
 import shutil
 import subprocess
 import sys
@@ -34,6 +35,7 @@ from tests.volve.log_fixtures import (
     TOP_HOLE,
     WELLBORES,
     build_raw_tree,
+    committed_catalog_schema,
     dlis_pair_paths,
     fixture_schema,
     pair_paths,
@@ -47,6 +49,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 WELLS = REPO_ROOT / "parquet" / "volve" / "wells.parquet"
 SCHEMA = REPO_ROOT / "parquet" / "volve" / "schema.json"
 TABLE = "petrophysical_interpretation.parquet"
+CATALOG = "log_curves.parquet"
 
 
 @pytest.fixture
@@ -206,6 +209,39 @@ def test_a_single_interpretation_file_gives_its_input_and_interpreted_curves_one
     )
     # 3666.8964 m holds only sentinels, so it is dropped.
     assert rows == [(3145, 3666.5916, 8.5, 0.2, 112.7), (3145, 3666.744, 8.5, None, 112.8)]
+
+
+def test_a_sample_where_only_the_perforation_flag_has_a_value_is_padding(
+    raw: Path, out: Path
+) -> None:
+    # The perforation flag is a flag like the others: 3666.8964 m holds it and
+    # sentinels only, so the row is dropped and not counted.
+    write_las(
+        single_file_path(raw, "15_9-19 A"),
+        [3666.5916, 3666.744, 3666.8964],
+        {
+            "BS": ("IN", [8.5, 8.5, SENTINEL]),
+            "PHIF": ("V/V", [0.2, SENTINEL, SENTINEL]),
+            "TEMP": ("DEGC", [112.7, 112.8, SENTINEL]),
+            "PERF_FLAG": ("UNITLESS", [1.0, 0.0, 1.0]),
+        },
+    )
+    columns = fixture_schema()
+    perf_flag = next(
+        c
+        for c in json.loads(SCHEMA.read_text())["tables"]["petrophysical_interpretation"]["columns"]
+        if c["name"] == "PERF_FLAG"
+    )
+    # Carried by one Wellbore, so ordered by mnemonic among those: after KLOGV.
+    columns.insert([c["name"] for c in columns].index("KLOGV") + 1, perf_flag)
+    write_schema(out / "schema.json", columns)
+    volve_logs.run(raw_dir=raw, output_dir=out)
+    rows = _rows(
+        out / TABLE,
+        "SELECT depth_md, PHIF, PERF_FLAG FROM {t} "
+        "WHERE source_wellbore = '15/9-19 A' ORDER BY depth_md",
+    )
+    assert rows == [(3666.5916, 0.2, 1.0), (3666.744, None, 0.0)]
 
 
 def test_15_9_19_bt2_is_a_technical_sidetrack_of_15_9_19_b(built: Path) -> None:
@@ -456,6 +492,29 @@ def test_output_that_differs_from_schema_json_stops_the_build(
     assert not (out / TABLE).exists()
 
 
+@pytest.mark.parametrize(
+    ("change", "message"),
+    [
+        (
+            _declare("sample_count", type="DOUBLE"),
+            r"log_curves .*sample_count: BIGINT in the file, schema\.json declares DOUBLE",
+        ),
+        (_declare("unit", name="units"), r"log_curves .*columns are .*unit.*; schema\.json declares .*units"),
+    ],
+    ids=["type", "name"],
+)
+def test_a_curve_catalog_that_differs_from_schema_json_stops_the_build(
+    raw: Path, out: Path, change, message: str
+) -> None:
+    catalog_columns = committed_catalog_schema()
+    change(catalog_columns)
+    write_schema(out / "schema.json", fixture_schema(), catalog_columns)
+    with pytest.raises(schema_check.SchemaMismatchError, match=message):
+        volve_logs.run(raw_dir=raw, output_dir=out)
+    assert not (out / TABLE).exists()
+    assert not (out / CATALOG).exists()
+
+
 def test_a_column_the_file_requires_but_schema_json_declares_nullable_is_a_mismatch(
     tmp_path: Path,
 ) -> None:
@@ -630,7 +689,7 @@ def test_padded_all_null_samples_are_dropped_and_not_counted(built: Path) -> Non
 
 
 def test_no_row_has_every_curve_but_the_flags_null_for_any_source(built: Path) -> None:
-    flags = {"BADDATA_FLAG", "CARB_FLAG", "COAL_FLAG", "SAND_FLAG"}
+    flags = {"BADDATA_FLAG", "CARB_FLAG", "COAL_FLAG", "PERF_FLAG", "SAND_FLAG"}
     curves = [
         name
         for name, *_ in _rows(built, "SELECT column_name FROM (DESCRIBE SELECT * FROM {t})")[3:]

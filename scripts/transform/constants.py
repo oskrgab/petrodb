@@ -181,11 +181,11 @@ SHEET_DAILY = "Daily Production Data"
 SHEET_MONTHLY = "Monthly Production Data"
 
 # Wellbore register snapshot in the local raw directory, a plain download of
-# the Volve Raw repo at its pin (data/raw/README.md). The file names are the
-# ones scripts/raw_repo/volve/register.py gives the exports.
-SOURCE_REGISTER_PATHS = (
-    "data/raw/volve/register/wellbore_development_all.csv",
-    "data/raw/volve/register/wellbore_exploration_all.csv",
+# the Volve Raw repo at its pin (data/raw/README.md). The register tables
+# exported, each saved as <table>.csv by scripts/raw_repo/volve/register.py.
+SOURCE_REGISTER_TABLES = ("wellbore_development_all", "wellbore_exploration_all")
+SOURCE_REGISTER_PATHS = tuple(
+    f"data/raw/volve/register/{table}.csv" for table in SOURCE_REGISTER_TABLES
 )
 
 # NPD field code of Volve: the register rows with it are the Volve Wellbores.

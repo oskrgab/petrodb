@@ -2,6 +2,7 @@
 
 import json
 import re
+import shutil
 from datetime import date
 from pathlib import Path
 
@@ -199,6 +200,23 @@ def test_a_changed_committed_file_is_reported_stale(tmp_path: Path) -> None:
     facts.write_text(facts.read_text().replace("7 wells", "8 wells"))
     (tmp_path / "volve" / "files.json").unlink()
     assert glances.stale("volve", out_root=tmp_path) == ["files.json", "facts.json"]
+
+
+def test_volve_listing_leaves_out_the_tables_built_in_ci(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path,
+) -> None:
+    # The log tables are gitignored and built in CI (ADR-0011): a local build
+    # leaves them on disk, but the committed listing holds only the committed
+    # tables, and the site lists the CI-built ones from disk at build time.
+    meta = json.loads((SITE_DATA / "volve" / "dataset.json").read_text())
+    assert meta["generated_tables"] == ["petrophysical_interpretation", "log_curves"]
+    tree = tmp_path / "volve"
+    shutil.copytree(glances.PARQUET_ROOT / "volve", tree)
+    for name in meta["generated_tables"]:
+        shutil.copy(tree / "wells.parquet", tree / f"{name}.parquet")
+    monkeypatch.setattr(glances, "PARQUET_ROOT", tmp_path)
+    listed = [t["name"] for t in glances.list_files("volve")]
+    assert listed == ["daily_production", "monthly_production", "wells"]
 
 
 def test_check_skips_a_dataset_that_is_not_on_disk(

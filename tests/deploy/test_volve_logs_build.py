@@ -10,6 +10,7 @@ as the runner does, with a stub ``hf`` on ``PATH``.
 from __future__ import annotations
 
 import fnmatch
+import json
 import os
 import re
 import shutil
@@ -82,16 +83,20 @@ def _log_tables() -> list[str]:
 
 
 def _pipeline_sources() -> list[str]:
-    """The repo files of every Volve module the pipeline imports, repo-relative."""
+    """The repo file of every module the pipeline imports, repo-relative.
+
+    Every module, not only the Volve ones: importing a package runs its
+    ``__init__``, which may import siblings (``scripts.export`` imports the
+    production export), and a change to any of them can change the build.
+    """
     out = subprocess.run(
         [
             sys.executable,
             "-c",
             "import sys, scripts.run_pipeline.volve_logs\n"
             "for m in list(sys.modules.values()):\n"
-            "    f = getattr(m, '__file__', None) or ''\n"
-            "    if m.__name__.startswith('scripts.') and 'volve' in m.__name__:\n"
-            "        print(f)",
+            "    if m.__name__ == 'scripts' or m.__name__.startswith('scripts.'):\n"
+            "        print(m.__file__)",
         ],
         cwd=REPO_ROOT,
         check=True,
@@ -114,6 +119,7 @@ def test_cache_is_keyed_on_the_pin_and_every_pipeline_source() -> None:
     assert PIN_FILE in globs
     sources = _pipeline_sources()
     assert "scripts/transform/volve_logs/sources.py" in sources
+    assert "scripts/export/parquet_export.py" in sources
     assert [s for s in sources if not _covered(s, globs)] == []
 
 
@@ -136,6 +142,16 @@ def test_every_log_table_is_gitignored_and_listed_for_the_cache() -> None:
     ]
 
     assert sorted(ignored) == sorted(_log_tables())
+
+
+def test_the_landing_lists_every_log_table_from_disk() -> None:
+    # The site build lists the CI-built tables from disk (generated_tables);
+    # one missing there would render without its rows, size and address.
+    meta = json.loads((REPO_ROOT / "site" / "data" / "volve" / "dataset.json").read_text())
+
+    assert sorted(f"parquet/volve/{name}.parquet" for name in meta["generated_tables"]) == sorted(
+        _log_tables()
+    )
 
 
 def test_changing_the_pin_or_a_pipeline_source_triggers_the_workflow() -> None:
