@@ -1,7 +1,7 @@
 """Build the Curve catalog, ``log_curves``: one row per log table, ``source_wellbore`` and Curve.
 
-A reader fetches it first to learn which Curves exist, for which Wellbore,
-over which depths, and where each came from. Two steps:
+A reader fetches it first to learn which Curves exist, for which Wellbore or
+Technical sidetrack, over which depths, and where each came from. Two steps:
 
 - while a log table is built, ``record`` notes where each Curve of a
   ``source_wellbore`` came from: the file (as a path within the Raw repo),
@@ -26,7 +26,6 @@ from scripts.transform.volve_logs.sql import identifier
 from scripts.transform.volve_logs.units import CURVE_UNITS, UNIT_METADATA_KEY
 
 CATALOG = "log_curves"
-KEY_COLUMNS = ("table_name", "source_wellbore", "mnemonic")
 # The row key every log table starts with; every other column is a Curve.
 TABLE_KEY_COLUMNS = ("npd_wellbore_code", "source_wellbore", "depth_md")
 SORT_COLUMNS = ("table_name", "npd_wellbore_code", "source_wellbore", "mnemonic")
@@ -82,12 +81,6 @@ def curve_samples(relation: str, curves: list[str]) -> str:
     and the ``curves`` columns. A Curve with no sample for a
     ``source_wellbore`` gives no row.
     """
-    if not curves:
-        return (
-            "SELECT NULL::BIGINT AS npd_wellbore_code, NULL::VARCHAR AS source_wellbore, "
-            "NULL::VARCHAR AS mnemonic, NULL::DOUBLE AS first_depth_md, "
-            "NULL::DOUBLE AS last_depth_md, NULL::BIGINT AS sample_count WHERE false"
-        )
     columns = ", ".join(identifier(c) for c in curves)
     return (
         "SELECT npd_wellbore_code, source_wellbore, mnemonic, "

@@ -42,11 +42,11 @@ TABLE_DESCRIPTIONS = {
         "Parquet is not in git."
     ),
     "log_curves": (
-        "The Curve catalog: one row per log table, logged wellbore and Curve "
-        "that has data there. Read it first to learn which Curves a wellbore "
-        "has, over which depths, and which raw file each came from, before "
+        "The Curve catalog: one row per log table, Wellbore or Technical "
+        "sidetrack, and Curve that has data there. Read it first to learn "
+        "which Curves each one has, over which depths, and which raw file each came from, before "
         "reading any samples. One row per `(table_name, source_wellbore, "
-        "mnemonic)`; a Curve that is empty for a wellbore has no row. Its "
+        "mnemonic)`; a Curve that is empty for a `source_wellbore` has no row. Its "
         "depth range and sample count are those of the table it describes. "
         "Built with the log tables from the raw log files; the Parquet is not "
         "in git."
@@ -277,8 +277,8 @@ COLUMN_DESCRIPTIONS = {
             "Technical sidetrack, the code of its parent Wellbore."
         ),
         "source_wellbore": (
-            "The operator's name for the logged wellbore, as in the log "
-            "table's `source_wellbore`: a Wellbore, a Technical sidetrack "
+            "The operator's name for the logged Wellbore or Technical sidetrack, "
+            "as in the log table's `source_wellbore`: a Wellbore, a Technical sidetrack "
             "such as `15/9-F-11 T2`, or the 15/9-F-11 top-hole section."
         ),
         "mnemonic": "The Curve's source mnemonic: the name of its column in the log table.",

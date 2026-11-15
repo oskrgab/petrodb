@@ -24,7 +24,7 @@ from scripts.transform.volve_logs.curve_catalog import curve_columns, curve_samp
 from scripts.transform.volve_logs.sql import path_literal
 
 # How many disagreements an error lists before it stops counting them out.
-SHOWN = 5
+MAX_LISTED = 5
 
 
 def check(catalog: Path, tables: dict[str, Path], wells: Path) -> None:
@@ -96,7 +96,7 @@ def _check_agrees_with_table(con: duckdb.DuckDBPyConnection, name: str, parquet:
     if not differences:
         return
     described = []
-    for source, mnemonic, *row in differences[:SHOWN]:
+    for source, mnemonic, *row in differences[:MAX_LISTED]:
         in_table, in_catalog = tuple(row[:4]), tuple(row[4:])
         if in_catalog[0] is None:
             described.append(f"{source} {mnemonic}: has data, but no catalog row")
@@ -107,7 +107,7 @@ def _check_agrees_with_table(con: duckdb.DuckDBPyConnection, name: str, parquet:
                 f"{source} {mnemonic}: table has (npd_wellbore_code, first, last, count) "
                 f"{in_table}, catalog has {in_catalog}"
             )
-    more = len(differences) - SHOWN
+    more = len(differences) - MAX_LISTED
     raise PrePublishCheckError(
         f"Curve catalog disagrees with {name}: "
         + "; ".join(described)
