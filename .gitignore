@@ -238,3 +238,7 @@ parquet/petrobras_3w/
 .env.*
 !.env.example
 .wrangler/
+
+# Local raw directories: plain downloads of the Raw repos (ADR-0011).
+# Only data/raw/README.md and the pins (*.pin) are committed.
+/data/raw/*/
