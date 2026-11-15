@@ -156,6 +156,18 @@ def test_depth_is_rounded_to_four_decimals_at_the_source_depths(built: Path) -> 
     assert rows == [(3102.102, 90.0, 10.0), (3102.2544, 91.0, 20.0), (3102.4068, 92.0, 30.0)]
 
 
+@pytest.mark.skipif(
+    not (volve_logs.RAW_DIR / "Well_logs_pr_WELL").is_dir(),
+    reason="needs the Raw repo downloaded to data/raw/volve (data/raw/README.md)",
+)
+def test_the_real_raw_files_build_to_the_committed_schema(tmp_path: Path) -> None:
+    # The committed schema.json, unchanged: the documents match the real build.
+    for name in ("wells.parquet", "schema.json"):
+        shutil.copy(SCHEMA.parent / name, tmp_path / name)
+    built = volve_logs.run(output_dir=tmp_path)
+    assert _rows(built, "SELECT num_row_groups FROM parquet_file_metadata({t})") == [(1,)]
+
+
 def test_one_command_builds_the_table(raw: Path, out: Path) -> None:
     subprocess.run(
         [sys.executable, "-m", "scripts.run_pipeline.volve_logs", str(raw), str(out)],

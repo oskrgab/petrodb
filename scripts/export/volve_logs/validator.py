@@ -19,9 +19,12 @@ from pathlib import Path
 import duckdb
 
 from scripts.export.volve_logs import layout
-from scripts.transform.volve_logs.interpretation_builder import KEY_COLUMNS
 from scripts.transform.volve_logs.las_reader import SENTINEL
 from scripts.transform.volve_logs.sql import identifier, path_literal
+
+
+# The written file's own columns, without the row number the checks add.
+WRITTEN_COLUMNS = "(SELECT * EXCLUDE (file_row_number) FROM written)"
 
 
 class PrePublishCheckError(Exception):
@@ -106,12 +109,7 @@ def _check_row_counts(
 
 
 def _check_no_sentinel(con: duckdb.DuckDBPyConnection) -> None:
-    curves = [
-        name
-        for name, *_ in con.execute("DESCRIBE SELECT * EXCLUDE (file_row_number) FROM written").fetchall()
-        if name not in KEY_COLUMNS
-    ]
-    for name in curves:
+    for name in layout.curve_columns(con, WRITTEN_COLUMNS):
         hit = con.execute(
             f"SELECT source_wellbore, depth_md FROM written "
             f"WHERE {identifier(name)} = {SENTINEL} ORDER BY ALL LIMIT 1"
@@ -131,9 +129,8 @@ def _check_one_row_group(con: duckdb.DuckDBPyConnection, parquet: Path) -> None:
 
 
 def _check_column_order(con: duckdb.DuckDBPyConnection) -> None:
-    columns = "(SELECT * EXCLUDE (file_row_number) FROM written)"
-    actual = [name for name, *_ in con.execute(f"DESCRIBE {columns}").fetchall()]
-    declared = layout.column_order(con, columns)
+    actual = [name for name, *_ in con.execute(f"DESCRIBE {WRITTEN_COLUMNS}").fetchall()]
+    declared = layout.column_order(con, WRITTEN_COLUMNS)
     if actual != declared:
         raise PrePublishCheckError(
             f"column order is {', '.join(actual)}; declared {', '.join(declared)}"

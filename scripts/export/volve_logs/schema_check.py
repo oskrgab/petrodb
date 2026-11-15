@@ -37,8 +37,8 @@ def check(parquet: Path, schema: Path) -> None:
     declared = json.loads(Path(schema).read_text())["tables"][TABLE]["columns"]
     source = f"read_parquet({path_literal(parquet)})"
     with duckdb.connect() as con:
-        described = [row[:2] for row in con.execute(f"DESCRIBE SELECT * FROM {source}").fetchall()]
-        types = dict(described)
+        written = [row[:2] for row in con.execute(f"DESCRIBE SELECT * FROM {source}").fetchall()]
+        types = dict(written)
         required = {
             name
             for name, repetition in con.execute(
@@ -56,11 +56,14 @@ def check(parquet: Path, schema: Path) -> None:
             ).fetchone()
             with_nulls = {name for name, n in zip(not_null, counts) if n}
 
-    actual = [name for name, _ in described]
-    names = [c["name"] for c in declared]
+    written_names = [name for name, _ in written]
+    declared_names = [c["name"] for c in declared]
     problems = []
-    if actual != names:
-        problems.append(f"columns are {', '.join(actual)}; schema.json declares {', '.join(names)}")
+    if written_names != declared_names:
+        problems.append(
+            f"columns are {', '.join(written_names)}; "
+            f"schema.json declares {', '.join(declared_names)}"
+        )
     for column in declared:
         name = column["name"]
         if name not in types:

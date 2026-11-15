@@ -6,7 +6,8 @@ Curves the most Wellbores carry. The writer lays the file out with
 ``column_order``; the pre-publish checks hold the written file to it.
 
 A Wellbore carries a Curve when the Curve has at least one value (not NULL)
-in a row of that Wellbore. Curves carried by as many Wellbores are ordered by
+in a row of that Wellbore; rows of a Technical sidetrack count for its
+Wellbore, since they share its ``npd_wellbore_code``. Curves carried by as many Wellbores are ordered by
 mnemonic, so the order is deterministic.
 """
 
@@ -18,13 +19,18 @@ from scripts.transform.volve_logs.interpretation_builder import KEY_COLUMNS
 from scripts.transform.volve_logs.sql import identifier
 
 
-def column_order(con: duckdb.DuckDBPyConnection, relation: str) -> list[str]:
-    """The declared column order for ``relation``: the keys, then its Curves."""
-    curves = [
+def curve_columns(con: duckdb.DuckDBPyConnection, relation: str) -> list[str]:
+    """The Curve columns of ``relation``, in its order: every column but the keys."""
+    return [
         name
         for name, *_ in con.execute(f"DESCRIBE SELECT * FROM {relation}").fetchall()
         if name not in KEY_COLUMNS
     ]
+
+
+def column_order(con: duckdb.DuckDBPyConnection, relation: str) -> list[str]:
+    """The declared column order for ``relation``: the keys, then its Curves."""
+    curves = curve_columns(con, relation)
     if not curves:
         return list(KEY_COLUMNS)
     carriers = con.execute(
