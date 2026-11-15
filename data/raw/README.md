@@ -80,7 +80,7 @@ Technical sidetrack 15/9-F-11 T2, and the input file of the 15/9-F-11
 top-hole section, which has no output file, from
 `Well_logs_pr_WELL/<wellbore>/05.PETROPHYSICAL INTERPRETATION/`. The folder
 names the source, through the mapping in
-`scripts/transform/volve_logs/sources.py`: the sidetrack's rows take the
+`scripts/transform/volve_logs/sources.py`: the Technical sidetrack's rows take the
 `npd_wellbore_code` of its parent, 15/9-F-11, and keep `15/9-F-11 T2` in
 `source_wellbore`. The table is checked before it is
 moved into place; a failed check leaves no new file.

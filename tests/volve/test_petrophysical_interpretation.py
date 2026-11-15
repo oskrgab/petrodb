@@ -17,9 +17,10 @@ import pytest
 from scripts.export.volve_logs import validator
 from scripts.run_pipeline import volve_logs
 from scripts.transform.volve_logs.interpretation_builder import CurveDisagreementError
+from scripts.transform.volve_logs.las_reader import LasSourceError
 from tests.volve.log_fixtures import (
     SENTINEL,
-    SIDETRACK,
+    TECHNICAL_SIDETRACK,
     TOP_HOLE,
     WELLBORES,
     build_raw_tree,
@@ -88,7 +89,7 @@ def test_the_table_holds_every_source_each_with_its_npd_wellbore_code(built: Pat
         ("15/9-F-15 D", 7289, 2),
     ]
     assert sorted(source for source, _, _ in rows) == sorted(
-        [s for s, _ in WELLBORES.values()] + [SIDETRACK[1], TOP_HOLE[1]]
+        [s for s, _ in WELLBORES.values()] + [TECHNICAL_SIDETRACK[1], TOP_HOLE[1]]
     )
 
 
@@ -124,7 +125,7 @@ def test_the_input_only_top_hole_section_is_its_own_source_with_no_interpreted_c
     ]
 
 
-def test_the_top_hole_section_and_the_sidetrack_are_not_merged_where_they_overlap(
+def test_the_top_hole_section_and_the_technical_sidetrack_are_not_merged_where_they_overlap(
     built: Path,
 ) -> None:
     rows = _rows(
@@ -194,6 +195,15 @@ def test_a_shared_mnemonic_that_disagrees_stops_the_build(raw: Path, out: Path) 
         {"VSH": ("V/V", [0.5, 0.61])},
     )
     with pytest.raises(CurveDisagreementError, match=r"15/9-F-1\b.*VSH.*1000\.3"):
+        volve_logs.run(raw_dir=raw, output_dir=out)
+    assert not (out / TABLE).exists()
+
+
+def test_an_output_file_beside_the_input_only_top_hole_section_stops_the_build(
+    raw: Path, out: Path
+) -> None:
+    write_las(pair_paths(raw, TOP_HOLE[0])[1], [200.0], {"PHIF": ("v/v", [0.1])})
+    with pytest.raises(LasSourceError, match=r"15/9-F-11 is mapped as input-only"):
         volve_logs.run(raw_dir=raw, output_dir=out)
     assert not (out / TABLE).exists()
 

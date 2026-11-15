@@ -27,11 +27,11 @@ OUTPUT_FILE = "WLC_PETRO_COMPUTED_OUTPUT_1.LAS"
 
 
 @dataclass(frozen=True)
-class LasPair:
-    """The input and output LAS files of one source's petrophysical interpretation.
+class LasSource:
+    """The LAS files of one ``source_wellbore``'s petrophysical interpretation.
 
-    ``has_output`` is false for a source with an input file only: every
-    Interpreted curve of its rows is NULL.
+    Usually an input and an output file. ``has_output`` is false for a source
+    with an input file only: every Interpreted curve of its rows is NULL.
     """
 
     folder: str
@@ -46,22 +46,26 @@ class LasPair:
         return self._path(raw_dir, INPUT_FILE)
 
     def output_path(self, raw_dir: Path) -> Path | None:
-        return self._path(raw_dir, OUTPUT_FILE) if self.has_output else None
+        return self.unread_output_path(raw_dir) if self.has_output else None
+
+    def unread_output_path(self, raw_dir: Path) -> Path:
+        """Where the output file would be, whether or not this source has one."""
+        return self._path(raw_dir, OUTPUT_FILE)
 
 
 # The sources whose interpretation is LAS, one folder each. Only the
 # WLC_PETRO_COMPUTED files are read: the geomodel permeability export beside
 # them (geomod09/*_KLOGH_NEW.las) is not. 7078 is 15/9-F-11: the parent of the
 # Technical sidetrack F-11 T2, and the Wellbore of the top-hole section.
-LAS_PAIRS: tuple[LasPair, ...] = (
-    LasPair("15_9-F-1", "15/9-F-1", 7223),
-    LasPair("15_9-F-1 A", "15/9-F-1 A", 7224),
-    LasPair("15_9-F-1 B", "15/9-F-1 B", 7264),
-    LasPair("15_9-F-1 C", "15/9-F-1 C", 7405),
-    LasPair("15_9-F-11 A", "15/9-F-11 A", 7079),
-    LasPair("15_9-F-11 B", "15/9-F-11 B", 7080),
-    LasPair("15_9-F-11 T2", "15/9-F-11 T2", 7078),
-    LasPair("15_9-F-11", "15/9-F-11", 7078, has_output=False),
-    LasPair("15_9-F-12", "15/9-F-12", 5599),
-    LasPair("15_9-F-15 D", "15/9-F-15 D", 7289),
+LAS_SOURCES: tuple[LasSource, ...] = (
+    LasSource("15_9-F-1", "15/9-F-1", 7223),
+    LasSource("15_9-F-1 A", "15/9-F-1 A", 7224),
+    LasSource("15_9-F-1 B", "15/9-F-1 B", 7264),
+    LasSource("15_9-F-1 C", "15/9-F-1 C", 7405),
+    LasSource("15_9-F-11 A", "15/9-F-11 A", 7079),
+    LasSource("15_9-F-11 B", "15/9-F-11 B", 7080),
+    LasSource("15_9-F-11 T2", "15/9-F-11 T2", 7078),
+    LasSource("15_9-F-11", "15/9-F-11", 7078, has_output=False),
+    LasSource("15_9-F-12", "15/9-F-12", 5599),
+    LasSource("15_9-F-15 D", "15/9-F-15 D", 7289),
 )

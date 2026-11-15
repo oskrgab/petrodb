@@ -189,7 +189,7 @@ COLUMN_DESCRIPTIONS = {
             "Technical sidetrack, such as `15/9-F-11 T2`, is a re-drilled "
             "section the register does not count as a Wellbore: its rows "
             "carry the `npd_wellbore_code` of its parent Wellbore "
-            "(`15/9-F-11`) and keep the sidetrack's name here. The "
+            "(`15/9-F-11`) and keep the Technical sidetrack's name here. The "
             "15/9-F-11 top-hole section is "
             "`15/9-F-11`: it has Input curves only, and it overlaps the "
             "depths of `15/9-F-11 T2` with different values. Filter on "

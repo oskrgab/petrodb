@@ -1,11 +1,11 @@
 """Synthetic LAS files laid out like the Volve Raw repo, written at test time.
 
 Every file is generated with ``lasio`` into a temporary directory; no real log
-file and no network is needed. The tree holds one LAS pair for each of the
-eight Wellbores the petrophysical interpretation reads as LAS pairs, under the
-upstream folder names, plus a geomodel permeability export the build must not
-read, the LAS pair of the Technical sidetrack 15/9-F-11 T2 and the input-only
-15/9-F-11 top-hole section.
+file and no network is needed. The tree holds, under the upstream folder
+names, one LAS pair for each of the eight Wellbores the petrophysical
+interpretation reads as LAS pairs, the LAS pair of the Technical sidetrack
+15/9-F-11 T2, and the input file of the 15/9-F-11 top-hole section. Beside
+them sits a geomodel permeability export the build must not read.
 """
 
 from __future__ import annotations
@@ -31,7 +31,7 @@ WELLBORES = {
 
 # The Technical sidetrack: not in the register, so its rows take the parent
 # Wellbore's npd_wellbore_code, 15/9-F-11.
-SIDETRACK = ("15_9-F-11 T2", "15/9-F-11 T2", 7078)
+TECHNICAL_SIDETRACK = ("15_9-F-11 T2", "15/9-F-11 T2", 7078)
 # The 15/9-F-11 top-hole section: an input file and no output file.
 TOP_HOLE = ("15_9-F-11", "15/9-F-11", 7078)
 
@@ -119,11 +119,11 @@ def build_raw_tree(raw: Path) -> Path:
 
     # 15/9-F-11 T2 logs from 200.0 m; its interpretation starts deeper.
     write_las(
-        pair_paths(raw, SIDETRACK[0])[0],
+        pair_paths(raw, TECHNICAL_SIDETRACK[0])[0],
         [200.0, 200.1, 200.2, 4000.0],
         {"GR": ("API", [40.0, 41.0, 42.0, 43.0])},
     )
-    write_las(pair_paths(raw, SIDETRACK[0])[1], [4000.0], {"PHIF": ("v/v", [0.2])})
+    write_las(pair_paths(raw, TECHNICAL_SIDETRACK[0])[1], [4000.0], {"PHIF": ("v/v", [0.2])})
     # The top-hole section lies inside T2's depth range with other values, and
     # has an all-NULL row at 200.2 m.
     write_las(
