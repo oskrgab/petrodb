@@ -76,11 +76,14 @@ def raw_files() -> tuple[str, ...]:
 
     Paths use ``/`` and keep upstream names, spaces and ``&`` included. The
     deploy workflow downloads exactly these from the Raw repo at the pin, so a
-    source added here is fetched in CI with no change to the workflow.
+    source added here is fetched in CI with no change to the workflow. An
+    input-only source names no output file: the build only checks that none is
+    there.
     """
     root = Path()  # an empty root leaves each path relative to the raw directory
     return tuple(
         path.as_posix()
-        for pair in LAS_PAIRS
-        for path in (pair.input_path(root), pair.output_path(root))
+        for source in LAS_SOURCES
+        for path in (source.input_path(root), source.output_path(root))
+        if path is not None
     )
