@@ -5,7 +5,7 @@ From the repo root, after downloading the Raw repo (``data/raw/README.md``):
     uv run python -m scripts.run_pipeline.volve_logs [RAW_DIR] [OUTPUT_DIR]
 
 ``RAW_DIR`` defaults to ``data/raw/volve`` and ``OUTPUT_DIR`` to
-``parquet/volve``, which must hold ``wells.parquet``. With
+``parquet/volve``, which must hold ``wells.parquet`` and ``schema.json``. With
 ``--list-raw-files`` it builds nothing and prints, one per line, every file it
 would read, as a path within the Raw repo; the deploy workflow downloads those.
 """

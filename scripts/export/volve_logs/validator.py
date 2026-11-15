@@ -7,7 +7,9 @@ failure raises ``PrePublishCheckError`` and stops the build:
 - every ``npd_wellbore_code`` exists in ``wells``;
 - ``depth_md`` strictly increases, in file order, within each ``source_wellbore``;
 - each ``source_wellbore`` has as many rows as its source has non-empty depth samples;
-- no sentinel value ``-999.25`` remains in a Curve column.
+- no sentinel value ``-999.25`` remains in a Curve column;
+- the file is a single row group;
+- the columns are in the order ``layout`` declares.
 """
 
 from __future__ import annotations
@@ -16,9 +18,13 @@ from pathlib import Path
 
 import duckdb
 
-from scripts.transform.volve_logs.interpretation_builder import KEY_COLUMNS
+from scripts.export.volve_logs import layout
 from scripts.transform.volve_logs.las_reader import SENTINEL
 from scripts.transform.volve_logs.sql import identifier, path_literal
+
+
+# The written file's own columns, without the row number the checks add.
+WRITTEN_COLUMNS = "(SELECT * EXCLUDE (file_row_number) FROM written)"
 
 
 class PrePublishCheckError(Exception):
@@ -38,6 +44,8 @@ def check(parquet: Path, wells: Path, expected_rows: dict[str, int]) -> None:
         _check_depth_increases(con)
         _check_row_counts(con, expected_rows)
         _check_no_sentinel(con)
+        _check_one_row_group(con, parquet)
+        _check_column_order(con)
 
 
 def _check_unique_key(con: duckdb.DuckDBPyConnection) -> None:
@@ -101,12 +109,7 @@ def _check_row_counts(
 
 
 def _check_no_sentinel(con: duckdb.DuckDBPyConnection) -> None:
-    curves = [
-        name
-        for name, *_ in con.execute("DESCRIBE SELECT * EXCLUDE (file_row_number) FROM written").fetchall()
-        if name not in KEY_COLUMNS
-    ]
-    for name in curves:
+    for name in layout.curve_columns(con, WRITTEN_COLUMNS):
         hit = con.execute(
             f"SELECT source_wellbore, depth_md FROM written "
             f"WHERE {identifier(name)} = {SENTINEL} ORDER BY ALL LIMIT 1"
@@ -115,3 +118,20 @@ def _check_no_sentinel(con: duckdb.DuckDBPyConnection) -> None:
             raise PrePublishCheckError(
                 f"sentinel {SENTINEL} left in Curve {name}: {hit[0]} at {hit[1]} m"
             )
+
+
+def _check_one_row_group(con: duckdb.DuckDBPyConnection, parquet: Path) -> None:
+    (row_groups,) = con.execute(
+        f"SELECT num_row_groups FROM parquet_file_metadata({path_literal(parquet)})"
+    ).fetchone()
+    if row_groups != 1:
+        raise PrePublishCheckError(f"the file has {row_groups} row groups, not one")
+
+
+def _check_column_order(con: duckdb.DuckDBPyConnection) -> None:
+    actual = [name for name, *_ in con.execute(f"DESCRIBE {WRITTEN_COLUMNS}").fetchall()]
+    declared = layout.column_order(con, WRITTEN_COLUMNS)
+    if actual != declared:
+        raise PrePublishCheckError(
+            f"column order is {', '.join(actual)}; declared {', '.join(declared)}"
+        )
