@@ -663,7 +663,7 @@ LOOKUPS: list[Lookup] = [
 # --------------------------------------------------------------------------
 
 VOLVE_FACTS_SQL = """\
-SELECT (SELECT count(*) FROM '{base}/volve/wells.parquet'),
+SELECT (SELECT count(*) FROM '{base}/volve/wells.parquet' WHERE has_production),
        year(min(date)), year(max(date))
 FROM '{base}/volve/daily_production.parquet';"""
 
