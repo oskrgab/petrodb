@@ -70,6 +70,58 @@ Monthly volumes per wellbore, from Equinor's monthly production report. One row 
 
 ---
 
+### `petrophysical_interpretation`
+
+Well-log Curves of Equinor's petrophysical interpretation, one row per depth sample of each logged wellbore: the Input curves the interpretation took (gamma ray, density, neutron, sonic, resistivity) and the Interpreted curves it computed (porosity, water saturation, shale volume, permeability, lithology flags) side by side. One row per `(source_wellbore, depth_md)`. Each Curve column is named with the source mnemonic and is empty where the wellbore has no sample. Samples are at the source depths; nothing is resampled. Built from the raw log files; the Parquet is not in git.
+
+**Columns:**
+
+| Column | Type | Nullable | Primary Key | Description |
+|--------|------|----------|-------------|-------------|
+| `npd_wellbore_code` | INTEGER | No |  | Wellbore the row belongs to. Joins to `wells`. |
+| `source_wellbore` | TEXT | No | ✓ | The operator's name for the logged wellbore, such as `15/9-F-1 A`, taken from the folder the source files sit in. |
+| `depth_md` | DOUBLE | No | ✓ | Measured depth along the wellbore, in metres, rounded to four decimals so that equality joins are stable. The depth reference is the one the source file uses; it is not normalised. |
+| `ABDCQF01` | DOUBLE | Yes |  | Bulk density from quadrant 1 of an azimuthal density measurement while drilling, in g/cm³. |
+| `ABDCQF02` | DOUBLE | Yes |  | Bulk density from quadrant 2 of an azimuthal density measurement while drilling, in g/cm³. |
+| `ABDCQF03` | DOUBLE | Yes |  | Bulk density from quadrant 3 of an azimuthal density measurement while drilling, in g/cm³. |
+| `ABDCQF04` | DOUBLE | Yes |  | Bulk density from quadrant 4 of an azimuthal density measurement while drilling, in g/cm³. |
+| `BS` | DOUBLE | Yes |  | Bit size: nominal diameter of the drilled hole, in inches. |
+| `CALI` | DOUBLE | Yes |  | Caliper: measured borehole diameter, in inches. |
+| `DRHO` | DOUBLE | Yes |  | Density correction applied to the bulk density, in g/cm³. |
+| `DT` | DOUBLE | Yes |  | Compressional sonic slowness, in µs/ft. |
+| `DTS` | DOUBLE | Yes |  | Shear sonic slowness, in µs/ft. |
+| `GR` | DOUBLE | Yes |  | Natural gamma ray, in API units. |
+| `NBGRCFM` | DOUBLE | Yes |  | Natural gamma ray measured near the bit while drilling, in API units. |
+| `NPHI` | DOUBLE | Yes |  | Neutron porosity, as a fraction (v/v). |
+| `PEF` | DOUBLE | Yes |  | Photoelectric factor, in barns per electron. |
+| `RACEHM` | DOUBLE | Yes |  | Propagation resistivity while drilling, from the attenuation of the high-frequency signal, in ohm·m. |
+| `RACELM` | DOUBLE | Yes |  | Propagation resistivity while drilling, from the attenuation of the low-frequency signal, in ohm·m. |
+| `RD` | DOUBLE | Yes |  | Deep resistivity, in ohm·m. |
+| `RHOB` | DOUBLE | Yes |  | Bulk density, in g/cm³. |
+| `RM` | DOUBLE | Yes |  | Medium resistivity, in ohm·m. |
+| `ROP` | DOUBLE | Yes |  | Rate of penetration while drilling, in m/h. |
+| `ROP5_RM` | DOUBLE | Yes |  | Rate of penetration while drilling, a second recording; the source gives no unit. |
+| `RPCEHM` | DOUBLE | Yes |  | Propagation resistivity while drilling, from the phase shift of the high-frequency signal, in ohm·m. |
+| `RPCELM` | DOUBLE | Yes |  | Propagation resistivity while drilling, from the phase shift of the low-frequency signal, in ohm·m. |
+| `RS` | DOUBLE | Yes |  | Shallow resistivity, in ohm·m. |
+| `RT` | DOUBLE | Yes |  | True formation resistivity, as the interpreter selected it, in ohm·m. |
+| `BADDATA_FLAG` | DOUBLE | Yes |  | Interpreted flag: 1 where the interpreter judged the log data unreliable, 0 elsewhere. |
+| `BVW` | DOUBLE | Yes |  | Bulk volume of water: porosity times water saturation, as a fraction of rock volume (v/v). |
+| `CARB_FLAG` | DOUBLE | Yes |  | Lithology flag: 1 where the interpretation marks carbonate, 0 elsewhere. |
+| `COAL_FLAG` | DOUBLE | Yes |  | Lithology flag: 1 where the interpretation marks coal, 0 elsewhere. |
+| `KLOGH` | DOUBLE | Yes |  | Horizontal permeability computed from the logs, in millidarcy (mD). |
+| `PHIF` | DOUBLE | Yes |  | Final effective porosity from the interpretation, as a fraction (v/v). |
+| `SAND_FLAG` | DOUBLE | Yes |  | Lithology flag: 1 where the interpretation marks sand, 0 elsewhere. |
+| `SW` | DOUBLE | Yes |  | Water saturation from the interpretation, as a fraction of pore volume (v/v). |
+| `VCARB` | DOUBLE | Yes |  | Volume of carbonate minerals (calcite, dolomite, siderite), as a fraction (v/v). |
+| `VSH` | DOUBLE | Yes |  | Shale volume, as a fraction (v/v). |
+
+**Foreign Keys:**
+
+- `npd_wellbore_code` → `wells.npd_wellbore_code`
+
+---
+
 ### `wells`
 
 One row per wellbore the public wellbore register of the Norwegian Offshore Directorate assigns to the Volve field, drilled or not: its identifiers, the register's classification and the wellbore it was drilled from. The production columns come from Equinor's production report and are empty for a wellbore without production; `has_production` marks the wellbores that have production rows.
@@ -103,5 +155,6 @@ One row per wellbore the public wellbore register of the Norwegian Offshore Dire
 ```
 daily_production.npd_wellbore_code → wells.npd_wellbore_code
 monthly_production.npd_wellbore_code → wells.npd_wellbore_code
+petrophysical_interpretation.npd_wellbore_code → wells.npd_wellbore_code
 wells.parent_npd_wellbore_code → wells.npd_wellbore_code
 ```
