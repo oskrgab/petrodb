@@ -17,6 +17,7 @@ from sqlalchemy import (
     Table,
     Column,
     Integer,
+    Boolean,
     Float,
     Text,
     Date,
@@ -38,6 +39,12 @@ from constants import (
     WELLS_NPD_FIELD_NAME,
     WELLS_NPD_FACILITY_CODE,
     WELLS_NPD_FACILITY_NAME,
+    WELLS_WELLBORE_TYPE,
+    WELLS_PURPOSE,
+    WELLS_CONTENT,
+    WELLS_COMPLETION_YEAR,
+    WELLS_PARENT_NPD_WELLBORE_CODE,
+    WELLS_HAS_PRODUCTION,
     # Daily production columns
     DAILY_DATE,
     DAILY_NPD_WELLBORE_CODE,
@@ -90,8 +97,10 @@ def define_wells_table(metadata: MetaData) -> Table:
     """
     Define the wells master table.
 
-    This table contains one row per unique wellbore, storing static attributes
-    that don't change over time (well identifiers, field assignment, facility).
+    This table contains one row per Wellbore the public register assigns to
+    Volve, storing static attributes that don't change over time (identifiers,
+    field assignment, facility, the register's classification). The production
+    source columns are NULL for a Wellbore without production.
 
     Primary Key: npd_wellbore_code (unique identifier from Norwegian Petroleum Directorate)
 
@@ -113,7 +122,6 @@ def define_wells_table(metadata: MetaData) -> Table:
         Column(
             WELLS_WELLBORE_CODE,
             Text,
-            nullable=False,
             comment="Well bore code (e.g., 'NO 15/9-F-1 C')",
         ),
         Column(
@@ -137,14 +145,28 @@ def define_wells_table(metadata: MetaData) -> Table:
         Column(
             WELLS_NPD_FACILITY_CODE,
             Integer,
-            nullable=False,
             comment="NPD facility code",
         ),
         Column(
             WELLS_NPD_FACILITY_NAME,
             Text,
-            nullable=False,
             comment="Facility name",
+        ),
+        Column(WELLS_WELLBORE_TYPE, Text, nullable=False, comment="Register well type"),
+        Column(WELLS_PURPOSE, Text, nullable=False, comment="Register purpose"),
+        Column(WELLS_CONTENT, Text, comment="Register content"),
+        Column(WELLS_COMPLETION_YEAR, Integer, comment="Register completion year"),
+        Column(
+            WELLS_PARENT_NPD_WELLBORE_CODE,
+            Integer,
+            ForeignKey(f"{TABLE_WELLS}.{WELLS_NPD_WELLBORE_CODE}"),
+            comment="Wellbore this one was drilled from",
+        ),
+        Column(
+            WELLS_HAS_PRODUCTION,
+            Boolean,
+            nullable=False,
+            comment="Wellbore has production rows",
         ),
     )
 
@@ -395,6 +417,10 @@ def print_schema_info() -> None:
     print("     - npd_field_name (TEXT)")
     print("     - npd_facility_code (INTEGER)")
     print("     - npd_facility_name (TEXT)")
+    print("     - wellbore_type, purpose, content (TEXT)")
+    print("     - completion_year (INTEGER)")
+    print("     - parent_npd_wellbore_code (INTEGER, FK)")
+    print("     - has_production (BOOLEAN)")
 
     print(f"\n2. {TABLE_DAILY_PRODUCTION.upper()} (Time-Series Table)")
     print("   Purpose: Daily production measurements per wellbore")

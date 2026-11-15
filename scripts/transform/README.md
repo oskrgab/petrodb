@@ -1,6 +1,7 @@
 # Data Transformation Scripts
 
 This directory contains scripts for transforming raw Volve production data from Excel format into a structured SQLite database.
+The `wells` table also lists the Volve wellbores that never produced, from the wellbore register snapshot in the local raw directory (`data/raw/volve/register/`, see [`data/raw/README.md`](../../data/raw/README.md)).
 
 ## Files
 
@@ -41,12 +42,15 @@ This creates `database/volve.db` with three empty tables:
 ### 2. Load Data
 
 ```bash
-# From project root
+# From project root. The register snapshot must be in data/raw/volve/register/:
+# download it from the Raw repo at the pin (data/raw/README.md), e.g.
+#   hf download oskrgab/petrodb-raw-volve --repo-type dataset \
+#     --revision "$(cat data/raw/volve.pin)" --local-dir data/raw/volve --include "register/*"
 uv run python scripts/transform/load_data.py
 ```
 
 This script loads all data into the database:
-1. Extracts unique wells from source data → populates `wells` table
+1. Joins the wellbores of the production source to the Volve wellbores of the register snapshot → populates `wells` table
 2. Transforms daily production data → populates `daily_production` table
 3. Cleans and transforms monthly data → populates `monthly_production` table
 
@@ -102,7 +106,7 @@ Benefits:
 
 1. ✅ Schema created (`create_tables.py`)
 2. ✅ Data loading implemented (`load_data.py`)
-3. ✅ Database populated with 7 wells, 15,634 daily records, 526 monthly records
+3. ✅ Database populated with 27 wellbores (7 with production), 15,634 daily records, 526 monthly records
 4. ✅ SQL query examples available in [USAGE_EXAMPLES.md](USAGE_EXAMPLES.md)
 
 ## Dependencies

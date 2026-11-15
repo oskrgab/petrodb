@@ -47,13 +47,20 @@ CREATE TABLE monthly_production (
 
 CREATE TABLE wells (
 	npd_wellbore_code INTEGER NOT NULL, 
-	wellbore_code TEXT NOT NULL, 
+	wellbore_code TEXT, 
 	wellbore_name TEXT NOT NULL, 
 	npd_field_code INTEGER NOT NULL, 
 	npd_field_name TEXT NOT NULL, 
-	npd_facility_code INTEGER NOT NULL, 
-	npd_facility_name TEXT NOT NULL, 
-	PRIMARY KEY (npd_wellbore_code)
+	npd_facility_code INTEGER, 
+	npd_facility_name TEXT, 
+	wellbore_type TEXT NOT NULL, 
+	purpose TEXT NOT NULL, 
+	content TEXT, 
+	completion_year INTEGER, 
+	parent_npd_wellbore_code INTEGER, 
+	has_production BOOLEAN NOT NULL, 
+	PRIMARY KEY (npd_wellbore_code), 
+	FOREIGN KEY(parent_npd_wellbore_code) REFERENCES wells (npd_wellbore_code)
 )
 
 ;

@@ -74,6 +74,23 @@ Licence: Equinor Open Data Licence,
 https://cdn.equinor.com/files/h61q9gi9/global/de6532f6134b9a953f6c41bac47a0c055a3712d3.pdf
 ```
 
+## The wellbore register (NLOD)
+
+The `wells` table also lists the Volve wellbores that never produced, and
+gives every wellbore its type, purpose, content, completion year and parent
+wellbore. Those come from the public wellbore register of the Norwegian
+Offshore Directorate (formerly the Norwegian Petroleum Directorate), not from
+the Volve dataset, and carry the register's own licence, the
+**Norwegian Licence for Open Government Data (NLOD)**:
+<https://data.norge.no/nlod/en>. When you use or share them, include:
+
+> Contains data under the Norwegian Licence for Open Government Data (NLOD)
+> distributed by the Norwegian Offshore Directorate.
+
+The register snapshot the table is built from is published in the Volve Raw
+repo, [`oskrgab/petrodb-raw-volve`](https://huggingface.co/datasets/oskrgab/petrodb-raw-volve),
+under `register/`.
+
 ## Data processing
 
 The original Volve dataset provides production data in Excel format. This
