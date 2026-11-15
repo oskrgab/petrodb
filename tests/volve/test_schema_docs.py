@@ -144,6 +144,55 @@ def test_petrophysical_interpretation_states_its_layout(exported: Path) -> None:
     assert description in (exported / "schema.md").read_text()
 
 
+def test_every_curve_has_one_unit_in_schema_json_and_schema_md(exported: Path) -> None:
+    columns = json.loads((exported / "schema.json").read_text())["tables"][
+        "petrophysical_interpretation"
+    ]["columns"]
+    units = {c["name"]: c["unit"] for c in columns}
+    assert units == {
+        "npd_wellbore_code": None,
+        "source_wellbore": None,
+        "depth_md": "m",
+        **{name: "g/cm³" for name in ("ABDCQF01", "ABDCQF02", "ABDCQF03", "ABDCQF04")},
+        "BS": "in",
+        "CALI": "in",
+        "DRHO": "g/cm³",
+        "DT": "µs/ft",
+        "DTS": "µs/ft",
+        "GR": "gAPI",
+        "NBGRCFM": "gAPI",
+        "NPHI": "v/v",
+        "PEF": "b/e",
+        **{name: "ohm·m" for name in ("RACEHM", "RACELM", "RD", "RM", "RPCEHM", "RPCELM", "RS", "RT")},
+        "RHOB": "g/cm³",
+        "ROP": "m/h",
+        "ROP5_RM": "m/h",
+        **{name: "unitless" for name in ("BADDATA_FLAG", "CARB_FLAG", "COAL_FLAG", "SAND_FLAG")},
+        **{name: "v/v" for name in ("BVW", "PHIF", "SW", "VCARB", "VSH")},
+        "KLOGH": "mD",
+    }  # fmt: skip
+    markdown = (exported / "schema.md").read_text()
+    section = markdown[markdown.index("### `petrophysical_interpretation`") :].split("\n---\n", 1)[0]
+    assert "| Column | Type | Unit | Nullable | Primary Key | Description |" in section
+    md_units = {
+        row[1]: row[2].split("|")[1].strip()
+        for row in re.finditer(r"^\| `([^`]+)` \|(.*)\|\s*$", section, re.M)
+    }
+    assert md_units == {name: unit or "—" for name, unit in units.items()}
+
+
+def test_a_documented_curve_without_a_unit_is_an_error() -> None:
+    with pytest.raises(ValueError, match="RHOB: no documented unit"):
+        export_schema.check_curve_units(("GR", "RHOB"), {"GR": "gAPI"})
+
+
+def test_tables_without_units_keep_their_document_layout(exported: Path) -> None:
+    schema = json.loads((exported / "schema.json").read_text())["tables"]
+    for table in ("wells", "daily_production", "monthly_production"):
+        assert all("unit" not in c for c in schema[table]["columns"]), table
+    assert "| Column | Type | Nullable | Primary Key | Description |" in _wells_section(exported)
+
+
 def test_source_wellbore_explains_technical_sidetracks_and_their_parent(exported: Path) -> None:
     described = _md_descriptions((exported / "schema.md").read_text())
     source = described["petrophysical_interpretation"]["source_wellbore"]

@@ -55,11 +55,14 @@ From the repo root, with the [Hugging Face CLI](https://huggingface.co/docs/hugg
 hf download oskrgab/petrodb-raw-volve --repo-type dataset \
   --revision "$(cat data/raw/volve.pin)" --local-dir data/raw/volve
 
-# Only what the petrophysical interpretation build reads
-hf download oskrgab/petrodb-raw-volve --repo-type dataset \
-  --revision "$(cat data/raw/volve.pin)" --local-dir data/raw/volve \
-  --include "Well_logs_pr_WELL/*/05.PETROPHYSICAL INTERPRETATION/*" --include "register/*"
+# Only the files the log pipeline reads (in bash, for mapfile)
+mapfile -t files < <(uv run python -m scripts.run_pipeline.volve_logs --list-raw-files)
+hf download oskrgab/petrodb-raw-volve "${files[@]}" --repo-type dataset \
+  --revision "$(cat data/raw/volve.pin)" --local-dir data/raw/volve
 ```
+
+`--list-raw-files` prints those files one per line, as paths within the Raw
+repo, and builds nothing.
 
 ### Build the log tables
 
@@ -84,8 +87,22 @@ top-hole section, which has no output file, from
 names the source, through the mapping in
 `scripts/transform/volve_logs/sources.py`: the Technical sidetrack's rows take the
 `npd_wellbore_code` of its parent, 15/9-F-11, and keep `15/9-F-11 T2` in
-`source_wellbore`. The table is checked before it is
-moved into place; a failed check leaves no new file.
+`source_wellbore`. Each Curve's unit spelling must be one the unit table in
+`scripts/transform/volve_logs/units.py` maps to the unit documented for its
+column; the build stops on any other, naming the file, the mnemonic and the
+spelling, and a new spelling is added there by review. The table is checked
+before it is moved into place; a failed check leaves no new file.
+
+### In CI
+
+The deploy workflow (`.github/workflows/deploy-cloudflare-pages.yml`) runs the
+same two commands, the download above and the build, on every `main` or
+`stage` deploy whose cache misses, then uploads the tables to the matching
+revision of `oskrgab/petrodb`. It downloads with a read token, the
+`HF_RAW_READ_TOKEN` secret. The cache is keyed on the pin, the pipeline
+sources, the committed `wells.parquet` and `schema.json`, and `uv.lock`; a
+deploy that changes none of them restores the tables without rebuilding. A
+failed check stops the deploy before anything is uploaded.
 
 ### Fill the Raw repo (maintainer)
 

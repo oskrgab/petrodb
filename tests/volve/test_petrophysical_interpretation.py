@@ -8,7 +8,6 @@ declares the fixture's columns with the committed declarations.
 
 from __future__ import annotations
 
-import json
 import shutil
 import subprocess
 import sys
@@ -22,42 +21,24 @@ from scripts.export.volve_logs import schema_check, validator
 from scripts.run_pipeline import volve_logs
 from scripts.transform.volve_logs.interpretation_builder import CurveDisagreementError
 from scripts.transform.volve_logs.las_reader import LasSourceError
+from scripts.transform.volve_logs.units import UnitMismatchError, UnitSpellingError
 from tests.volve.log_fixtures import (
+    FIXTURE_COLUMNS,
     SENTINEL,
     TECHNICAL_SIDETRACK,
     TOP_HOLE,
     WELLBORES,
     build_raw_tree,
+    fixture_schema,
     pair_paths,
     write_las,
+    write_schema,
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 WELLS = REPO_ROOT / "parquet" / "volve" / "wells.parquet"
 SCHEMA = REPO_ROOT / "parquet" / "volve" / "schema.json"
 TABLE = "petrophysical_interpretation.parquet"
-
-# GR: all nine Wellbores; SW: the six plain pairs; PHIF: 15/9-F-1 and
-# 15/9-F-11; the rest one each, by mnemonic. A Wellbore counts once: VSH is
-# in both files of 15/9-F-1, GR in both 15/9-F-11 sources (the Technical
-# sidetrack and the top-hole section).
-FIXTURE_COLUMNS = [
-    "npd_wellbore_code", "source_wellbore", "depth_md",
-    "GR", "SW", "PHIF", "COAL_FLAG", "KLOGH", "RHOB", "ROP", "VSH",
-]  # fmt: skip
-
-
-def _write_schema(path: Path, columns: list[dict]) -> None:
-    path.write_text(
-        json.dumps({"tables": {"petrophysical_interpretation": {"columns": columns}}})
-    )
-
-
-def _fixture_schema() -> list[dict]:
-    """The committed declarations of the fixture's columns, in the fixture's order."""
-    committed = json.loads(SCHEMA.read_text())["tables"]["petrophysical_interpretation"]
-    by_name = {c["name"]: c for c in committed["columns"]}
-    return [by_name[name] for name in FIXTURE_COLUMNS]
 
 
 @pytest.fixture
@@ -70,7 +51,7 @@ def out(tmp_path: Path) -> Path:
     out = tmp_path / "out"
     out.mkdir()
     shutil.copy(WELLS, out / "wells.parquet")
-    _write_schema(out / "schema.json", _fixture_schema())
+    write_schema(out / "schema.json", fixture_schema())
     return out
 
 
@@ -96,6 +77,29 @@ def test_one_row_per_depth_with_input_and_interpreted_curves_side_by_side(built:
         (1000.3, 60.0, 2.33, 0.6, 0.22, 1.0),
         (1000.4, 70.0, 2.34, None, 0.23, 0.0),
         (1000.5, None, None, None, 0.24, 0.0),
+    ]
+
+
+def test_two_spellings_of_one_unit_make_one_column_with_the_values_unchanged(
+    raw: Path, out: Path
+) -> None:
+    # 15/9-F-1 spells VSH's fraction v/v in the input file and V/V in the
+    # output file; 15/9-F-1 A spells GR's API units API and its SW v/v_decimal.
+    write_las(pair_paths(raw, "15_9-F-1 A")[1], [2000.1], {"SW": ("v/v_decimal", [0.9])})
+    volve_logs.run(raw_dir=raw, output_dir=out)
+    rows = _rows(
+        out / TABLE,
+        "SELECT source_wellbore, depth_md, VSH, SW FROM {t} "
+        "WHERE source_wellbore IN ('15/9-F-1', '15/9-F-1 A') ORDER BY ALL",
+    )
+    assert rows == [
+        ("15/9-F-1", 1000.1, None, None),
+        ("15/9-F-1", 1000.2, 0.5, None),
+        ("15/9-F-1", 1000.3, 0.6, None),
+        ("15/9-F-1", 1000.4, None, None),
+        ("15/9-F-1", 1000.5, None, None),
+        ("15/9-F-1 A", 2000.0, None, None),
+        ("15/9-F-1 A", 2000.1, None, 0.9),
     ]
 
 
@@ -250,6 +254,21 @@ def test_a_shared_mnemonic_that_disagrees_stops_the_build(raw: Path, out: Path) 
     assert not (out / TABLE).exists()
 
 
+def test_an_unrecognised_unit_spelling_stops_the_build(raw: Path, out: Path) -> None:
+    write_las(
+        pair_paths(raw, "15_9-F-1 A")[0],
+        [2000.0, 2000.1],
+        {"GR": ("furlongs", [80.0, 81.0])},
+    )
+    with pytest.raises(
+        UnitSpellingError,
+        match=r"15_9-F-1 A/05\.PETROPHYSICAL INTERPRETATION/WLC_PETRO_COMPUTED_INPUT_1\.LAS"
+        r".*GR.*'furlongs'",
+    ):
+        volve_logs.run(raw_dir=raw, output_dir=out)
+    assert not (out / TABLE).exists()
+
+
 def test_an_output_file_beside_the_input_only_top_hole_section_stops_the_build(
     raw: Path, out: Path
 ) -> None:
@@ -257,6 +276,36 @@ def test_an_output_file_beside_the_input_only_top_hole_section_stops_the_build(
     with pytest.raises(LasSourceError, match=r"15/9-F-11 is mapped as input-only"):
         volve_logs.run(raw_dir=raw, output_dir=out)
     assert not (out / TABLE).exists()
+
+
+def test_a_blank_unit_spelling_stops_the_build(raw: Path, out: Path) -> None:
+    # A blank unit says nothing about the values; only a reviewed entry in the
+    # unit table, for one mnemonic, could accept it.
+    write_las(pair_paths(raw, "15_9-F-1 A")[0], [2000.0], {"GR": ("", [80.0])})
+    with pytest.raises(UnitSpellingError, match=r"GR.*spelling ''"):
+        volve_logs.run(raw_dir=raw, output_dir=out)
+
+
+def test_a_spelling_of_another_unit_than_the_columns_stops_the_build(
+    raw: Path, out: Path
+) -> None:
+    # g/cm3 is a known spelling, but of a density, and VSH is a fraction.
+    write_las(pair_paths(raw, "15_9-F-1 A")[1], [2000.1], {"VSH": ("g/cm3", [0.4])})
+    with pytest.raises(
+        UnitMismatchError,
+        match=r"15_9-F-1 A/.*WLC_PETRO_COMPUTED_OUTPUT_1\.LAS.*VSH.*'g/cm3'.*'g/cm³'.*'v/v'",
+    ):
+        volve_logs.run(raw_dir=raw, output_dir=out)
+    assert not (out / TABLE).exists()
+
+
+def test_a_spelling_known_for_one_mnemonic_only_stops_the_build_on_another(
+    raw: Path, out: Path
+) -> None:
+    # UNKNOWN is accepted for RD, whose values show ohm·m, never in general.
+    write_las(pair_paths(raw, "15_9-F-1 A")[0], [2000.0], {"GR": ("UNKNOWN", [80.0])})
+    with pytest.raises(UnitSpellingError, match=r"GR.*'UNKNOWN'"):
+        volve_logs.run(raw_dir=raw, output_dir=out)
 
 
 def test_a_wellbore_missing_from_wells_stops_the_build(raw: Path, out: Path) -> None:
@@ -312,9 +361,9 @@ def _declare(column: str, **changes: object):
 def test_output_that_differs_from_schema_json_stops_the_build(
     raw: Path, out: Path, change, message: str
 ) -> None:
-    columns = _fixture_schema()
+    columns = fixture_schema()
     change(columns)
-    _write_schema(out / "schema.json", columns)
+    write_schema(out / "schema.json", columns)
     with pytest.raises(schema_check.SchemaMismatchError, match=message):
         volve_logs.run(raw_dir=raw, output_dir=out)
     assert not (out / TABLE).exists()
@@ -329,7 +378,7 @@ def test_a_column_the_file_requires_but_schema_json_declares_nullable_is_a_misma
     table = tmp_path / "t.parquet"
     pq.write_table(rows.cast(required), table)
     schema = tmp_path / "schema.json"
-    _write_schema(schema, [c for c in _fixture_schema() if c["name"] in rows.column_names])
+    write_schema(schema, [c for c in fixture_schema() if c["name"] in rows.column_names])
     with pytest.raises(
         schema_check.SchemaMismatchError,
         match=r"GR: required in the file, schema\.json declares it nullable",
