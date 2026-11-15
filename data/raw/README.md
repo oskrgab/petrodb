@@ -85,8 +85,11 @@ top-hole section, which has no output file, from
 names the source, through the mapping in
 `scripts/transform/volve_logs/sources.py`: the Technical sidetrack's rows take the
 `npd_wellbore_code` of its parent, 15/9-F-11, and keep `15/9-F-11 T2` in
-`source_wellbore`. The table is checked before it is
-moved into place; a failed check leaves no new file.
+`source_wellbore`. Each Curve's unit spelling must be one the unit table in
+`scripts/transform/volve_logs/units.py` maps to the unit documented for its
+column; the build stops on any other, naming the file, the mnemonic and the
+spelling, and a new spelling is added there by review. The table is checked
+before it is moved into place; a failed check leaves no new file.
 
 ### In CI
 

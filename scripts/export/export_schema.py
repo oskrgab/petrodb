@@ -15,7 +15,11 @@ and relationships without needing access to the original database.
 The log tables are not in the SQLite database: their Parquet is built from
 raw log files by the Volve log pipeline (``scripts.run_pipeline.volve_logs``).
 Their definitions are added to the reflected metadata by ``add_log_tables``,
-one column per Curve described in ``volve_descriptions``.
+one column per Curve described in ``volve_descriptions``. Each of their
+columns also states its unit (``unit`` in schema.json, a Unit column in
+schema.md); a Curve's unit is the one the committed unit table
+(``scripts.transform.volve_logs.units``) documents for it. The export fails
+if a Curve has no documented unit. Tables without units keep their layout.
 
 SQLite keeps no column comments, so table and column descriptions cannot be
 reflected. They come from ``volve_descriptions``; the export fails if a
@@ -44,12 +48,19 @@ from sqlalchemy.schema import CreateTable, CreateIndex
 
 from scripts.export.volve_descriptions import COLUMN_DESCRIPTIONS, TABLE_DESCRIPTIONS
 from scripts.transform.volve_logs.interpretation_builder import DOCUMENTED_CURVES
+from scripts.transform.volve_logs.units import CURVE_UNITS
 from scripts.transform.constants import DATABASE_PATH
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 # Output directory: the published Volve Dataset
 SCHEMA_OUTPUT_DIR = REPO_ROOT / "parquet" / "volve"
+
+# Units of the columns of the tables that document them; a column absent here
+# has no unit (``null`` in schema.json, an em dash in schema.md).
+TABLE_UNITS = {
+    "petrophysical_interpretation": {"depth_md": "m", **CURVE_UNITS},
+}
 
 
 def check_descriptions(
@@ -64,6 +75,14 @@ def check_descriptions(
         problems += [f"{table}.{c}: no such column" for c in sorted(described - have)]
     if problems:
         raise ValueError("column descriptions: " + "; ".join(problems))
+
+
+def check_curve_units(curves: tuple[str, ...], units: dict[str, str]) -> None:
+    """Fail unless every documented Curve, and only those, has a documented unit."""
+    problems = [f"{c}: no documented unit" for c in curves if c not in units]
+    problems += [f"{c}: unit for a Curve with no description" for c in units if c not in curves]
+    if problems:
+        raise ValueError("Curve units: " + "; ".join(problems))
 
 
 def reflect_schema(engine) -> MetaData:
@@ -93,10 +112,13 @@ def add_log_tables(metadata: MetaData) -> None:
 def get_table_info(table: Table) -> list[dict]:
     """Get column information from a SQLAlchemy Table object."""
     columns = []
+    units = TABLE_UNITS.get(table.name)
     for col in table.columns:
+        unit = {"unit": units.get(col.name)} if units is not None else {}
         columns.append({
             "name": col.name,
             "type": str(col.type),
+            **unit,
             "not_null": not col.nullable,
             "default_value": str(col.default.arg) if col.default else None,
             "primary_key": col.primary_key,
@@ -199,14 +221,18 @@ def export_schema_markdown(metadata: MetaData, output_path: Path):
         # Columns
         columns = get_table_info(table)
         content += "**Columns:**\n\n"
-        content += "| Column | Type | Nullable | Primary Key | Description |\n"
-        content += "|--------|------|----------|-------------|-------------|\n"
+        has_units = table_name in TABLE_UNITS
+        headers = ["Column", "Type", *(["Unit"] if has_units else []),
+                   "Nullable", "Primary Key", "Description"]
+        content += "| " + " | ".join(headers) + " |\n"
+        content += "|" + "|".join("-" * (len(h) + 2) for h in headers) + "|\n"
 
         for col in columns:
             nullable = "Yes" if not col["not_null"] else "No"
             pk = "✓" if col["primary_key"] else ""
+            unit = f" {col['unit'] or '—'} |" if has_units else ""
             content += (
-                f"| `{col['name']}` | {col['type']} | {nullable} | {pk} "
+                f"| `{col['name']}` | {col['type']} |{unit} {nullable} | {pk} "
                 f"| {col['description']} |\n"
             )
 
@@ -267,6 +293,7 @@ def export_all_schemas(output_dir: Path = SCHEMA_OUTPUT_DIR):
     metadata = reflect_schema(engine)
     print(f"  → Found {len(metadata.tables)} tables")
     add_log_tables(metadata)
+    check_curve_units(DOCUMENTED_CURVES, CURVE_UNITS)
     check_descriptions(
         {name: [c.name for c in t.columns] for name, t in metadata.tables.items()},
         COLUMN_DESCRIPTIONS,

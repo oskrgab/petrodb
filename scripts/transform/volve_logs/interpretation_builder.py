@@ -9,7 +9,9 @@ Interpreted curve NULL. Rows where every Curve is NULL are dropped.
 
 Every Curve column is DOUBLE and named with the source mnemonic verbatim, in
 the order ``volve_descriptions`` lists them; a mnemonic it does not list fails
-the build, so every published column is documented.
+the build, so every published column is documented. Each file's unit
+spellings must mean the unit documented for the column (``units``); values
+are not converted.
 """
 
 from __future__ import annotations
@@ -22,6 +24,7 @@ import pyarrow as pa
 import pyarrow.compute as pc
 
 from scripts.export.volve_descriptions import COLUMN_DESCRIPTIONS
+from scripts.transform.volve_logs import units
 from scripts.transform.volve_logs.las_reader import DEPTH_COLUMN, LasSourceError, read_las
 from scripts.transform.volve_logs.sources import LAS_SOURCES, LasSource
 from scripts.transform.volve_logs.sql import identifier as _q
@@ -97,6 +100,9 @@ def build(con: duckdb.DuckDBPyConnection, raw_dir: Path) -> dict[str, int]:
         raise UndocumentedCurveError(
             f"Curve(s) with no description in volve_descriptions: {', '.join(undocumented)}"
         )
+    for source, input_table, output_table in read:
+        units.check(source.input_path(raw_dir), input_table)
+        units.check(source.output_path(raw_dir), output_table)
     curves = [name for name in DOCUMENTED_CURVES if name in present]
 
     con.execute(

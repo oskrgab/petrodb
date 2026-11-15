@@ -35,8 +35,11 @@ TABLE_DESCRIPTIONS = {
         "saturation, shale volume, permeability, lithology flags) side by "
         "side. One row per `(source_wellbore, depth_md)`. Each Curve column "
         "is named with the source mnemonic and is empty where the wellbore "
-        "has no sample. Samples are at the source depths; nothing is "
-        "resampled. Built from the raw log files; the Parquet is not in git."
+        "has no sample. Each Curve has one documented unit, stated with the "
+        "column: the source files spell it several ways, and the values are kept as "
+        "the source gives them, never converted. Samples are at the source "
+        "depths; nothing is resampled. Built from the raw log files; the "
+        "Parquet is not in git."
     ),
 }
 
@@ -177,7 +180,9 @@ COLUMN_DESCRIPTIONS = {
     "petrophysical_interpretation": {
         # Key columns first; then one column per Curve, in this order. The
         # pipeline writes the columns in this order and fails on a Curve that
-        # is not listed here, so every published column is described.
+        # is not listed here, so every published column is described. Units
+        # are not repeated here: each column's one unit comes from the unit
+        # table (scripts/transform/volve_logs/units.py).
         "npd_wellbore_code": (
             "Wellbore the row belongs to. Joins to `wells`. For a Technical "
             "sidetrack, the code of its parent Wellbore."
@@ -197,55 +202,59 @@ COLUMN_DESCRIPTIONS = {
             "`source_wellbore` for one of its sources."
         ),
         "depth_md": (
-            "Measured depth along the wellbore, in metres, rounded to four "
+            "Measured depth along the wellbore, rounded to four "
             "decimals so that equality joins are stable. The depth reference "
             "is the one the source file uses; it is not normalised."
         ),
-        "ABDCQF01": "Bulk density from quadrant 1 of an azimuthal density measurement while drilling, in g/cm³.",
-        "ABDCQF02": "Bulk density from quadrant 2 of an azimuthal density measurement while drilling, in g/cm³.",
-        "ABDCQF03": "Bulk density from quadrant 3 of an azimuthal density measurement while drilling, in g/cm³.",
-        "ABDCQF04": "Bulk density from quadrant 4 of an azimuthal density measurement while drilling, in g/cm³.",
-        "BS": "Bit size: nominal diameter of the drilled hole, in inches.",
-        "CALI": "Caliper: measured borehole diameter, in inches.",
-        "DRHO": "Density correction applied to the bulk density, in g/cm³.",
-        "DT": "Compressional sonic slowness, in µs/ft.",
-        "DTS": "Shear sonic slowness, in µs/ft.",
-        "GR": "Natural gamma ray, in API units.",
-        "NBGRCFM": "Natural gamma ray measured near the bit while drilling, in API units.",
-        "NPHI": "Neutron porosity, as a fraction (v/v).",
-        "PEF": "Photoelectric factor, in barns per electron.",
+        "ABDCQF01": "Bulk density from quadrant 1 of an azimuthal density measurement while drilling.",
+        "ABDCQF02": "Bulk density from quadrant 2 of an azimuthal density measurement while drilling.",
+        "ABDCQF03": "Bulk density from quadrant 3 of an azimuthal density measurement while drilling.",
+        "ABDCQF04": "Bulk density from quadrant 4 of an azimuthal density measurement while drilling.",
+        "BS": "Bit size: nominal diameter of the drilled hole.",
+        "CALI": "Caliper: measured borehole diameter.",
+        "DRHO": "Density correction applied to the bulk density.",
+        "DT": "Compressional sonic slowness.",
+        "DTS": "Shear sonic slowness.",
+        "GR": "Natural gamma ray.",
+        "NBGRCFM": "Natural gamma ray measured near the bit while drilling.",
+        "NPHI": "Neutron porosity, as a fraction.",
+        "PEF": "Photoelectric factor.",
         "RACEHM": (
             "Propagation resistivity while drilling, from the attenuation of "
-            "the high-frequency signal, in ohm·m."
+            "the high-frequency signal."
         ),
         "RACELM": (
             "Propagation resistivity while drilling, from the attenuation of "
-            "the low-frequency signal, in ohm·m."
+            "the low-frequency signal."
         ),
-        "RD": "Deep resistivity, in ohm·m.",
-        "RHOB": "Bulk density, in g/cm³.",
-        "RM": "Medium resistivity, in ohm·m.",
-        "ROP": "Rate of penetration while drilling, in m/h.",
-        "ROP5_RM": "Rate of penetration while drilling, a second recording; the source gives no unit.",
+        "RD": "Deep resistivity.",
+        "RHOB": "Bulk density.",
+        "RM": "Medium resistivity.",
+        "ROP": "Rate of penetration while drilling.",
+        "ROP5_RM": (
+            "Rate of penetration while drilling, a second recording. Its file "
+            "leaves the unit unknown; its values lie in the range `ROP` has "
+            "in the other wellbores, so it is documented in the same unit."
+        ),
         "RPCEHM": (
             "Propagation resistivity while drilling, from the phase shift of "
-            "the high-frequency signal, in ohm·m."
+            "the high-frequency signal."
         ),
         "RPCELM": (
             "Propagation resistivity while drilling, from the phase shift of "
-            "the low-frequency signal, in ohm·m."
+            "the low-frequency signal."
         ),
-        "RS": "Shallow resistivity, in ohm·m.",
-        "RT": "True formation resistivity, as the interpreter selected it, in ohm·m.",
+        "RS": "Shallow resistivity.",
+        "RT": "True formation resistivity, as the interpreter selected it.",
         "BADDATA_FLAG": "Interpreted flag: 1 where the interpreter judged the log data unreliable, 0 elsewhere.",
-        "BVW": "Bulk volume of water: porosity times water saturation, as a fraction of rock volume (v/v).",
+        "BVW": "Bulk volume of water: porosity times water saturation, as a fraction of rock volume.",
         "CARB_FLAG": "Lithology flag: 1 where the interpretation marks carbonate, 0 elsewhere.",
         "COAL_FLAG": "Lithology flag: 1 where the interpretation marks coal, 0 elsewhere.",
-        "KLOGH": "Horizontal permeability computed from the logs, in millidarcy (mD).",
-        "PHIF": "Final effective porosity from the interpretation, as a fraction (v/v).",
+        "KLOGH": "Horizontal permeability computed from the logs.",
+        "PHIF": "Final effective porosity from the interpretation, as a fraction.",
         "SAND_FLAG": "Lithology flag: 1 where the interpretation marks sand, 0 elsewhere.",
-        "SW": "Water saturation from the interpretation, as a fraction of pore volume (v/v).",
-        "VCARB": "Volume of carbonate minerals (calcite, dolomite, siderite), as a fraction (v/v).",
-        "VSH": "Shale volume, as a fraction (v/v).",
+        "SW": "Water saturation from the interpretation, as a fraction of pore volume.",
+        "VCARB": "Volume of carbonate minerals (calcite, dolomite, siderite), as a fraction.",
+        "VSH": "Shale volume, as a fraction.",
     },
 }
