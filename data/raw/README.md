@@ -84,14 +84,17 @@ sample count. Another raw or output directory goes as arguments:
 `uv run python -m scripts.run_pipeline.volve_logs RAW_DIR OUTPUT_DIR`.
 
 So far it reads the LAS input and output pairs of eight Wellbores and of the
-Technical sidetrack 15/9-F-11 T2, and the input file of the 15/9-F-11
-top-hole section, which has no output file, from
-`Well_logs_pr_WELL/<wellbore>/05.PETROPHYSICAL INTERPRETATION/`. The folder
+Technical sidetrack 15/9-F-11 T2, the input file of the 15/9-F-11 top-hole
+section, which has no output file, and the DLIS input and output pairs of
+eight more Wellbores, from
+`Well_logs_pr_WELL/<wellbore>/05.PETROPHYSICAL INTERPRETATION/`. A DLIS
+file must hold one frame, its depth index in tenths of an inch or in
+millimetres; the build converts it to metres, and stops on any other file. The folder
 names the source, through the mapping in
 `scripts/transform/volve_logs/sources.py`: the Technical sidetrack's rows take the
 `npd_wellbore_code` of its parent, 15/9-F-11, and keep `15/9-F-11 T2` in
 `source_wellbore`. It also reads the single LAS interpretation file of each
-15/9-19 wellbore, `CPI/15_9-19_<name>_CPI.las` in the same folder of
+15/9-19 source, `CPI/15_9-19_<name>_CPI.las` in the same folder of
 `15_9-19 A`, `15_9-19 B&BT2` and `15_9-19 S&SR`. One file holds both kinds of
 Curve, so the committed list `SINGLE_FILE_CURVE_KINDS` in
 `scripts/transform/volve_logs/curve_catalog.py` says which mnemonics are Input

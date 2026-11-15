@@ -16,26 +16,23 @@ import lasio
 import numpy as np
 import pyarrow as pa
 
+from scripts.transform.volve_logs.sources import SourceFileError
 from scripts.transform.volve_logs.units import UNIT_METADATA_KEY
 
 SENTINEL = -999.25
 DEPTH_COLUMN = "depth_md"
 
 
-class LasSourceError(Exception):
-    """A LAS file the pipeline needs is missing or cannot be used."""
-
-
 def read_las(path: Path) -> pa.Table:
     """``depth_md`` (as the source wrote it) then each Curve under its mnemonic."""
     path = Path(path)
     if not path.is_file():
-        raise LasSourceError(f"missing LAS file: {path}")
+        raise SourceFileError(f"missing LAS file: {path}")
     # null_policy="none": sentinels are masked below, the same way in every file.
     las = lasio.read(str(path), null_policy="none", engine="normal")
     index = las.curves[0]
     if index.unit.upper() != "M":
-        raise LasSourceError(
+        raise SourceFileError(
             f"{path}: depth index {index.mnemonic!r} is in {index.unit!r}, not metres"
         )
     fields = [pa.field(DEPTH_COLUMN, pa.float64())]

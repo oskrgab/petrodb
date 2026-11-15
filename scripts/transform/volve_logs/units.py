@@ -47,7 +47,9 @@ CURVE_UNITS: dict[str, str] = {
     "ABDCQF04": G_CM3,
     "BS": INCH,
     "CALI": INCH,
+    "DRHB": G_CM3,
     "DRHO": G_CM3,
+    "DRHU": G_CM3,
     "DT": US_FT,
     "DTS": US_FT,
     "GR": GAPI,
@@ -59,6 +61,8 @@ CURVE_UNITS: dict[str, str] = {
     "RD": OHM_M,
     "RHOB": G_CM3,
     "RM": OHM_M,
+    "ROBB": G_CM3,
+    "ROBU": G_CM3,
     "ROP": M_H,
     "ROP5_RM": M_H,
     "RPCEHM": OHM_M,
@@ -70,6 +74,7 @@ CURVE_UNITS: dict[str, str] = {
     "CARB_FLAG": UNITLESS,
     "COAL_FLAG": UNITLESS,
     "KLOGH": MILLIDARCY,
+    "PHID": FRACTION,
     "PHIF": FRACTION,
     "SAND_FLAG": UNITLESS,
     "SW": FRACTION,
@@ -96,16 +101,21 @@ CURVE_UNITS: dict[str, str] = {
 
 SPELLINGS: dict[str, str] = {
     "g/cm3": G_CM3,
+    "G/CC": G_CM3,
+    "G/C3": G_CM3,
     "G/CM3": G_CM3,
     "inches": INCH,
     "IN": INCH,
     "us/ft": US_FT,
+    "US/F": US_FT,
+    "US/FT": US_FT,
     "API": GAPI,
     "GAPI": GAPI,
     "v/v": FRACTION,
     "V/V": FRACTION,
     "v/v_decimal": FRACTION,
     "b/elec": B_E,
+    "B/E": B_E,
     "ohm.m": OHM_M,
     "OHMM": OHM_M,
     "m/hr": M_H,
@@ -118,7 +128,8 @@ SPELLINGS: dict[str, str] = {
 MNEMONIC_SPELLINGS: dict[tuple[str, str], str] = {
     # 15/9-F-1 B writes its carbonate flag as a fraction; its values are 0 and 1.
     ("CARB_FLAG", "V/V"): UNITLESS,
-    # 15/9-F-1 and the 15/9-19 files write the permeability unit in capitals.
+    # 15/9-F-1, several DLIS files and the 15/9-19 files write the
+    # permeability unit in capitals.
     ("KLOGH", "MD"): MILLIDARCY,
     ("KLOGV", "MD"): MILLIDARCY,
     ("KLHC_INT", "MD"): MILLIDARCY,
@@ -138,9 +149,10 @@ MNEMONIC_SPELLINGS: dict[tuple[str, str], str] = {
     ("SAND_FLAG", "UNKNOWN"): UNITLESS,
     # The 15/9-19 files leave some units blank. The Leverett J-function and
     # the saturation exponent are dimensionless; the irreducible water
-    # saturation is a fraction, and so is the bulk volume of water (BWV, in
-    # 15/9-19 SR, below the file's porosity). 15/9-19 SR's sonic lies in the
-    # range DT has in µs/ft in the other Wellbores (median about 75).
+    # saturation is a fraction, and so is BWV in 15/9-19 SR (its values lie
+    # between 0 and 0.35, the range of the file's porosity). 15/9-19 SR's
+    # sonic lies in the range DT has in µs/ft in the other Wellbores (median
+    # about 75).
     ("J", ""): UNITLESS,
     ("N", ""): UNITLESS,
     ("SWIRR", ""): FRACTION,

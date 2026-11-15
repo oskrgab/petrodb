@@ -8,8 +8,8 @@ the tracked database to test the exporter's missing-database error.
 the production source; the seven with production keep what they had before.
 """
 
-from pathlib import Path
 import sqlite3
+from pathlib import Path
 
 import duckdb
 import pytest
