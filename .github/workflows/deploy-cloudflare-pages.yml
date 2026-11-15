@@ -20,8 +20,9 @@ name: Deploy (Hugging Face data + Cloudflare landing)
 #   - push to `stage`  → HF `stage` branch  + wrangler --branch stage  → preview deployment
 #
 # Trigger: any push to main/stage that touches deployable content — committed
-# datasets under `parquet/`, the 3W pipeline sources (whose outputs are
-# gitignored and rebuilt in CI), the site sources, the Glances command, this
+# datasets under `parquet/`, the 3W and Volve log pipeline sources and the
+# Volve Raw repo pin (their outputs are gitignored and rebuilt in CI), the
+# site sources, the Glances command, this
 # workflow file, or the Landing build action it shares with the preview
 # workflow (`.github/actions/build-landing`). `workflow_dispatch`
 # allows manual redeploys without an empty commit.
@@ -30,6 +31,14 @@ name: Deploy (Hugging Face data + Cloudflare landing)
 # the resolved per-branch BASE_URL (so the prod/stage Instance catalogs, which
 # bake BASE_URL into `source_url`, never share a cache entry): if neither has changed, the previously-generated 3W tree is
 # restored and the deploy goes out without re-running the pipeline.
+#
+# The Volve log tables are built the same way (ADR-0011, issue #75), from the
+# Raw repo `oskrgab/petrodb-raw-volve` at the commit in `data/raw/volve.pin`.
+# Their cache is keyed on that pin and the pipeline sources; on a miss, CI
+# downloads only the files the pipeline names (`--list-raw-files`) and runs
+# it. The pipeline's pre-publish checks fail the job before anything is
+# uploaded. Restored or built, the tables must be in the checkout before the
+# HF upload, whose `--delete` would otherwise remove the published ones.
 
 on:
   push:
@@ -41,6 +50,11 @@ on:
       - 'scripts/transform/petrobras_3w/**'
       - 'scripts/export/petrobras_3w/**'
       - 'scripts/run_pipeline/petrobras_3w/**'
+      - 'data/raw/volve.pin'
+      - 'scripts/transform/volve_logs/**'
+      - 'scripts/export/volve_logs/**'
+      - 'scripts/export/volve_descriptions.py'
+      - 'scripts/run_pipeline/volve_logs/**'
       - 'scripts/deploy/**'
       - 'scripts/site/**'
       - 'site/**'
@@ -81,6 +95,11 @@ jobs:
       # build carries it without reporting. Branch previews and deploy.sh
       # builds get no id at all.
       PUBLIC_UMAMI_WEBSITE_ID: ${{ vars.UMAMI_WEBSITE_ID }}
+      # The gitignored tables the Volve log pipeline writes, one per line: the
+      # paths its cache holds and the presence check requires before upload.
+      # A test keeps this list equal to the log tables in .gitignore.
+      VOLVE_LOG_TABLES: |
+        parquet/volve/petrophysical_interpretation.parquet
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -97,23 +116,120 @@ jobs:
               'scripts/run_pipeline/petrobras_3w/**'
             ) }}-${{ env.BASE_URL }}
 
+      # The key is the Raw repo pin, the pipeline's own sources, the committed
+      # files its pre-publish checks read (`wells.parquet`, `schema.json`) and
+      # uv.lock (the readers' versions shape the output): a hit skips the
+      # checks, so anything they depend on must miss the cache when it
+      # changes. No BASE_URL: the log tables carry no URL, so `main` and
+      # `stage` share an entry. actions/cache saves only when the job
+      # succeeds, so a build that failed its checks is never cached.
+      - name: Restore the Volve log tables (if the pin and sources are unchanged)
+        id: cache-volve-logs
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.VOLVE_LOG_TABLES }}
+          key: >-
+            volve-logs-${{ hashFiles(
+              'data/raw/volve.pin',
+              'scripts/transform/volve_logs/**',
+              'scripts/export/volve_logs/**',
+              'scripts/export/volve_descriptions.py',
+              'scripts/run_pipeline/volve_logs/**',
+              'parquet/volve/wells.parquet',
+              'parquet/volve/schema.json',
+              'uv.lock'
+            ) }}
+
       - name: Install uv
-        if: steps.cache-3w.outputs.cache-hit != 'true'
+        if: steps.cache-3w.outputs.cache-hit != 'true' || steps.cache-volve-logs.outputs.cache-hit != 'true'
         uses: astral-sh/setup-uv@v3
         with:
           enable-cache: true
 
       - name: Set up Python
-        if: steps.cache-3w.outputs.cache-hit != 'true'
+        if: steps.cache-3w.outputs.cache-hit != 'true' || steps.cache-volve-logs.outputs.cache-hit != 'true'
         run: uv python install 3.12
 
       - name: Install dependencies
-        if: steps.cache-3w.outputs.cache-hit != 'true'
+        if: steps.cache-3w.outputs.cache-hit != 'true' || steps.cache-volve-logs.outputs.cache-hit != 'true'
         run: uv sync --frozen
 
       - name: Build Petrobras 3W parquet tree
         if: steps.cache-3w.outputs.cache-hit != 'true'
         run: uv run python -m scripts.run_pipeline.petrobras_3w
+
+      # The huggingface_hub CLI (`hf`) downloads the Volve raw files below and
+      # uploads the parquet bytes later; it installs independently of the uv
+      # steps, which are gated on a cache miss. hf_xet enables the fast Xet
+      # transfer backend HF uses for content-addressed storage.
+      - name: Install Hugging Face CLI
+        run: pipx install "huggingface_hub[cli,hf_xet]==2.4.0"
+
+      # Only the files the pipeline names, at the pinned commit, into the
+      # local raw directory the pipeline reads by default (data/raw/README.md):
+      # a few dozen files, not the 16 GB Raw repo. The pipeline prints the
+      # list, so a source added there is fetched with no change here. A token
+      # is required, since anonymous downloads are rate-limited per IP
+      # (ADR-0011); HF_RAW_READ_TOKEN is a read token, and the upload token
+      # stands in while it is unset. The pin is read and checked by the
+      # pipeline's own read_pin.
+      - name: Download the raw files the Volve log pipeline reads
+        if: steps.cache-volve-logs.outputs.cache-hit != 'true'
+        env:
+          HF_TOKEN: ${{ secrets.HF_RAW_READ_TOKEN || secrets.HF_TOKEN }}
+          RAW_REPO: oskrgab/petrodb-raw-volve
+        run: |
+          if [[ -z ${HF_TOKEN:-} ]]; then
+            echo "::error::No Hugging Face token to read $RAW_REPO: set the HF_RAW_READ_TOKEN secret"
+            exit 1
+          fi
+          pin=$(uv run python -c 'from scripts.raw_repo.volve.pin import read_pin; print(read_pin() or "")')
+          if [[ -z $pin ]]; then
+            echo "::error::data/raw/volve.pin is empty: there is no Raw repo commit to build from"
+            exit 1
+          fi
+          list=$(uv run python -m scripts.run_pipeline.volve_logs --list-raw-files)
+          mapfile -t files <<<"$list"
+          if [[ -z ${files[0]:-} ]]; then
+            echo "::error::The Volve log pipeline lists no raw files"
+            exit 1
+          fi
+          echo "Downloading ${#files[@]} files from $RAW_REPO at $pin"
+          hf download "$RAW_REPO" "${files[@]}" \
+            --repo-type dataset \
+            --revision "$pin" \
+            --local-dir data/raw/volve
+
+      # Reads data/raw/volve/ and writes the tables into parquet/volve/, beside
+      # the committed wells.parquet its checks join against. A failed
+      # pre-publish check exits non-zero and leaves no table, so the job stops
+      # here, before anything is uploaded.
+      - name: Build the Volve log tables
+        if: steps.cache-volve-logs.outputs.cache-hit != 'true'
+        run: uv run python -m scripts.run_pipeline.volve_logs
+
+      # On both paths, restored or built, every log table must be in the
+      # checkout now: the HF upload below deletes remote Parquet that is
+      # absent here, so a missing table would unpublish it.
+      - name: Check the Volve log tables are present
+        run: |
+          count=0
+          missing=0
+          while IFS= read -r table; do
+            [[ -z $table ]] && continue
+            count=$((count + 1))
+            if [[ -s $table ]]; then
+              echo "OK: $table ($(wc -c <"$table") bytes)"
+            else
+              echo "::error::Volve log table missing or empty before upload: $table"
+              missing=1
+            fi
+          done <<<"${VOLVE_LOG_TABLES:-}"
+          if [[ $count -eq 0 ]]; then
+            echo "::error::VOLVE_LOG_TABLES lists no table"
+            exit 1
+          fi
+          exit "$missing"
 
       # Retarget every published data URL — the per-dataset schema READMEs
       # (which the site build copies into the Landing), the root README
@@ -129,14 +245,9 @@ jobs:
         run: python3 -m scripts.deploy.retarget_data_urls
 
       # --- Hugging Face: publish the parquet bytes (ADR-0005) -----------------
-      # Runs regardless of the 3W cache outcome — on a cache hit the generated
-      # tree is restored, so `parquet/` is fully populated either way. The
-      # huggingface_hub CLI (`hf`) installs independently of the uv steps,
-      # which are gated on the cache miss. hf_xet enables the fast Xet upload
-      # backend HF uses for content-addressed storage.
-      - name: Install Hugging Face CLI
-        run: pipx install "huggingface_hub[cli,hf_xet]==2.4.0"
-
+      # Runs regardless of the 3W and Volve log cache outcomes — on a cache hit
+      # the generated tables are restored, so `parquet/` is fully populated
+      # either way.
       - name: Authenticate Hugging Face CLI
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}

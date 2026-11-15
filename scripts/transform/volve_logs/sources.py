@@ -51,3 +51,18 @@ LAS_PAIRS: tuple[LasPair, ...] = (
     LasPair("15_9-F-12", "15/9-F-12", 5599),
     LasPair("15_9-F-15 D", "15/9-F-15 D", 7289),
 )
+
+
+def raw_files() -> tuple[str, ...]:
+    """Every file the pipeline reads, as a path within the Raw repo.
+
+    Paths use ``/`` and keep upstream names, spaces and ``&`` included. The
+    deploy workflow downloads exactly these from the Raw repo at the pin, so a
+    source added here is fetched in CI with no change to the workflow.
+    """
+    root = Path()
+    return tuple(
+        path.as_posix()
+        for pair in LAS_PAIRS
+        for path in (pair.input_path(root), pair.output_path(root))
+    )

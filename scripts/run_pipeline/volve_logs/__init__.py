@@ -4,7 +4,8 @@
 CI all call it. It reads a raw directory, a plain download of the Raw repo
 ``oskrgab/petrodb-raw-volve`` at the pin (``data/raw/README.md``), and writes
 into an output directory that already holds the Volve ``wells.parquet``, which
-the pre-publish checks join against.
+the pre-publish checks join against. ``raw_files`` names every file ``run``
+reads, as a path within the Raw repo, so CI downloads only those.
 """
 
 from __future__ import annotations
@@ -15,6 +16,9 @@ import duckdb
 
 from scripts.export.volve_logs import parquet_writer
 from scripts.transform.volve_logs import interpretation_builder
+from scripts.transform.volve_logs.sources import raw_files
+
+__all__ = ["OUTPUT_DIR", "RAW_DIR", "raw_files", "run"]
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 RAW_DIR = REPO_ROOT / "data" / "raw" / "volve"
