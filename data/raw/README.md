@@ -15,8 +15,8 @@ bytes.
 `volve.pin` holds the Raw repo commit the Volve log pipeline reads: one full
 40-character commit hash and nothing else. It is the only place the pin is
 recorded. The pipeline reads it with `scripts.raw_repo.volve.pin.read_pin()`
-and the deploy workflow reads the same file. It is empty until the Raw repo is
-filled. Moving it is a reviewed change.
+and the deploy workflow reads the same file. It names the commit that holds the
+full upload of the upload plan. Moving it is a reviewed change.
 
 ## `volve/`
 
@@ -61,8 +61,6 @@ hf download oskrgab/petrodb-raw-volve --repo-type dataset \
   --include "Well_logs_pr_WELL/*/05.PETROPHYSICAL INTERPRETATION/*" --include "register/*"
 ```
 
-While `volve.pin` is empty, leave out `--revision` to read the latest commit.
-
 ### Fill the Raw repo (maintainer)
 
 The commands that fill the Raw repo live in `scripts/raw_repo/volve/`.
@@ -82,6 +80,11 @@ uv run python -m scripts.raw_repo.volve plan SOURCE_DIR
 uv run python -m scripts.raw_repo.volve upload SOURCE_DIR --include "Well_logs_pr_WELL/15_9-19 B&BT2/12.BIOSTRAT/*"
 uv run python -m scripts.raw_repo.volve upload SOURCE_DIR
 ```
+
+Before it uploads, `upload` adds one rule to the Raw repo's `.gitattributes`,
+if it is missing, so that every file under `Well_logs_pr_WELL/` goes to Xet
+storage: the Hub otherwise takes a few small binary files for text and refuses
+the commit. `.gitattributes` is the Hub's own file, not part of the plan.
 
 `fetch-register`, `plan` and `upload` take another local raw directory as
 `RAW_DIR` (`fetch-register RAW_DIR`, `--raw-dir RAW_DIR`).

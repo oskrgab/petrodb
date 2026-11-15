@@ -14,6 +14,11 @@ def test_pin_lives_in_one_committed_file() -> None:
     assert pin.PIN_FILE.is_file()
 
 
+def test_the_committed_pin_names_a_raw_repo_commit() -> None:
+    # The Raw repo is filled (#66): the pipeline and CI read a fixed commit.
+    assert pin.read_pin() is not None
+
+
 def test_an_empty_pin_reads_as_none(tmp_path: Path) -> None:
     path = tmp_path / "volve.pin"
     path.write_text("\n")
