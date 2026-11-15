@@ -1,13 +1,14 @@
 """Read one DLIS file into an Arrow table: ``depth_md`` and one DOUBLE column per Curve.
 
-DLIS is parsed with ``dlisio`` and its channels go straight to Arrow, without
+DLIS is parsed with ``dlisio`` and its Curves go straight to Arrow, without
 pandas, in the shape ``las_reader`` gives a LAS file, so the two join the same
 way.
 
 - The file must hold one logical file with one frame. Every Volve
   interpretation file does; a file with more would need a reviewed choice of
   frame, so it stops the build instead of being read by guess.
-- The frame's first channel is its depth index. The Volve files write it in
+- The frame's first channel (the DLIS name for a sampled quantity) is its depth
+  index. The Volve files write it in
   tenths of an inch (``0.1 in``) or in millimetres; it is converted to metres.
   Rounding happens where depths are joined, as for LAS.
 - The absent value ``-999.25`` becomes NULL, as in LAS, and so does NaN.
@@ -31,12 +32,11 @@ from scripts.transform.volve_logs.las_reader import DEPTH_COLUMN, SENTINEL
 from scripts.transform.volve_logs.sources import SourceFileError
 from scripts.transform.volve_logs.units import UNIT_METADATA_KEY
 
-# Metres per unit of a depth index, as numerator / denominator so that an
-# integer index converts exactly before the one division.
+# Metres per unit of a depth index, as numerator / denominator: the index is
+# multiplied exactly, then divided once.
 INDEX_UNITS: dict[str, tuple[int, int]] = {
     "0.1 in": (254, 100_000),
     "mm": (1, 1_000),
-    "m": (1, 1),
 }
 
 
@@ -83,8 +83,6 @@ def _metres(path: Path, unit: str | None, index: np.ndarray) -> np.ndarray:
             f"{', '.join(repr(u) for u in INDEX_UNITS)} to metres"
         )
     numerator, denominator = INDEX_UNITS[unit]
-    if np.issubdtype(index.dtype, np.integer):
-        return (index.astype(np.int64) * numerator) / denominator
     return index.astype(np.float64) * numerator / denominator
 
 

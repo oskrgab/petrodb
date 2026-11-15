@@ -388,7 +388,7 @@ def test_a_dlis_pair_joins_input_and_interpreted_curves_at_depths_in_metres(
     built: Path,
 ) -> None:
     # 15/9-F-10's index is in tenths of an inch: 1909500 is 4850.13 m. Its
-    # output pads the well from 0 m with all-NULL samples, which are dropped;
+    # output pads the Wellbore from 0 m with all-NULL samples, which are dropped;
     # RHOB is in both files and equal.
     rows = _rows(
         built,

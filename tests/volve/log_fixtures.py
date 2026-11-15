@@ -207,7 +207,7 @@ def build_dlis_pairs(raw: Path) -> None:
 
     Indexes are in tenths of an inch (60 = 0.1524 m) unless said otherwise.
 
-    - 15/9-F-10: input at 4850.13 .. 4850.4348 m; the output pads the well
+    - 15/9-F-10: input at 4850.13 .. 4850.4348 m; the output pads the Wellbore
       from 0 m with all-NULL samples down to the same three depths. RHOB is in
       both files, spelled ``G/CC`` and ``G/C3``, and equal.
     - 15/9-F-15: the input starts at 0 m with two all-NULL samples.
