@@ -51,7 +51,7 @@ from scripts.transform.volve_logs.sources import (
 from scripts.transform.volve_logs.sql import identifier
 
 TABLE = "petrophysical_interpretation"
-KEY_COLUMNS = curve_catalog.TABLE_KEY_COLUMNS
+KEY_COLUMNS = ("npd_wellbore_code", "source_wellbore", DEPTH_COLUMN)
 DEPTH_DECIMALS = 4
 # Flags hold 0 or 1 wherever a file samples, padding included, so a value in
 # one of them alone does not make a row.
@@ -261,9 +261,9 @@ def _insert_source(con: duckdb.DuckDBPyConnection, source: _ReadSource) -> None:
     shared = [c for c in input_curves if c in interpreted_curves]
     for name in shared:
         disagreement = con.execute(
-            f"SELECT i.{DEPTH_COLUMN}, i.{identifier(name)}, n.{identifier(name)} "
-            f"FROM input_samples i JOIN interpreted_samples n USING ({DEPTH_COLUMN}) "
-            f"WHERE i.{identifier(name)} IS DISTINCT FROM n.{identifier(name)} "
+            f"SELECT i.{DEPTH_COLUMN}, i.{identifier(name)}, interp.{identifier(name)} "
+            f"FROM input_samples i JOIN interpreted_samples interp USING ({DEPTH_COLUMN}) "
+            f"WHERE i.{identifier(name)} IS DISTINCT FROM interp.{identifier(name)} "
             f"ORDER BY i.{DEPTH_COLUMN} LIMIT 1"
         ).fetchone()
         if disagreement:
@@ -276,20 +276,20 @@ def _insert_source(con: duckdb.DuckDBPyConnection, source: _ReadSource) -> None:
 
     selected = (
         [f"i.{identifier(c)}" for c in input_curves if c not in shared]
-        + [f"n.{identifier(c)}" for c in interpreted_curves if c not in shared]
-        + [f"coalesce(i.{identifier(c)}, n.{identifier(c)}) AS {identifier(c)}" for c in shared]
+        + [f"interp.{identifier(c)}" for c in interpreted_curves if c not in shared]
+        + [f"coalesce(i.{identifier(c)}, interp.{identifier(c)}) AS {identifier(c)}" for c in shared]
     )
     any_value = " OR ".join(
         [f"i.{identifier(c)} IS NOT NULL" for c in _not_flags(input_curves)]
-        + [f"n.{identifier(c)} IS NOT NULL" for c in _not_flags(interpreted_curves)]
+        + [f"interp.{identifier(c)} IS NOT NULL" for c in _not_flags(interpreted_curves)]
     ) or "false"
     con.execute(
         f"INSERT INTO {TABLE} BY NAME "
         f"SELECT $npd AS npd_wellbore_code, $source AS source_wellbore, "
-        f"coalesce(i.{DEPTH_COLUMN}, n.{DEPTH_COLUMN}) AS {DEPTH_COLUMN}"
+        f"coalesce(i.{DEPTH_COLUMN}, interp.{DEPTH_COLUMN}) AS {DEPTH_COLUMN}"
         + "".join(f", {column}" for column in selected)
-        + " FROM input_samples i FULL OUTER JOIN interpreted_samples n "
-        f"ON i.{DEPTH_COLUMN} = n.{DEPTH_COLUMN} "
+        + " FROM input_samples i FULL OUTER JOIN interpreted_samples interp "
+        f"ON i.{DEPTH_COLUMN} = interp.{DEPTH_COLUMN} "
         f"WHERE {any_value}",
         {"npd": source.npd_wellbore_code, "source": source.source_wellbore},
     )
