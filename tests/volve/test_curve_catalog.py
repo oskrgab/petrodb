@@ -15,7 +15,7 @@ import pytest
 
 from scripts.export.volve_logs import catalog_check, validator
 from scripts.run_pipeline import volve_logs
-from tests.volve.log_fixtures import build_raw_tree, pair_paths
+from tests.volve.log_fixtures import build_raw_tree, fixture_schema, pair_paths, write_schema
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 WELLS = REPO_ROOT / "parquet" / "volve" / "wells.parquet"
@@ -36,6 +36,7 @@ def out(tmp_path: Path) -> Path:
     out = tmp_path / "out"
     out.mkdir()
     shutil.copy(WELLS, out / "wells.parquet")
+    write_schema(out / "schema.json", fixture_schema())
     return out
 
 

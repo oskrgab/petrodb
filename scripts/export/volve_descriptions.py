@@ -38,8 +38,11 @@ TABLE_DESCRIPTIONS = {
         "has no sample. Each Curve has one documented unit, stated with the "
         "column: the source files spell it several ways, and the values are kept as "
         "the source gives them, never converted. Samples are at the source "
-        "depths; nothing is resampled. Built from the raw log files; the "
-        "Parquet is not in git."
+        "depths; nothing is resampled. The file is a single row group, sorted "
+        "by `npd_wellbore_code`, `source_wellbore` and `depth_md`; the key "
+        "columns come first, then the Curves in descending order of how many "
+        "wellbores carry them, ties by mnemonic, so the most common Curves "
+        "come first. Built from the raw log files; the Parquet is not in git."
     ),
     "log_curves": (
         "The Curve catalog: one row per log table, Wellbore or Technical "
@@ -188,11 +191,14 @@ COLUMN_DESCRIPTIONS = {
         "water_injection_sm3": "Water injected in the month, in Sm³ (`WI`).",
     },
     "petrophysical_interpretation": {
-        # Key columns first; then one column per Curve, in this order. The
-        # pipeline writes the columns in this order and fails on a Curve that
-        # is not listed here, so every published column is described. Units
-        # are not repeated here: each column's one unit comes from the unit
-        # table (scripts/transform/volve_logs/units.py).
+        # Key columns first; then one column per Curve, in the order the
+        # pipeline writes them from the real raw files: by how many Wellbores
+        # carry the Curve, most first, ties by mnemonic. The pre-publish
+        # schema check fails if the written file differs from schema.json,
+        # which takes this order. A Curve not listed here fails the build, so
+        # every published column is described. Units are not repeated here:
+        # each column's one unit comes from the unit table
+        # (scripts/transform/volve_logs/units.py).
         "npd_wellbore_code": (
             "Wellbore the row belongs to. Joins to `wells`. For a Technical "
             "sidetrack, the code of its parent Wellbore."
@@ -216,6 +222,17 @@ COLUMN_DESCRIPTIONS = {
             "decimals so that equality joins are stable. The depth reference "
             "is the one the source file uses; it is not normalised."
         ),
+        "BVW": "Bulk volume of water: porosity times water saturation, as a fraction of rock volume.",
+        "COAL_FLAG": "Lithology flag: 1 where the interpretation marks coal, 0 elsewhere.",
+        "GR": "Natural gamma ray.",
+        "KLOGH": "Horizontal permeability computed from the logs.",
+        "NPHI": "Neutron porosity, as a fraction.",
+        "PHIF": "Final effective porosity from the interpretation, as a fraction.",
+        "RHOB": "Bulk density.",
+        "RT": "True formation resistivity, as the interpreter selected it.",
+        "SAND_FLAG": "Lithology flag: 1 where the interpretation marks sand, 0 elsewhere.",
+        "SW": "Water saturation from the interpretation, as a fraction of pore volume.",
+        "VSH": "Shale volume, as a fraction.",
         "ABDCQF01": "Bulk density from quadrant 1 of an azimuthal density measurement while drilling.",
         "ABDCQF02": "Bulk density from quadrant 2 of an azimuthal density measurement while drilling.",
         "ABDCQF03": "Bulk density from quadrant 3 of an azimuthal density measurement while drilling.",
@@ -223,11 +240,6 @@ COLUMN_DESCRIPTIONS = {
         "BS": "Bit size: nominal diameter of the drilled hole.",
         "CALI": "Caliper: measured borehole diameter.",
         "DRHO": "Density correction applied to the bulk density.",
-        "DT": "Compressional sonic slowness.",
-        "DTS": "Shear sonic slowness.",
-        "GR": "Natural gamma ray.",
-        "NBGRCFM": "Natural gamma ray measured near the bit while drilling.",
-        "NPHI": "Neutron porosity, as a fraction.",
         "PEF": "Photoelectric factor.",
         "RACEHM": (
             "Propagation resistivity while drilling, from the attenuation of "
@@ -238,14 +250,7 @@ COLUMN_DESCRIPTIONS = {
             "the low-frequency signal."
         ),
         "RD": "Deep resistivity.",
-        "RHOB": "Bulk density.",
-        "RM": "Medium resistivity.",
         "ROP": "Rate of penetration while drilling.",
-        "ROP5_RM": (
-            "Rate of penetration while drilling, a second recording. Its file "
-            "leaves the unit unknown; its values lie in the range `ROP` has "
-            "in the other wellbores, so it is documented in the same unit."
-        ),
         "RPCEHM": (
             "Propagation resistivity while drilling, from the phase shift of "
             "the high-frequency signal."
@@ -254,18 +259,19 @@ COLUMN_DESCRIPTIONS = {
             "Propagation resistivity while drilling, from the phase shift of "
             "the low-frequency signal."
         ),
-        "RS": "Shallow resistivity.",
-        "RT": "True formation resistivity, as the interpreter selected it.",
-        "BADDATA_FLAG": "Interpreted flag: 1 where the interpreter judged the log data unreliable, 0 elsewhere.",
-        "BVW": "Bulk volume of water: porosity times water saturation, as a fraction of rock volume.",
+        "RM": "Medium resistivity.",
+        "DT": "Compressional sonic slowness.",
         "CARB_FLAG": "Lithology flag: 1 where the interpretation marks carbonate, 0 elsewhere.",
-        "COAL_FLAG": "Lithology flag: 1 where the interpretation marks coal, 0 elsewhere.",
-        "KLOGH": "Horizontal permeability computed from the logs.",
-        "PHIF": "Final effective porosity from the interpretation, as a fraction.",
-        "SAND_FLAG": "Lithology flag: 1 where the interpretation marks sand, 0 elsewhere.",
-        "SW": "Water saturation from the interpretation, as a fraction of pore volume.",
         "VCARB": "Volume of carbonate minerals (calcite, dolomite, siderite), as a fraction.",
-        "VSH": "Shale volume, as a fraction.",
+        "DTS": "Shear sonic slowness.",
+        "NBGRCFM": "Natural gamma ray measured near the bit while drilling.",
+        "BADDATA_FLAG": "Interpreted flag: 1 where the interpreter judged the log data unreliable, 0 elsewhere.",
+        "ROP5_RM": (
+            "Rate of penetration while drilling, a second recording. Its file "
+            "leaves the unit unknown; its values lie in the range `ROP` has "
+            "in the other wellbores, so it is documented in the same unit."
+        ),
+        "RS": "Shallow resistivity.",
     },
     "log_curves": {
         "table_name": (

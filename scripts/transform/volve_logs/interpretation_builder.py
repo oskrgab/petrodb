@@ -7,11 +7,11 @@ both files becomes one column, and the build fails if the two files disagree
 on it at any depth they share. A source with an input file only has every
 Interpreted curve NULL. Rows where every Curve is NULL are dropped.
 
-Every Curve column is DOUBLE and named with the source mnemonic verbatim, in
-the order ``volve_descriptions`` lists them; a mnemonic it does not list fails
-the build, so every published column is documented. Each file's unit
-spellings must mean the unit documented for the column (``units``); values
-are not converted.
+Every Curve column is DOUBLE and named with the source mnemonic verbatim; a
+mnemonic ``volve_descriptions`` does not list fails the build, so every
+published column is documented. Each file's unit spellings must mean the unit
+documented for the column (``units``); values are not converted. The published
+column order is the writer's (``scripts.export.volve_logs.layout``).
 """
 
 from __future__ import annotations

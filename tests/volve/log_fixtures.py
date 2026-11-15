@@ -10,11 +10,13 @@ them sits a geomodel permeability export the build must not read.
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import lasio
 
 SENTINEL = -999.25
+SCHEMA = Path(__file__).resolve().parents[2] / "parquet" / "volve" / "schema.json"
 INTERPRETATION = "05.PETROPHYSICAL INTERPRETATION"
 
 # Upstream folder -> (operator's name, npd_wellbore_code), as the register has them.
@@ -135,3 +137,30 @@ def build_raw_tree(raw: Path) -> Path:
         },
     )
     return raw
+
+
+# GR: all nine Wellbores; SW: the six plain pairs; PHIF: 15/9-F-1 and
+# 15/9-F-11; the rest one each, by mnemonic. A Wellbore counts once: VSH is
+# in both files of 15/9-F-1, GR in both 15/9-F-11 sources (the Technical
+# sidetrack and the top-hole section).
+FIXTURE_COLUMNS = [
+    "npd_wellbore_code", "source_wellbore", "depth_md",
+    "GR", "SW", "PHIF", "COAL_FLAG", "KLOGH", "RHOB", "ROP", "VSH",
+]  # fmt: skip
+
+
+def write_schema(path: Path, columns: list[dict]) -> None:
+    path.write_text(
+        json.dumps({"tables": {"petrophysical_interpretation": {"columns": columns}}})
+    )
+
+
+def fixture_schema() -> list[dict]:
+    """The committed declarations of the fixture's columns, in the fixture's order.
+
+    The schema.json a fixture build is checked against: the committed one
+    declares Curves the fixture does not carry.
+    """
+    committed = json.loads(SCHEMA.read_text())["tables"]["petrophysical_interpretation"]
+    by_name = {c["name"]: c for c in committed["columns"]}
+    return [by_name[name] for name in FIXTURE_COLUMNS]

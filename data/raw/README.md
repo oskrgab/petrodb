@@ -74,10 +74,13 @@ uv run python -m scripts.run_pipeline.volve_logs
 
 It reads `data/raw/volve/` and writes
 `parquet/volve/petrophysical_interpretation.parquet` and its Curve catalog,
-`parquet/volve/log_curves.parquet`, both gitignored. It checks both against
-the committed `parquet/volve/wells.parquet`, so it writes beside it, and
-checks that the catalog agrees with the table: one row per Curve with data
-for each `source_wellbore`, with the table's depth range and sample count. Another raw or output directory goes as arguments:
+`parquet/volve/log_curves.parquet`, both gitignored. It checks them against
+the committed `parquet/volve/wells.parquet` and `parquet/volve/schema.json`,
+so it writes beside them: the build fails if the table differs from
+`schema.json` in a column name, order, type or nullability, or if it is not a
+single row group, and if the catalog disagrees with the table: one row per
+Curve with data for each `source_wellbore`, with the table's depth range and
+sample count. Another raw or output directory goes as arguments:
 `uv run python -m scripts.run_pipeline.volve_logs RAW_DIR OUTPUT_DIR`.
 
 So far it reads the LAS input and output pairs of eight Wellbores and of the

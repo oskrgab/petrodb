@@ -4,8 +4,9 @@
 CI all call it. It reads a raw directory, a plain download of the Raw repo
 ``oskrgab/petrodb-raw-volve`` at the pin (``data/raw/README.md``), and writes
 into an output directory that already holds the Volve ``wells.parquet``, which
-the pre-publish checks join against. ``raw_files`` names every file ``run``
-reads, as a path within the Raw repo, so CI downloads only those.
+the pre-publish checks join against, and the committed ``schema.json``, which
+the written table must match. ``raw_files`` names every file ``run`` reads, as
+a path within the Raw repo, so CI downloads only those.
 """
 
 from __future__ import annotations
@@ -33,5 +34,9 @@ def run(raw_dir: Path = RAW_DIR, output_dir: Path = OUTPUT_DIR) -> Path:
         expected_rows = interpretation_builder.build(con, Path(raw_dir))
         curve_catalog.build(con, interpretation_builder.TABLE)
         return parquet_writer.write(
-            con, output_dir, output_dir / "wells.parquet", expected_rows
+            con,
+            output_dir,
+            output_dir / "wells.parquet",
+            output_dir / "schema.json",
+            expected_rows,
         )

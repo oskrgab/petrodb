@@ -1,7 +1,9 @@
 """The Volve log pipeline builds ``petrophysical_interpretation.parquet`` from LAS pairs.
 
 Runs the entry point end to end against a fixture raw directory of synthetic
-LAS files (``log_fixtures``) and queries the Parquet it writes.
+LAS files (``log_fixtures``) and queries the Parquet it writes. The output
+directory holds the committed ``wells.parquet`` and a ``schema.json`` that
+declares the fixture's columns with the committed declarations.
 """
 
 from __future__ import annotations
@@ -12,25 +14,30 @@ import sys
 from pathlib import Path
 
 import duckdb
+import pyarrow.parquet as pq
 import pytest
 
-from scripts.export.volve_logs import validator
+from scripts.export.volve_logs import schema_check, validator
 from scripts.run_pipeline import volve_logs
 from scripts.transform.volve_logs.interpretation_builder import CurveDisagreementError
 from scripts.transform.volve_logs.las_reader import LasSourceError
 from scripts.transform.volve_logs.units import UnitMismatchError, UnitSpellingError
 from tests.volve.log_fixtures import (
+    FIXTURE_COLUMNS,
     SENTINEL,
     TECHNICAL_SIDETRACK,
     TOP_HOLE,
     WELLBORES,
     build_raw_tree,
+    fixture_schema,
     pair_paths,
     write_las,
+    write_schema,
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 WELLS = REPO_ROOT / "parquet" / "volve" / "wells.parquet"
+SCHEMA = REPO_ROOT / "parquet" / "volve" / "schema.json"
 TABLE = "petrophysical_interpretation.parquet"
 
 
@@ -44,6 +51,7 @@ def out(tmp_path: Path) -> Path:
     out = tmp_path / "out"
     out.mkdir()
     shutil.copy(WELLS, out / "wells.parquet")
+    write_schema(out / "schema.json", fixture_schema())
     return out
 
 
@@ -184,6 +192,17 @@ def test_columns_are_the_key_then_the_source_mnemonics_unchanged_all_double(buil
     assert set(curves.values()) == {"DOUBLE"}
 
 
+def test_curves_are_ordered_by_how_many_wellbores_carry_them_ties_by_mnemonic(
+    built: Path,
+) -> None:
+    columns = [name for name, *_ in _rows(built, "DESCRIBE SELECT * FROM {t}")]
+    assert columns == FIXTURE_COLUMNS
+
+
+def test_the_table_is_one_row_group(built: Path) -> None:
+    assert _rows(built, "SELECT num_row_groups FROM parquet_file_metadata({t})") == [(1,)]
+
+
 def test_no_sentinel_remains(built: Path) -> None:
     curves = ["GR", "RHOB", "ROP", "VSH", "PHIF", "COAL_FLAG", "SW", "KLOGH"]
     hits = _rows(built, "SELECT count(*) FROM {t} WHERE " + " OR ".join(f"{c} = {SENTINEL}" for c in curves))
@@ -197,6 +216,18 @@ def test_depth_is_rounded_to_four_decimals_at_the_source_depths(built: Path) -> 
     )
     # KLOGH comes from the output file, not from the geomodel export (999).
     assert rows == [(3102.102, 90.0, 10.0), (3102.2544, 91.0, 20.0), (3102.4068, 92.0, 30.0)]
+
+
+@pytest.mark.skipif(
+    not (volve_logs.RAW_DIR / "Well_logs_pr_WELL").is_dir(),
+    reason="needs the Raw repo downloaded to data/raw/volve (data/raw/README.md)",
+)
+def test_the_real_raw_files_build_to_the_committed_schema(tmp_path: Path) -> None:
+    # The committed schema.json, unchanged: the documents match the real build.
+    for name in ("wells.parquet", "schema.json"):
+        shutil.copy(SCHEMA.parent / name, tmp_path / name)
+    built = volve_logs.run(output_dir=tmp_path)
+    assert _rows(built, "SELECT num_row_groups FROM parquet_file_metadata({t})") == [(1,)]
 
 
 def test_one_command_builds_the_table(raw: Path, out: Path) -> None:
@@ -297,6 +328,64 @@ def test_a_duplicate_depth_stops_the_build(raw: Path, out: Path) -> None:
         volve_logs.run(raw_dir=raw, output_dir=out)
 
 
+def _drop_sw(columns: list[dict]) -> None:
+    columns.remove(next(c for c in columns if c["name"] == "SW"))
+
+
+def _swap_gr_and_sw(columns: list[dict]) -> None:
+    columns[3], columns[4] = columns[4], columns[3]
+
+
+def _declare(column: str, **changes: object):
+    def change(columns: list[dict]) -> None:
+        next(c for c in columns if c["name"] == column).update(changes)
+
+    return change
+
+
+@pytest.mark.parametrize(
+    ("change", "message"),
+    [
+        (_drop_sw, r"columns are .*SW.*; schema\.json declares"),
+        (_swap_gr_and_sw, r"columns are .*GR, SW.*; schema\.json declares .*SW, GR"),
+        (_declare("SW", name="SWT"), r"columns are .*SW.*; schema\.json declares .*SWT"),
+        (_declare("GR", type="TEXT"), r"GR: DOUBLE in the file, schema\.json declares TEXT"),
+        (
+            _declare("npd_wellbore_code", type="DOUBLE"),
+            r"npd_wellbore_code: BIGINT in the file, schema\.json declares DOUBLE",
+        ),
+        (_declare("GR", not_null=True), r"GR: holds NULL, schema\.json declares NOT NULL"),
+    ],
+    ids=["missing-column", "order", "name", "type", "key-type", "nullability"],
+)
+def test_output_that_differs_from_schema_json_stops_the_build(
+    raw: Path, out: Path, change, message: str
+) -> None:
+    columns = fixture_schema()
+    change(columns)
+    write_schema(out / "schema.json", columns)
+    with pytest.raises(schema_check.SchemaMismatchError, match=message):
+        volve_logs.run(raw_dir=raw, output_dir=out)
+    assert not (out / TABLE).exists()
+
+
+def test_a_column_the_file_requires_but_schema_json_declares_nullable_is_a_mismatch(
+    tmp_path: Path,
+) -> None:
+    # DuckDB writes every column optional; another writer may not.
+    rows = pq.read_table(_write(tmp_path / "one.parquet", GOOD_ROWS))
+    required = rows.schema.set(3, rows.schema.field("GR").with_nullable(False))
+    table = tmp_path / "t.parquet"
+    pq.write_table(rows.cast(required), table)
+    schema = tmp_path / "schema.json"
+    write_schema(schema, [c for c in fixture_schema() if c["name"] in rows.column_names])
+    with pytest.raises(
+        schema_check.SchemaMismatchError,
+        match=r"GR: required in the file, schema\.json declares it nullable",
+    ):
+        schema_check.check(table, schema)
+
+
 def test_a_failed_build_keeps_the_previous_table(raw: Path, out: Path, built: Path) -> None:
     before = built.read_bytes()
     pair_paths(raw, "15_9-F-1 B")[1].unlink()
@@ -358,6 +447,31 @@ def test_each_pre_publish_check_stops_the_build(
     table = _write(tmp_path / "t.parquet", rows)
     with pytest.raises(validator.PrePublishCheckError, match=message):
         validator.check(table, WELLS, expected)
+
+
+def test_a_file_of_more_than_one_row_group_stops_the_build(tmp_path: Path) -> None:
+    # DuckDB will not split two rows into row groups; pyarrow will.
+    rows = pq.read_table(_write(tmp_path / "one.parquet", GOOD_ROWS))
+    table = tmp_path / "t.parquet"
+    pq.write_table(rows, table, row_group_size=1)
+    with pytest.raises(validator.PrePublishCheckError, match=r"2 row groups"):
+        validator.check(table, WELLS, {"15/9-F-1": 2})
+
+
+def test_columns_out_of_the_declared_order_stop_the_build(tmp_path: Path) -> None:
+    # SW is carried by two Wellbores, GR by one: SW must come first.
+    table = tmp_path / "t.parquet"
+    duckdb.sql(
+        "COPY (SELECT * FROM (VALUES "
+        "(7223, '15/9-F-1', 1000.1, 50.0, 0.9), (7224, '15/9-F-1 A', 2000.0, NULL, 0.8)"
+        ") AS t(npd_wellbore_code, source_wellbore, depth_md, GR, SW)) "
+        f"TO '{table}' (FORMAT parquet)"
+    )
+    with pytest.raises(
+        validator.PrePublishCheckError,
+        match=r"column order.*npd_wellbore_code, source_wellbore, depth_md, SW, GR",
+    ):
+        validator.check(table, WELLS, {"15/9-F-1": 1, "15/9-F-1 A": 1})
 
 
 def test_the_built_parquet_is_gitignored() -> None:
