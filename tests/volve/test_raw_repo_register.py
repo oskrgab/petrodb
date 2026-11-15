@@ -42,6 +42,6 @@ def test_fetch_register_writes_both_exports_and_the_download_date(
 
 def test_fetch_register_defaults_to_the_local_raw_directory() -> None:
     assert (
-        cli.DEFAULT_RAW_DIR
+        cli.LOCAL_RAW_DIR
         == Path(__file__).resolve().parents[2] / "data" / "raw" / "volve"
     )

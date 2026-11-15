@@ -26,7 +26,7 @@ data/raw/volve/
 ├── LICENSE.md                     Volve licence note and attribution
 ├── Well_logs_pr_WELL/             the operator's by-wellbore log tree
 │   ├── VOLVE_INVENTORY.xlsx
-│   ├── 15_9-F-1/                  one folder per wellbore, upstream name
+│   ├── 15_9-F-1/                  one folder per upstream wellbore name
 │   │   ├── 01.MUD_LOG/            one folder per log type, upstream numbering
 │   │   ├── 04.COMPOSITE/
 │   │   ├── 05.PETROPHYSICAL INTERPRETATION/
@@ -65,13 +65,15 @@ While `volve.pin` is empty, leave out `--revision` to read the latest commit.
 
 ### Fill the Raw repo (maintainer)
 
-The commands that fill the Raw repo live in `scripts/raw_repo/volve/`. The
-source directory is a local copy of the operator's release that keeps upstream
-paths (`Well_logs_pr_WELL/`, and `Well_logs/` for the by-type tree).
+The commands that fill the Raw repo live in `scripts/raw_repo/volve/`.
+`SOURCE_DIR` is a local copy of the operator's release that keeps upstream
+paths (`Well_logs_pr_WELL/`, and `Well_logs/` for the by-type tree); it is only
+read. The register snapshot is fetched into the local raw directory,
+`data/raw/volve/register/`, and the plan takes it from there.
 
 ```bash
-# Download the wellbore register snapshot into SOURCE_DIR/register/
-uv run python -m scripts.raw_repo.volve fetch-register SOURCE_DIR
+# Download the wellbore register snapshot into data/raw/volve/register/
+uv run python -m scripts.raw_repo.volve fetch-register
 
 # Print the upload plan (source, tab, Raw repo path), totals and adjustments; offline
 uv run python -m scripts.raw_repo.volve plan SOURCE_DIR
@@ -81,5 +83,5 @@ uv run python -m scripts.raw_repo.volve upload SOURCE_DIR --include "Well_logs_p
 uv run python -m scripts.raw_repo.volve upload SOURCE_DIR
 ```
 
-`fetch-register` with no directory writes to `data/raw/volve/register/`, which
-refreshes the register snapshot of a local raw directory.
+`fetch-register`, `plan` and `upload` take another local raw directory as
+`RAW_DIR` (`fetch-register RAW_DIR`, `--raw-dir RAW_DIR`).

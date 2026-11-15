@@ -12,7 +12,8 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-PIN_FILE = Path(__file__).resolve().parents[3] / "data" / "raw" / "volve.pin"
+from scripts.raw_repo.volve import PIN_FILE
+
 
 _COMMIT = re.compile(r"[0-9a-f]{40}")
 

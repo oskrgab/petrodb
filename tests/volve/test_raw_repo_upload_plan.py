@@ -2,7 +2,8 @@
 
 The fixture is laid out like a local copy of the operator's release: the
 by-wellbore log tree under ``Well_logs_pr_WELL/``, the few by-type files under
-``Well_logs/``, and the register snapshot under ``register/``. The upload
+``Well_logs/``. The register snapshot comes from the local raw directory,
+which ``fetch-register`` fills, so the release copy stays read-only. The upload
 itself is not tested (issue #65).
 """
 
@@ -68,7 +69,15 @@ def _write(root: Path, relpath: str, content: bytes | None = None) -> None:
 @pytest.fixture
 def release(tmp_path: Path) -> Path:
     root = tmp_path / "volve-release"
-    for relpath in [*KEPT, *JUNK, *BIOSTRAT_ADDED, *BY_TYPE_LEFT_OUT, *REGISTER]:
+    for relpath in [*KEPT, *JUNK, *BIOSTRAT_ADDED, *BY_TYPE_LEFT_OUT]:
+        _write(root, relpath)
+    return root
+
+
+@pytest.fixture
+def raw_dir(tmp_path: Path) -> Path:
+    root = tmp_path / "raw" / "volve"
+    for relpath in REGISTER:
         _write(root, relpath)
     return root
 
@@ -77,15 +86,17 @@ def _targets(plan: upload_plan.UploadPlan) -> dict[str, Path]:
     return {f.target: f.source for f in plan.files}
 
 
-def test_by_wellbore_files_keep_their_upstream_paths(release: Path) -> None:
-    targets = _targets(upload_plan.build_plan(release))
+def test_by_wellbore_files_keep_their_upstream_paths(
+    release: Path, raw_dir: Path
+) -> None:
+    targets = _targets(upload_plan.build_plan(release, raw_dir))
 
     for relpath in KEPT:
         assert targets[relpath] == release / relpath
 
 
-def test_operating_system_junk_is_left_out(release: Path) -> None:
-    targets = _targets(upload_plan.build_plan(release))
+def test_operating_system_junk_is_left_out(release: Path, raw_dir: Path) -> None:
+    targets = _targets(upload_plan.build_plan(release, raw_dir))
 
     for relpath in JUNK:
         assert relpath not in targets
@@ -93,15 +104,16 @@ def test_operating_system_junk_is_left_out(release: Path) -> None:
 
 def test_five_biostratigraphy_files_are_added_at_their_by_wellbore_paths(
     release: Path,
+    raw_dir: Path,
 ) -> None:
-    targets = _targets(upload_plan.build_plan(release))
+    targets = _targets(upload_plan.build_plan(release, raw_dir))
 
     for source, target in BIOSTRAT_ADDED.items():
         assert targets[target] == release / source
 
 
-def test_rest_of_the_by_type_tree_is_left_out(release: Path) -> None:
-    plan = upload_plan.build_plan(release)
+def test_rest_of_the_by_type_tree_is_left_out(release: Path, raw_dir: Path) -> None:
+    plan = upload_plan.build_plan(release, raw_dir)
 
     sources = {f.source for f in plan.files}
     for relpath in BY_TYPE_LEFT_OUT:
@@ -109,29 +121,35 @@ def test_rest_of_the_by_type_tree_is_left_out(release: Path) -> None:
     assert not [f.target for f in plan.files if f.target.startswith("Well_logs/")]
 
 
-def test_a_missing_biostratigraphy_file_stops_the_plan(release: Path) -> None:
+def test_a_missing_biostratigraphy_file_stops_the_plan(
+    release: Path, raw_dir: Path
+) -> None:
     (release / "Well_logs/12.BIOSTRAT/15_9-19 B&BT2/003.tif").unlink()
 
     with pytest.raises(upload_plan.PlanError, match="003.tif"):
-        upload_plan.build_plan(release)
+        upload_plan.build_plan(release, raw_dir)
 
 
-def test_register_snapshot_goes_in_its_own_top_level_folder(release: Path) -> None:
-    targets = _targets(upload_plan.build_plan(release))
+def test_register_snapshot_goes_in_its_own_top_level_folder(
+    release: Path, raw_dir: Path
+) -> None:
+    targets = _targets(upload_plan.build_plan(release, raw_dir))
 
     for relpath in REGISTER:
-        assert targets[relpath] == release / relpath
+        assert targets[relpath] == raw_dir / relpath
 
 
-def test_a_missing_register_export_stops_the_plan(release: Path) -> None:
-    (release / "register/wellbore_exploration_all.csv").unlink()
+def test_a_missing_register_export_stops_the_plan(release: Path, raw_dir: Path) -> None:
+    (raw_dir / "register/wellbore_exploration_all.csv").unlink()
 
     with pytest.raises(upload_plan.PlanError, match="wellbore_exploration_all.csv"):
-        upload_plan.build_plan(release)
+        upload_plan.build_plan(release, raw_dir)
 
 
-def test_raw_repo_readme_and_licence_notes_come_from_this_repo(release: Path) -> None:
-    targets = _targets(upload_plan.build_plan(release))
+def test_raw_repo_readme_and_licence_notes_come_from_this_repo(
+    release: Path, raw_dir: Path
+) -> None:
+    targets = _targets(upload_plan.build_plan(release, raw_dir))
 
     docs = REPO_ROOT / "hf" / "petrodb-raw-volve"
     assert targets["README.md"] == docs / "README.md"
@@ -141,8 +159,9 @@ def test_raw_repo_readme_and_licence_notes_come_from_this_repo(release: Path) ->
 
 def test_plan_holds_exactly_the_planned_files_and_renames_nothing_else(
     release: Path,
+    raw_dir: Path,
 ) -> None:
-    plan = upload_plan.build_plan(release)
+    plan = upload_plan.build_plan(release, raw_dir)
 
     assert sorted(f.target for f in plan.files) == sorted(
         [
@@ -163,8 +182,10 @@ def test_plan_holds_exactly_the_planned_files_and_renames_nothing_else(
     assert all(f.size == f.source.stat().st_size for f in plan.files)
 
 
-def test_plan_reports_each_adjustment_to_upstream(release: Path) -> None:
-    adjustments = {a.kind: a for a in upload_plan.build_plan(release).adjustments}
+def test_plan_reports_each_adjustment_to_upstream(release: Path, raw_dir: Path) -> None:
+    adjustments = {
+        a.kind: a for a in upload_plan.build_plan(release, raw_dir).adjustments
+    }
 
     assert set(adjustments) == {
         "junk_left_out",
@@ -190,7 +211,10 @@ def test_plan_reports_each_adjustment_to_upstream(release: Path) -> None:
 
 
 def test_plan_command_prints_sources_targets_and_adjustments_offline(
-    release: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+    release: Path,
+    raw_dir: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     def no_network(*args: object, **kwargs: object) -> None:
         raise AssertionError("the plan command opened a network connection")
@@ -198,7 +222,7 @@ def test_plan_command_prints_sources_targets_and_adjustments_offline(
     monkeypatch.setattr(socket, "socket", no_network)
     monkeypatch.setattr(socket, "create_connection", no_network)
 
-    cli.main(["plan", str(release)])
+    cli.main(["plan", str(release), "--raw-dir", str(raw_dir)])
 
     lines = capsys.readouterr().out.splitlines()
     rows = {tuple(line.split("\t")) for line in lines if not line.startswith("#")}
@@ -207,5 +231,6 @@ def test_plan_command_prints_sources_targets_and_adjustments_offline(
     assert (str(release / "Well_logs/12.BIOSTRAT/15_9-19 B&BT2/001.tif"), added) in rows
     assert len(rows) == len(KEPT) + len(BIOSTRAT_ADDED) + len(REGISTER) + 3
     assert f"# files: {len(rows)}" in lines
+    assert f"# files from the release: {len(KEPT) + len(BIOSTRAT_ADDED)}" in lines
     assert f"#   {JUNK[0]}" in lines
     assert f"#   {added}" in lines

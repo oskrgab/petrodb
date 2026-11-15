@@ -51,7 +51,7 @@ README.md                      this card
 LICENSE.md                     the Volve licence note and attribution
 Well_logs_pr_WELL/             the operator's by-wellbore log tree, whole
   VOLVE_INVENTORY.xlsx
-  15_9-F-1/                    one folder per wellbore, named as upstream names it
+  15_9-F-1/                    one folder per upstream wellbore name
     01.MUD_LOG/                one folder per log type, numbered as upstream numbers it
     02.LWD_EWL/
     04.COMPOSITE/

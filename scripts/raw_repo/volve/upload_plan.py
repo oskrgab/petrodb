@@ -13,10 +13,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-from scripts.raw_repo.volve import register
-
-REPO_ROOT = Path(__file__).resolve().parents[3]
-RAW_REPO_DOCS_DIR = REPO_ROOT / "hf" / "petrodb-raw-volve"
+from scripts.raw_repo.volve import RAW_REPO_DOCS_DIR, register
 
 BY_WELLBORE_DIR = "Well_logs_pr_WELL"
 BY_TYPE_DIR = "Well_logs"
@@ -64,6 +61,7 @@ class Adjustment:
 
 @dataclass(frozen=True)
 class UploadPlan:
+    source_dir: Path
     files: tuple[PlannedFile, ...]
     adjustments: tuple[Adjustment, ...]
 
@@ -71,8 +69,13 @@ class UploadPlan:
     def total_size(self) -> int:
         return sum(f.size for f in self.files)
 
+    @property
+    def release_files(self) -> tuple[PlannedFile, ...]:
+        """The planned files read from the release copy, without the register and docs."""
+        return tuple(f for f in self.files if f.source.is_relative_to(self.source_dir))
 
-def _planned(source: Path, target: str) -> PlannedFile:
+
+def _planned_file(source: Path, target: str) -> PlannedFile:
     return PlannedFile(source=source, target=target, size=source.stat().st_size)
 
 
@@ -80,11 +83,15 @@ def _files_under(directory: Path) -> list[Path]:
     return sorted(p for p in directory.rglob("*") if p.is_file())
 
 
-def build_plan(source_dir: Path, docs_dir: Path = RAW_REPO_DOCS_DIR) -> UploadPlan:
+def build_plan(source_dir: Path, raw_dir: Path) -> UploadPlan:
     """Plan the upload of ``source_dir`` to the Raw repo. Reads the disk only.
 
-    ``docs_dir`` holds the Raw repo's own README and licence notes, laid out at
-    their paths in the Raw repo.
+    ``source_dir`` is the local copy of the operator's release and is only read.
+    The register snapshot comes from ``raw_dir/register/``, which the
+    fetch-register command fills.
+
+    The Raw repo's own README and licence notes come from this repo
+    (``RAW_REPO_DOCS_DIR``).
     """
     files: list[PlannedFile] = []
     junk: list[str] = []
@@ -94,20 +101,20 @@ def build_plan(source_dir: Path, docs_dir: Path = RAW_REPO_DOCS_DIR) -> UploadPl
         if is_junk(path):
             junk.append(relpath)
         else:
-            files.append(_planned(path, relpath))
+            files.append(_planned_file(path, relpath))
 
-    taken = {f.target for f in files}
+    by_wellbore_targets = {f.target for f in files}
     for relpath, target in BY_TYPE_ADDITIONS.items():
         source = source_dir / relpath
         if not source.is_file():
             raise PlanError(
                 f"by-type file missing from the source directory: {relpath}"
             )
-        if target in taken:
+        if target in by_wellbore_targets:
             raise PlanError(
                 f"by-type file would overwrite a by-wellbore file: {target}"
             )
-        files.append(_planned(source, target))
+        files.append(_planned_file(source, target))
 
     by_type_left_out: list[str] = []
     for path in _files_under(source_dir / BY_TYPE_DIR):
@@ -118,14 +125,17 @@ def build_plan(source_dir: Path, docs_dir: Path = RAW_REPO_DOCS_DIR) -> UploadPl
 
     for name in register.SNAPSHOT_FILES:
         relpath = f"{register.REGISTER_DIR}/{name}"
-        if not (source_dir / relpath).is_file():
+        if not (raw_dir / relpath).is_file():
             raise PlanError(
-                f"register snapshot file missing: {relpath} (run the fetch-register command first)"
+                f"register snapshot file missing: {raw_dir / relpath} "
+                "(run the fetch-register command first)"
             )
-        files.append(_planned(source_dir / relpath, relpath))
+        files.append(_planned_file(raw_dir / relpath, relpath))
 
-    for path in _files_under(docs_dir):
-        files.append(_planned(path, path.relative_to(docs_dir).as_posix()))
+    for path in _files_under(RAW_REPO_DOCS_DIR):
+        files.append(
+            _planned_file(path, path.relative_to(RAW_REPO_DOCS_DIR).as_posix())
+        )
 
     adjustments = (
         Adjustment(
@@ -147,4 +157,6 @@ def build_plan(source_dir: Path, docs_dir: Path = RAW_REPO_DOCS_DIR) -> UploadPl
             paths=tuple(by_type_left_out),
         ),
     )
-    return UploadPlan(files=tuple(files), adjustments=adjustments)
+    return UploadPlan(
+        source_dir=source_dir, files=tuple(files), adjustments=adjustments
+    )

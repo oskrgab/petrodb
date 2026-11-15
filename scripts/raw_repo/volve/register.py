@@ -34,6 +34,10 @@ DATE_FILE = "download_date.txt"
 SNAPSHOT_FILES = (*EXPORTS, DATE_FILE)
 
 
+class RegisterError(Exception):
+    """A download is not the register export it should be."""
+
+
 def _http_get(url: str) -> bytes:
     request = urllib.request.Request(
         url, headers={"User-Agent": "petrodb-register-snapshot"}

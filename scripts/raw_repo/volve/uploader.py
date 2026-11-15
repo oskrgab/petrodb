@@ -18,6 +18,10 @@ from scripts.raw_repo.volve.upload_plan import UploadPlan
 RAW_REPO_ID = "oskrgab/petrodb-raw-volve"
 
 
+class UploadError(Exception):
+    """The upload cannot start."""
+
+
 def stage(plan: UploadPlan, stage_dir: Path, include: list[str] | None = None) -> int:
     """Link every planned file (or those matching ``include``) at its target path in an empty ``stage_dir``."""
     count = 0
@@ -41,7 +45,7 @@ def upload(plan: UploadPlan, include: list[str] | None = None) -> None:
         root = Path(tmp)
         count = stage(plan, root, include)
         if count == 0:
-            raise SystemExit("error: no planned file matches --include")
+            raise UploadError("no planned file matches --include")
         print(f"staged {count} files in {root}; uploading to {RAW_REPO_ID}")
         subprocess.run(
             [
