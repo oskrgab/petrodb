@@ -11,6 +11,11 @@ in ``source_wellbore``. The 15/9-F-11 top-hole section, an input file with no
 output file, is a source of its own: it lies inside the depth range of F-11 T2
 but holds different values, so the two are never merged.
 
+The older 15/9-19 exploration wellbores have a single LAS interpretation
+file each (``SingleFileSource``), holding Input curves and Interpreted curves
+together; the Curve catalog's committed list says which is which
+(``curve_catalog.SINGLE_FILE_CURVE_KINDS``).
+
 Paths are relative to a local raw directory, a plain download of the Raw repo
 ``oskrgab/petrodb-raw-volve`` (see ``data/raw/README.md``).
 """
@@ -53,6 +58,20 @@ class LasSource:
         return self._path(raw_dir, OUTPUT_FILE)
 
 
+@dataclass(frozen=True)
+class SingleFileSource:
+    """The one LAS interpretation file of a ``source_wellbore``, Input and
+    Interpreted curves together, at ``file`` within its interpretation folder."""
+
+    folder: str
+    file: str
+    source_wellbore: str
+    npd_wellbore_code: int
+
+    def path(self, raw_dir: Path) -> Path:
+        return Path(raw_dir) / LOG_TREE / self.folder / INTERPRETATION_FOLDER / self.file
+
+
 # The sources whose interpretation is LAS, one folder each. Only the
 # WLC_PETRO_COMPUTED files are read: the geomodel permeability export beside
 # them (geomod09/*_KLOGH_NEW.las) is not. 7078 is 15/9-F-11: the parent of the
@@ -70,6 +89,17 @@ LAS_SOURCES: tuple[LasSource, ...] = (
     LasSource("15_9-F-15 D", "15/9-F-15 D", 7289),
 )
 
+# The 15/9-19 wellbores. Only the CPI file is read: not the earlier
+# interpretation beside it (``first interpretation/``, in other formats), nor
+# the geomodel permeability export. 15/9-19 BT2 is a Technical sidetrack: its
+# rows take the code of 15/9-19 B (3251). The folder ``15_9-19 S&SR`` is named
+# for both 15/9-19 S and SR, but holds 15/9-19 SR data only (2105).
+SINGLE_FILE_SOURCES: tuple[SingleFileSource, ...] = (
+    SingleFileSource("15_9-19 A", "CPI/15_9-19_A_CPI.las", "15/9-19 A", 3145),
+    SingleFileSource("15_9-19 B&BT2", "CPI/15_9-19_BT2_CPI.las", "15/9-19 BT2", 3251),
+    SingleFileSource("15_9-19 S&SR", "CPI/15_9-19_SR_CPI.las", "15/9-19 SR", 2105),
+)
+
 
 def raw_files() -> tuple[str, ...]:
     """Every file the pipeline reads, as a path within the Raw repo.
@@ -81,9 +111,11 @@ def raw_files() -> tuple[str, ...]:
     there.
     """
     root = Path()  # an empty root leaves each path relative to the raw directory
-    return tuple(
-        path.as_posix()
+    pairs = (
+        path
         for source in LAS_SOURCES
         for path in (source.input_path(root), source.output_path(root))
         if path is not None
     )
+    singles = (source.path(root) for source in SINGLE_FILE_SOURCES)
+    return tuple(path.as_posix() for path in (*pairs, *singles))

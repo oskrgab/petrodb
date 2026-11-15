@@ -54,13 +54,13 @@ The Curve catalog: one row per log table, Wellbore or Technical sidetrack, and C
 | `npd_wellbore_code` | INTEGER | — | No |  | Wellbore the Curve was logged in. Joins to `wells`. For a Technical sidetrack, the code of its parent Wellbore. |
 | `source_wellbore` | TEXT | — | No | ✓ | The operator's name for the logged Wellbore or Technical sidetrack, as in the log table's `source_wellbore`: a Wellbore, a Technical sidetrack such as `15/9-F-11 T2`, or the 15/9-F-11 top-hole section. |
 | `mnemonic` | TEXT | — | No | ✓ | The Curve's source mnemonic: the name of its column in the log table. |
-| `curve_kind` | TEXT | — | No |  | `input` for an Input curve, a measurement the petrophysical interpretation took as input; `interpreted` for an Interpreted curve it computed. A Curve in both the input and the output file is an Input curve. |
+| `curve_kind` | TEXT | — | No |  | `input` for an Input curve, a measurement the petrophysical interpretation took as input; `interpreted` for an Interpreted curve it computed. A Curve in both the input and the output file is an Input curve. The 15/9-19 wellbores have a single interpretation file holding both kinds; a committed list of mnemonics classifies their Curves. |
 | `unit` | TEXT | — | No |  | The one unit documented for the Curve's column, as the schema documents write it. |
 | `source_unit` | TEXT | — | No |  | The unit as the source file spells it, such as `V/V` or `UNKNOWN`. The values are not converted: every spelling the build accepts means the documented unit. |
 | `first_depth_md` | DOUBLE | m | No |  | Shallowest measured depth at which the Curve has a sample. |
 | `last_depth_md` | DOUBLE | m | No |  | Deepest measured depth at which the Curve has a sample. |
 | `sample_count` | INTEGER | — | No |  | Number of depth samples at which the Curve has a value. |
-| `source_file` | TEXT | — | No |  | Path of the file the Curve was read from, within the Raw repo `oskrgab/petrodb-raw-volve`. A Curve in both files of a pair names the input file. |
+| `source_file` | TEXT | — | No |  | Path of the file the Curve was read from, within the Raw repo `oskrgab/petrodb-raw-volve`. A Curve in both files of a pair names the input file; the Curves of a 15/9-19 wellbore all name its single interpretation file. |
 
 **Foreign Keys:**
 
@@ -105,24 +105,24 @@ Well-log Curves of Equinor's petrophysical interpretation, one row per depth sam
 | Column | Type | Unit | Nullable | Primary Key | Description |
 |--------|------|------|----------|-------------|-------------|
 | `npd_wellbore_code` | INTEGER | — | No |  | Wellbore the row belongs to. Joins to `wells`. For a Technical sidetrack, the code of its parent Wellbore. |
-| `source_wellbore` | TEXT | — | No | ✓ | The operator's name for the logged wellbore, such as `15/9-F-1 A`, taken from the folder the source files sit in. Usually the name of the Wellbore in `npd_wellbore_code`. A Technical sidetrack, such as `15/9-F-11 T2`, is a re-drilled section the register does not count as a Wellbore: its rows carry the `npd_wellbore_code` of its parent Wellbore (`15/9-F-11`) and keep the Technical sidetrack's name here. The 15/9-F-11 top-hole section is `15/9-F-11`: it has Input curves only, and it overlaps the depths of `15/9-F-11 T2` with different values. Filter on `npd_wellbore_code` for everything logged under a Wellbore, on `source_wellbore` for one of its sources. |
+| `source_wellbore` | TEXT | — | No | ✓ | The operator's name for the logged wellbore, such as `15/9-F-1 A`, taken from the folder the source files sit in. Usually the name of the Wellbore in `npd_wellbore_code`. A Technical sidetrack, such as `15/9-F-11 T2` or `15/9-19 BT2`, is a re-drilled section the register does not count as a Wellbore: its rows carry the `npd_wellbore_code` of its parent Wellbore (`15/9-F-11`, `15/9-19 B`) and keep the Technical sidetrack's name here. The 15/9-F-11 top-hole section is `15/9-F-11`: it has Input curves only, and it overlaps the depths of `15/9-F-11 T2` with different values. Filter on `npd_wellbore_code` for everything logged under a Wellbore, on `source_wellbore` for one of its sources. |
 | `depth_md` | DOUBLE | m | No | ✓ | Measured depth along the wellbore, rounded to four decimals so that equality joins are stable. The depth reference is the one the source file uses; it is not normalised. |
-| `BVW` | DOUBLE | v/v | Yes |  | Bulk volume of water: porosity times water saturation, as a fraction of rock volume. |
-| `COAL_FLAG` | DOUBLE | unitless | Yes |  | Lithology flag: 1 where the interpretation marks coal, 0 elsewhere. |
-| `GR` | DOUBLE | gAPI | Yes |  | Natural gamma ray. |
 | `KLOGH` | DOUBLE | mD | Yes |  | Horizontal permeability computed from the logs. |
-| `NPHI` | DOUBLE | v/v | Yes |  | Neutron porosity, as a fraction. |
 | `PHIF` | DOUBLE | v/v | Yes |  | Final effective porosity from the interpretation, as a fraction. |
-| `RHOB` | DOUBLE | g/cm³ | Yes |  | Bulk density. |
-| `RT` | DOUBLE | ohm·m | Yes |  | True formation resistivity, as the interpreter selected it. |
 | `SAND_FLAG` | DOUBLE | unitless | Yes |  | Lithology flag: 1 where the interpretation marks sand, 0 elsewhere. |
 | `SW` | DOUBLE | v/v | Yes |  | Water saturation from the interpretation, as a fraction of pore volume. |
 | `VSH` | DOUBLE | v/v | Yes |  | Shale volume, as a fraction. |
+| `BVW` | DOUBLE | v/v | Yes |  | Bulk volume of water: porosity times water saturation, as a fraction of rock volume. |
+| `COAL_FLAG` | DOUBLE | unitless | Yes |  | Lithology flag: 1 where the interpretation marks coal, 0 elsewhere. |
+| `BS` | DOUBLE | in | Yes |  | Bit size: nominal diameter of the drilled hole. |
+| `GR` | DOUBLE | gAPI | Yes |  | Natural gamma ray. |
+| `NPHI` | DOUBLE | v/v | Yes |  | Neutron porosity, as a fraction. |
+| `RHOB` | DOUBLE | g/cm³ | Yes |  | Bulk density. |
+| `RT` | DOUBLE | ohm·m | Yes |  | True formation resistivity, as the interpreter selected it. |
 | `ABDCQF01` | DOUBLE | g/cm³ | Yes |  | Bulk density from quadrant 1 of an azimuthal density measurement while drilling. |
 | `ABDCQF02` | DOUBLE | g/cm³ | Yes |  | Bulk density from quadrant 2 of an azimuthal density measurement while drilling. |
 | `ABDCQF03` | DOUBLE | g/cm³ | Yes |  | Bulk density from quadrant 3 of an azimuthal density measurement while drilling. |
 | `ABDCQF04` | DOUBLE | g/cm³ | Yes |  | Bulk density from quadrant 4 of an azimuthal density measurement while drilling. |
-| `BS` | DOUBLE | in | Yes |  | Bit size: nominal diameter of the drilled hole. |
 | `CALI` | DOUBLE | in | Yes |  | Caliper: measured borehole diameter. |
 | `DRHO` | DOUBLE | g/cm³ | Yes |  | Density correction applied to the bulk density. |
 | `PEF` | DOUBLE | b/e | Yes |  | Photoelectric factor. |
@@ -132,15 +132,31 @@ Well-log Curves of Equinor's petrophysical interpretation, one row per depth sam
 | `ROP` | DOUBLE | m/h | Yes |  | Rate of penetration while drilling. |
 | `RPCEHM` | DOUBLE | ohm·m | Yes |  | Propagation resistivity while drilling, from the phase shift of the high-frequency signal. |
 | `RPCELM` | DOUBLE | ohm·m | Yes |  | Propagation resistivity while drilling, from the phase shift of the low-frequency signal. |
-| `RM` | DOUBLE | ohm·m | Yes |  | Medium resistivity. |
-| `DT` | DOUBLE | µs/ft | Yes |  | Compressional sonic slowness. |
 | `CARB_FLAG` | DOUBLE | unitless | Yes |  | Lithology flag: 1 where the interpretation marks carbonate, 0 elsewhere. |
+| `DT` | DOUBLE | µs/ft | Yes |  | Compressional sonic slowness. |
+| `RM` | DOUBLE | ohm·m | Yes |  | Medium resistivity. |
 | `VCARB` | DOUBLE | v/v | Yes |  | Volume of carbonate minerals (calcite, dolomite, siderite), as a fraction. |
 | `DTS` | DOUBLE | µs/ft | Yes |  | Shear sonic slowness. |
 | `NBGRCFM` | DOUBLE | gAPI | Yes |  | Natural gamma ray measured near the bit while drilling. |
+| `KLOGV` | DOUBLE | mD | Yes |  | Vertical permeability computed from the logs. |
+| `RHOFL` | DOUBLE | g/cm³ | Yes |  | Fluid density the interpretation assumes in the pore space. |
+| `RHOMA` | DOUBLE | g/cm³ | Yes |  | Matrix (grain) density the interpretation assumes. |
+| `RW` | DOUBLE | ohm·m | Yes |  | Formation-water resistivity at the formation temperature. |
+| `TEMP` | DOUBLE | °C | Yes |  | Formation temperature computed along the wellbore. |
 | `BADDATA_FLAG` | DOUBLE | unitless | Yes |  | Interpreted flag: 1 where the interpreter judged the log data unreliable, 0 elsewhere. |
+| `BWV` | DOUBLE | v/v | Yes |  | Bulk volume of water, as a fraction of rock volume, under the mnemonic the 15/9-19 SR file gives it; kept apart from `BVW`, since each column is named with its source mnemonic. |
+| `DELTA` | DOUBLE | v/v | Yes |  | Neutron porosity minus density porosity (`PORD`), as a fraction: a difference the interpretation uses to spot gas and shale. |
+| `GRMAX` | DOUBLE | gAPI | Yes |  | Gamma-ray value the interpretation takes for pure shale, when it computes the shale volume. |
+| `GRMIN` | DOUBLE | gAPI | Yes |  | Gamma-ray value the interpretation takes for clean sand, when it computes the shale volume. |
+| `J` | DOUBLE | unitless | Yes |  | Leverett J-function: capillary pressure made dimensionless with the porosity and the permeability. |
+| `KLHC_INT` | DOUBLE | mD | Yes |  | A second horizontal permeability computed from the logs, beside `KLOGH`; equal to it at many depths. The source does not say how the two differ. |
+| `M` | DOUBLE | unitless | Yes |  | Cementation exponent of the saturation equation, computed from the permeability. |
+| `N` | DOUBLE | unitless | Yes |  | Saturation exponent of the saturation equation. |
+| `PERF_FLAG` | DOUBLE | unitless | Yes |  | Interpreted flag: 1 where the interpretation marks a perforated interval, 0 elsewhere. |
+| `PORD` | DOUBLE | v/v | Yes |  | Porosity computed from the bulk density, as a fraction. |
 | `ROP5_RM` | DOUBLE | m/h | Yes |  | Rate of penetration while drilling, a second recording. Its file leaves the unit unknown; its values lie in the range `ROP` has in the other wellbores, so it is documented in the same unit. |
 | `RS` | DOUBLE | ohm·m | Yes |  | Shallow resistivity. |
+| `SWIRR` | DOUBLE | v/v | Yes |  | Irreducible water saturation computed from the permeability, as a fraction. The formula gives values above 1 where the permeability is near zero; they are kept as the source gives them. |
 
 **Foreign Keys:**
 

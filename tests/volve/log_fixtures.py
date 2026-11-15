@@ -4,8 +4,10 @@ Every file is generated with ``lasio`` into a temporary directory; no real log
 file and no network is needed. The tree holds, under the upstream folder
 names, one LAS pair for each of the eight Wellbores the petrophysical
 interpretation reads as LAS pairs, the LAS pair of the Technical sidetrack
-15/9-F-11 T2, and the input file of the 15/9-F-11 top-hole section. Beside
-them sits a geomodel permeability export the build must not read.
+15/9-F-11 T2, the input file of the 15/9-F-11 top-hole section, and the
+single interpretation file of each 15/9-19 wellbore, which holds Input curves
+and Interpreted curves together. Beside them sits a geomodel permeability
+export the build must not read.
 """
 
 from __future__ import annotations
@@ -37,6 +39,15 @@ TECHNICAL_SIDETRACK = ("15_9-F-11 T2", "15/9-F-11 T2", 7078)
 # The 15/9-F-11 top-hole section: an input file and no output file.
 TOP_HOLE = ("15_9-F-11", "15/9-F-11", 7078)
 
+# The 15/9-19 wellbores: one LAS interpretation file each, in a CPI folder.
+# Upstream folder -> (file, operator's name, npd_wellbore_code). 15/9-19 BT2
+# is a Technical sidetrack: its rows take the code of 15/9-19 B.
+SINGLE_FILES = {
+    "15_9-19 A": ("15_9-19_A_CPI.las", "15/9-19 A", 3145),
+    "15_9-19 B&BT2": ("15_9-19_BT2_CPI.las", "15/9-19 BT2", 3251),
+    "15_9-19 S&SR": ("15_9-19_SR_CPI.las", "15/9-19 SR", 2105),
+}
+
 Curves = dict[str, tuple[str, list[float]]]  # mnemonic -> (unit, values)
 
 
@@ -63,6 +74,10 @@ def pair_paths(raw: Path, folder: str) -> tuple[Path, Path]:
     )
 
 
+def single_file_path(raw: Path, folder: str) -> Path:
+    return raw / "Well_logs_pr_WELL" / folder / INTERPRETATION / "CPI" / SINGLE_FILES[folder][0]
+
+
 def build_raw_tree(raw: Path) -> Path:
     """The fixture raw directory. 15/9-F-1 carries the interesting cases.
 
@@ -76,6 +91,11 @@ def build_raw_tree(raw: Path) -> Path:
 
     15/9-F-12 has depths in feet steps written with float noise, and a
     geomodel permeability export whose KLOGH must not be read.
+
+    15/9-19 A's single file holds the Input curve BS beside the Interpreted
+    curves PHIF and TEMP, in spellings only these files use (``IN``,
+    ``DEGC``), and an all-sentinel last row. 15/9-19 SR's DT has a blank
+    unit spelling.
     """
     write_las(
         pair_paths(raw, "15_9-F-1")[0],
@@ -136,16 +156,37 @@ def build_raw_tree(raw: Path) -> Path:
             "ROP": ("m/hr", [12.0, SENTINEL, SENTINEL]),
         },
     )
+    write_las(
+        single_file_path(raw, "15_9-19 A"),
+        [3666.5916, 3666.744, 3666.8964],
+        {
+            "BS": ("IN", [8.5, 8.5, SENTINEL]),
+            "PHIF": ("V/V", [0.2, SENTINEL, SENTINEL]),
+            "TEMP": ("DEGC", [112.7, 112.8, SENTINEL]),
+        },
+        well="NO_15/9-19_A",
+    )
+    write_las(
+        single_file_path(raw, "15_9-19 B&BT2"),
+        [3768.09, 3768.2424],
+        {"PHIF": ("V/V", [0.25, 0.26]), "KLOGV": ("MD", [100.0, 200.0])},
+    )
+    write_las(
+        single_file_path(raw, "15_9-19 S&SR"),
+        [3549.7008, 3549.8532],
+        {"DT": ("", [75.0, 76.0]), "SW": ("V/V", [1.0, SENTINEL])},
+    )
     return raw
 
 
-# GR: all nine Wellbores; SW: the six plain pairs; PHIF: 15/9-F-1 and
-# 15/9-F-11; the rest one each, by mnemonic. A Wellbore counts once: VSH is
-# in both files of 15/9-F-1, GR in both 15/9-F-11 sources (the Technical
-# sidetrack and the top-hole section).
+# GR: nine Wellbores; SW: the six plain pairs and 15/9-19 SR; PHIF:
+# 15/9-F-1, 15/9-F-11, 15/9-19 A and 15/9-19 B; the rest one each, by
+# mnemonic. A Wellbore counts once: VSH is in both files of 15/9-F-1, GR in
+# both 15/9-F-11 sources (the Technical sidetrack and the top-hole section).
 FIXTURE_COLUMNS = [
     "npd_wellbore_code", "source_wellbore", "depth_md",
-    "GR", "SW", "PHIF", "COAL_FLAG", "KLOGH", "RHOB", "ROP", "VSH",
+    "GR", "SW", "PHIF",
+    "BS", "COAL_FLAG", "DT", "KLOGH", "KLOGV", "RHOB", "ROP", "TEMP", "VSH",
 ]  # fmt: skip
 
 

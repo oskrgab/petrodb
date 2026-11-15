@@ -90,7 +90,15 @@ top-hole section, which has no output file, from
 names the source, through the mapping in
 `scripts/transform/volve_logs/sources.py`: the Technical sidetrack's rows take the
 `npd_wellbore_code` of its parent, 15/9-F-11, and keep `15/9-F-11 T2` in
-`source_wellbore`. Each Curve's unit spelling must be one the unit table in
+`source_wellbore`. It also reads the single LAS interpretation file of each
+15/9-19 wellbore, `CPI/15_9-19_<name>_CPI.las` in the same folder of
+`15_9-19 A`, `15_9-19 B&BT2` and `15_9-19 S&SR`. One file holds both kinds of
+Curve, so the committed list `SINGLE_FILE_CURVE_KINDS` in
+`scripts/transform/volve_logs/curve_catalog.py` says which mnemonics are Input
+curves and which are Interpreted curves; the build stops on a mnemonic it does
+not list. `15/9-19 BT2` is a Technical sidetrack of 15/9-19 B, and
+`15_9-19 S&SR` holds 15/9-19 SR data only. Each Curve's unit spelling must be
+one the unit table in
 `scripts/transform/volve_logs/units.py` maps to the unit documented for its
 column; the build stops on any other, naming the file, the mnemonic and the
 spelling, and a new spelling is added there by review. Both files are checked

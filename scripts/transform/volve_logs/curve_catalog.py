@@ -7,7 +7,9 @@ Technical sidetrack, over which depths, and where each came from. Two steps:
   ``source_wellbore`` came from: the file (as a path within the Raw repo),
   whether it is an Input curve or an Interpreted curve, and the file's unit
   spelling. The first file that carries a mnemonic names it, so a Curve in
-  both files of a pair is an Input curve and names the input file;
+  both files of a pair is an Input curve and names the input file. A single
+  interpretation file holds both kinds of Curve: ``split_by_kind`` divides it
+  by the committed list ``SINGLE_FILE_CURVE_KINDS``;
 - ``build`` then reads each Curve's first and last depth with data and its
   count of non-null samples from the built table itself. A Curve entirely
   NULL for a ``source_wellbore`` has no row.
@@ -33,6 +35,50 @@ INPUT = "input"
 INTERPRETED = "interpreted"
 
 _SOURCES = "curve_sources"
+
+# What each Curve of a single interpretation file is (the 15/9-19
+# wellbores). A Curve the interpretation took as measured is an Input curve,
+# as in the input files of a pair: the bit size and the sonic. Everything
+# else it computed or set, its parameters included (matrix and fluid density,
+# formation-water resistivity, temperature, the gamma-ray end points, the
+# saturation and cementation exponents), is an Interpreted curve.
+_SINGLE_FILE_INPUT_CURVES = ("BS", "DT")
+_SINGLE_FILE_INTERPRETED_CURVES = (
+    "BVW", "BWV", "CARB_FLAG", "COAL_FLAG", "DELTA", "GRMAX", "GRMIN", "J",
+    "KLHC_INT", "KLOGH", "KLOGV", "M", "N", "PERF_FLAG", "PHIF", "PORD",
+    "RHOFL", "RHOMA", "RW", "SAND_FLAG", "SW", "SWIRR", "TEMP", "VSH",
+)  # fmt: skip
+SINGLE_FILE_CURVE_KINDS: dict[str, str] = {
+    **dict.fromkeys(_SINGLE_FILE_INPUT_CURVES, INPUT),
+    **dict.fromkeys(_SINGLE_FILE_INTERPRETED_CURVES, INTERPRETED),
+}
+
+
+class UnclassifiedCurveError(Exception):
+    """A single interpretation file carries a Curve the committed list does not classify."""
+
+
+def split_by_kind(path: PurePath, table: pa.Table) -> tuple[pa.Table, pa.Table]:
+    """``table``, read from a single interpretation file at ``path``, as its
+    Input curves and its Interpreted curves, each keeping the depth column.
+
+    Fails on a Curve ``SINGLE_FILE_CURVE_KINDS`` does not list.
+    """
+    curves = [f.name for f in table.schema if UNIT_METADATA_KEY in (f.metadata or {})]
+    unclassified = [name for name in curves if name not in SINGLE_FILE_CURVE_KINDS]
+    if unclassified:
+        raise UnclassifiedCurveError(
+            f"{path}: Curve(s) {', '.join(unclassified)} not listed as Input or "
+            "Interpreted in SINGLE_FILE_CURVE_KINDS"
+        )
+    others = [name for name in table.column_names if name not in curves]
+
+    def of_kind(kind: str) -> pa.Table:
+        return table.select(
+            others + [name for name in curves if SINGLE_FILE_CURVE_KINDS[name] == kind]
+        )
+
+    return of_kind(INPUT), of_kind(INTERPRETED)
 
 
 def create(con: duckdb.DuckDBPyConnection) -> None:
