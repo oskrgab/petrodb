@@ -104,8 +104,8 @@ before either is moved into place; a failed check leaves no new file.
 The deploy workflow (`.github/workflows/deploy-cloudflare-pages.yml`) runs the
 same two commands, the download above and the build, on every `main` or
 `stage` deploy whose cache misses, then uploads the tables to the matching
-revision of `oskrgab/petrodb`. It downloads with a read token, the
-`HF_RAW_READ_TOKEN` secret. The cache is keyed on the pin, the pipeline
+revision of `oskrgab/petrodb`. It downloads with a token, the `HF_TOKEN`
+secret the upload uses too, since anonymous downloads are rate-limited. The cache is keyed on the pin, the pipeline
 sources, the committed `wells.parquet` and `schema.json`, and `uv.lock`; a
 deploy that changes none of them restores the tables without rebuilding. A
 failed check stops the deploy before anything is uploaded.
