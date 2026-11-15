@@ -4,7 +4,8 @@ The input and output files of a pair share a depth grid, so they are joined on
 ``depth_md`` (rounded to four decimals): Input curves and Interpreted curves
 side by side, one row per depth sample, at the source depths. A mnemonic in
 both files becomes one column, and the build fails if the two files disagree
-on it at any depth they share. Rows where every Curve is NULL are dropped.
+on it at any depth they share. A source with an input file only has every
+Interpreted curve NULL. Rows where every Curve is NULL are dropped.
 
 Every Curve column is DOUBLE and named with the source mnemonic verbatim, in
 the order ``volve_descriptions`` lists them; a mnemonic it does not list fails
@@ -57,6 +58,14 @@ def _non_empty_depths(table: pa.Table) -> set[float]:
     return set(depths[has_value].tolist())
 
 
+def _read_output(pair: LasPair, raw_dir: Path) -> pa.Table:
+    """The output file, or a table with no samples for a source with none."""
+    path = pair.output_path(raw_dir)
+    if path is None:
+        return pa.table({DEPTH_COLUMN: pa.array([], pa.float64())})
+    return read_las(path)
+
+
 def build(con: duckdb.DuckDBPyConnection, raw_dir: Path) -> dict[str, int]:
     """Create ``petrophysical_interpretation`` in ``con`` from the LAS pairs under ``raw_dir``.
 
@@ -65,7 +74,7 @@ def build(con: duckdb.DuckDBPyConnection, raw_dir: Path) -> dict[str, int]:
     pre-publish row-count check.
     """
     pairs = [
-        (pair, read_las(pair.input_path(raw_dir)), read_las(pair.output_path(raw_dir)))
+        (pair, read_las(pair.input_path(raw_dir)), _read_output(pair, raw_dir))
         for pair in LAS_PAIRS
     ]
     present = {
