@@ -6,9 +6,10 @@ side by side, one row per depth sample, at the source depths. A mnemonic in
 both files becomes one column, and the build fails if the two files disagree
 on it at any depth they share. Rows where every Curve is NULL are dropped.
 
-Every Curve column is DOUBLE and named with the source mnemonic verbatim, in
-the order ``volve_descriptions`` lists them; a mnemonic it does not list fails
-the build, so every published column is documented.
+Every Curve column is DOUBLE and named with the source mnemonic verbatim; a
+mnemonic ``volve_descriptions`` does not list fails the build, so every
+published column is documented. The published column order is the writer's
+(``scripts.export.volve_logs.layout``).
 """
 
 from __future__ import annotations

@@ -72,7 +72,7 @@ Monthly volumes per wellbore, from Equinor's monthly production report. One row 
 
 ### `petrophysical_interpretation`
 
-Well-log Curves of Equinor's petrophysical interpretation, one row per depth sample of each logged wellbore: the Input curves the interpretation took (gamma ray, density, neutron, sonic, resistivity) and the Interpreted curves it computed (porosity, water saturation, shale volume, permeability, lithology flags) side by side. One row per `(source_wellbore, depth_md)`. Each Curve column is named with the source mnemonic and is empty where the wellbore has no sample. Samples are at the source depths; nothing is resampled. Built from the raw log files; the Parquet is not in git.
+Well-log Curves of Equinor's petrophysical interpretation, one row per depth sample of each logged wellbore: the Input curves the interpretation took (gamma ray, density, neutron, sonic, resistivity) and the Interpreted curves it computed (porosity, water saturation, shale volume, permeability, lithology flags) side by side. One row per `(source_wellbore, depth_md)`. Each Curve column is named with the source mnemonic and is empty where the wellbore has no sample. Samples are at the source depths; nothing is resampled. The file is a single row group, sorted by `npd_wellbore_code`, `source_wellbore` and `depth_md`; the key columns come first, then the Curves in descending order of how many wellbores carry them, ties by mnemonic, so the most common Curves come first. Built from the raw log files; the Parquet is not in git.
 
 **Columns:**
 
@@ -81,6 +81,17 @@ Well-log Curves of Equinor's petrophysical interpretation, one row per depth sam
 | `npd_wellbore_code` | INTEGER | No |  | Wellbore the row belongs to. Joins to `wells`. |
 | `source_wellbore` | TEXT | No | ✓ | The operator's name for the logged wellbore, such as `15/9-F-1 A`, taken from the folder the source files sit in. |
 | `depth_md` | DOUBLE | No | ✓ | Measured depth along the wellbore, in metres, rounded to four decimals so that equality joins are stable. The depth reference is the one the source file uses; it is not normalised. |
+| `BVW` | DOUBLE | Yes |  | Bulk volume of water: porosity times water saturation, as a fraction of rock volume (v/v). |
+| `COAL_FLAG` | DOUBLE | Yes |  | Lithology flag: 1 where the interpretation marks coal, 0 elsewhere. |
+| `GR` | DOUBLE | Yes |  | Natural gamma ray, in API units. |
+| `KLOGH` | DOUBLE | Yes |  | Horizontal permeability computed from the logs, in millidarcy (mD). |
+| `NPHI` | DOUBLE | Yes |  | Neutron porosity, as a fraction (v/v). |
+| `PHIF` | DOUBLE | Yes |  | Final effective porosity from the interpretation, as a fraction (v/v). |
+| `RHOB` | DOUBLE | Yes |  | Bulk density, in g/cm³. |
+| `RT` | DOUBLE | Yes |  | True formation resistivity, as the interpreter selected it, in ohm·m. |
+| `SAND_FLAG` | DOUBLE | Yes |  | Lithology flag: 1 where the interpretation marks sand, 0 elsewhere. |
+| `SW` | DOUBLE | Yes |  | Water saturation from the interpretation, as a fraction of pore volume (v/v). |
+| `VSH` | DOUBLE | Yes |  | Shale volume, as a fraction (v/v). |
 | `ABDCQF01` | DOUBLE | Yes |  | Bulk density from quadrant 1 of an azimuthal density measurement while drilling, in g/cm³. |
 | `ABDCQF02` | DOUBLE | Yes |  | Bulk density from quadrant 2 of an azimuthal density measurement while drilling, in g/cm³. |
 | `ABDCQF03` | DOUBLE | Yes |  | Bulk density from quadrant 3 of an azimuthal density measurement while drilling, in g/cm³. |
@@ -88,33 +99,22 @@ Well-log Curves of Equinor's petrophysical interpretation, one row per depth sam
 | `BS` | DOUBLE | Yes |  | Bit size: nominal diameter of the drilled hole, in inches. |
 | `CALI` | DOUBLE | Yes |  | Caliper: measured borehole diameter, in inches. |
 | `DRHO` | DOUBLE | Yes |  | Density correction applied to the bulk density, in g/cm³. |
-| `DT` | DOUBLE | Yes |  | Compressional sonic slowness, in µs/ft. |
-| `DTS` | DOUBLE | Yes |  | Shear sonic slowness, in µs/ft. |
-| `GR` | DOUBLE | Yes |  | Natural gamma ray, in API units. |
-| `NBGRCFM` | DOUBLE | Yes |  | Natural gamma ray measured near the bit while drilling, in API units. |
-| `NPHI` | DOUBLE | Yes |  | Neutron porosity, as a fraction (v/v). |
 | `PEF` | DOUBLE | Yes |  | Photoelectric factor, in barns per electron. |
 | `RACEHM` | DOUBLE | Yes |  | Propagation resistivity while drilling, from the attenuation of the high-frequency signal, in ohm·m. |
 | `RACELM` | DOUBLE | Yes |  | Propagation resistivity while drilling, from the attenuation of the low-frequency signal, in ohm·m. |
 | `RD` | DOUBLE | Yes |  | Deep resistivity, in ohm·m. |
-| `RHOB` | DOUBLE | Yes |  | Bulk density, in g/cm³. |
-| `RM` | DOUBLE | Yes |  | Medium resistivity, in ohm·m. |
 | `ROP` | DOUBLE | Yes |  | Rate of penetration while drilling, in m/h. |
-| `ROP5_RM` | DOUBLE | Yes |  | Rate of penetration while drilling, a second recording; the source gives no unit. |
 | `RPCEHM` | DOUBLE | Yes |  | Propagation resistivity while drilling, from the phase shift of the high-frequency signal, in ohm·m. |
 | `RPCELM` | DOUBLE | Yes |  | Propagation resistivity while drilling, from the phase shift of the low-frequency signal, in ohm·m. |
-| `RS` | DOUBLE | Yes |  | Shallow resistivity, in ohm·m. |
-| `RT` | DOUBLE | Yes |  | True formation resistivity, as the interpreter selected it, in ohm·m. |
-| `BADDATA_FLAG` | DOUBLE | Yes |  | Interpreted flag: 1 where the interpreter judged the log data unreliable, 0 elsewhere. |
-| `BVW` | DOUBLE | Yes |  | Bulk volume of water: porosity times water saturation, as a fraction of rock volume (v/v). |
-| `CARB_FLAG` | DOUBLE | Yes |  | Lithology flag: 1 where the interpretation marks carbonate, 0 elsewhere. |
-| `COAL_FLAG` | DOUBLE | Yes |  | Lithology flag: 1 where the interpretation marks coal, 0 elsewhere. |
-| `KLOGH` | DOUBLE | Yes |  | Horizontal permeability computed from the logs, in millidarcy (mD). |
-| `PHIF` | DOUBLE | Yes |  | Final effective porosity from the interpretation, as a fraction (v/v). |
-| `SAND_FLAG` | DOUBLE | Yes |  | Lithology flag: 1 where the interpretation marks sand, 0 elsewhere. |
-| `SW` | DOUBLE | Yes |  | Water saturation from the interpretation, as a fraction of pore volume (v/v). |
+| `RM` | DOUBLE | Yes |  | Medium resistivity, in ohm·m. |
+| `DT` | DOUBLE | Yes |  | Compressional sonic slowness, in µs/ft. |
 | `VCARB` | DOUBLE | Yes |  | Volume of carbonate minerals (calcite, dolomite, siderite), as a fraction (v/v). |
-| `VSH` | DOUBLE | Yes |  | Shale volume, as a fraction (v/v). |
+| `CARB_FLAG` | DOUBLE | Yes |  | Lithology flag: 1 where the interpretation marks carbonate, 0 elsewhere. |
+| `DTS` | DOUBLE | Yes |  | Shear sonic slowness, in µs/ft. |
+| `NBGRCFM` | DOUBLE | Yes |  | Natural gamma ray measured near the bit while drilling, in API units. |
+| `BADDATA_FLAG` | DOUBLE | Yes |  | Interpreted flag: 1 where the interpreter judged the log data unreliable, 0 elsewhere. |
+| `ROP5_RM` | DOUBLE | Yes |  | Rate of penetration while drilling, a second recording; the source gives no unit. |
+| `RS` | DOUBLE | Yes |  | Shallow resistivity, in ohm·m. |
 
 **Foreign Keys:**
 

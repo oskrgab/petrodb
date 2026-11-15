@@ -107,13 +107,20 @@ def test_petrophysical_interpretation_documents_its_key_and_every_curve(exported
         ("depth_md", "DOUBLE", True, True),
     ]
     curves = columns[3:]
-    # Every Curve the eight LAS pairs carry, named with the source mnemonic.
+    # Every Curve the eight LAS pairs carry, named with the source mnemonic,
+    # in the order the pipeline writes them from the real raw files: by how
+    # many Wellbores carry the Curve (11 in all 8, 14 in 7, then 6, 5, 4, 3
+    # and 1), ties by mnemonic.
     assert [name for name, *_ in curves] == [
+        "BVW", "COAL_FLAG", "GR", "KLOGH", "NPHI", "PHIF", "RHOB", "RT",
+        "SAND_FLAG", "SW", "VSH",
         "ABDCQF01", "ABDCQF02", "ABDCQF03", "ABDCQF04", "BS", "CALI", "DRHO",
-        "DT", "DTS", "GR", "NBGRCFM", "NPHI", "PEF", "RACEHM", "RACELM", "RD",
-        "RHOB", "RM", "ROP", "ROP5_RM", "RPCEHM", "RPCELM", "RS", "RT",
-        "BADDATA_FLAG", "BVW", "CARB_FLAG", "COAL_FLAG", "KLOGH", "PHIF",
-        "SAND_FLAG", "SW", "VCARB", "VSH",
+        "PEF", "RACEHM", "RACELM", "RD", "ROP", "RPCEHM", "RPCELM",
+        "RM",
+        "DT", "VCARB",
+        "CARB_FLAG",
+        "DTS", "NBGRCFM",
+        "BADDATA_FLAG", "ROP5_RM", "RS",
     ]  # fmt: skip
     assert {(type_, not_null, pk) for _, type_, not_null, pk in curves} == {
         ("DOUBLE", False, False)
@@ -125,6 +132,15 @@ def test_petrophysical_interpretation_documents_its_key_and_every_curve(exported
             "references_column": "npd_wellbore_code",
         }
     ]
+
+
+def test_petrophysical_interpretation_states_its_layout(exported: Path) -> None:
+    description = json.loads((exported / "schema.json").read_text())["tables"][
+        "petrophysical_interpretation"
+    ]["description"]
+    assert "single row group" in description
+    assert "descending order of how many wellbores carry them, ties by mnemonic" in description
+    assert description in (exported / "schema.md").read_text()
 
 
 def _wells_section(exported: Path) -> str:

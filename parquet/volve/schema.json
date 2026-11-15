@@ -423,7 +423,7 @@
       ]
     },
     "petrophysical_interpretation": {
-      "description": "Well-log Curves of Equinor's petrophysical interpretation, one row per depth sample of each logged wellbore: the Input curves the interpretation took (gamma ray, density, neutron, sonic, resistivity) and the Interpreted curves it computed (porosity, water saturation, shale volume, permeability, lithology flags) side by side. One row per `(source_wellbore, depth_md)`. Each Curve column is named with the source mnemonic and is empty where the wellbore has no sample. Samples are at the source depths; nothing is resampled. Built from the raw log files; the Parquet is not in git.",
+      "description": "Well-log Curves of Equinor's petrophysical interpretation, one row per depth sample of each logged wellbore: the Input curves the interpretation took (gamma ray, density, neutron, sonic, resistivity) and the Interpreted curves it computed (porosity, water saturation, shale volume, permeability, lithology flags) side by side. One row per `(source_wellbore, depth_md)`. Each Curve column is named with the source mnemonic and is empty where the wellbore has no sample. Samples are at the source depths; nothing is resampled. The file is a single row group, sorted by `npd_wellbore_code`, `source_wellbore` and `depth_md`; the key columns come first, then the Curves in descending order of how many wellbores carry them, ties by mnemonic, so the most common Curves come first. Built from the raw log files; the Parquet is not in git.",
       "columns": [
         {
           "name": "npd_wellbore_code",
@@ -451,6 +451,105 @@
           "primary_key": true,
           "comment": null,
           "description": "Measured depth along the wellbore, in metres, rounded to four decimals so that equality joins are stable. The depth reference is the one the source file uses; it is not normalised."
+        },
+        {
+          "name": "BVW",
+          "type": "DOUBLE",
+          "not_null": false,
+          "default_value": null,
+          "primary_key": false,
+          "comment": null,
+          "description": "Bulk volume of water: porosity times water saturation, as a fraction of rock volume (v/v)."
+        },
+        {
+          "name": "COAL_FLAG",
+          "type": "DOUBLE",
+          "not_null": false,
+          "default_value": null,
+          "primary_key": false,
+          "comment": null,
+          "description": "Lithology flag: 1 where the interpretation marks coal, 0 elsewhere."
+        },
+        {
+          "name": "GR",
+          "type": "DOUBLE",
+          "not_null": false,
+          "default_value": null,
+          "primary_key": false,
+          "comment": null,
+          "description": "Natural gamma ray, in API units."
+        },
+        {
+          "name": "KLOGH",
+          "type": "DOUBLE",
+          "not_null": false,
+          "default_value": null,
+          "primary_key": false,
+          "comment": null,
+          "description": "Horizontal permeability computed from the logs, in millidarcy (mD)."
+        },
+        {
+          "name": "NPHI",
+          "type": "DOUBLE",
+          "not_null": false,
+          "default_value": null,
+          "primary_key": false,
+          "comment": null,
+          "description": "Neutron porosity, as a fraction (v/v)."
+        },
+        {
+          "name": "PHIF",
+          "type": "DOUBLE",
+          "not_null": false,
+          "default_value": null,
+          "primary_key": false,
+          "comment": null,
+          "description": "Final effective porosity from the interpretation, as a fraction (v/v)."
+        },
+        {
+          "name": "RHOB",
+          "type": "DOUBLE",
+          "not_null": false,
+          "default_value": null,
+          "primary_key": false,
+          "comment": null,
+          "description": "Bulk density, in g/cm\u00b3."
+        },
+        {
+          "name": "RT",
+          "type": "DOUBLE",
+          "not_null": false,
+          "default_value": null,
+          "primary_key": false,
+          "comment": null,
+          "description": "True formation resistivity, as the interpreter selected it, in ohm\u00b7m."
+        },
+        {
+          "name": "SAND_FLAG",
+          "type": "DOUBLE",
+          "not_null": false,
+          "default_value": null,
+          "primary_key": false,
+          "comment": null,
+          "description": "Lithology flag: 1 where the interpretation marks sand, 0 elsewhere."
+        },
+        {
+          "name": "SW",
+          "type": "DOUBLE",
+          "not_null": false,
+          "default_value": null,
+          "primary_key": false,
+          "comment": null,
+          "description": "Water saturation from the interpretation, as a fraction of pore volume (v/v)."
+        },
+        {
+          "name": "VSH",
+          "type": "DOUBLE",
+          "not_null": false,
+          "default_value": null,
+          "primary_key": false,
+          "comment": null,
+          "description": "Shale volume, as a fraction (v/v)."
         },
         {
           "name": "ABDCQF01",
@@ -516,51 +615,6 @@
           "description": "Density correction applied to the bulk density, in g/cm\u00b3."
         },
         {
-          "name": "DT",
-          "type": "DOUBLE",
-          "not_null": false,
-          "default_value": null,
-          "primary_key": false,
-          "comment": null,
-          "description": "Compressional sonic slowness, in \u00b5s/ft."
-        },
-        {
-          "name": "DTS",
-          "type": "DOUBLE",
-          "not_null": false,
-          "default_value": null,
-          "primary_key": false,
-          "comment": null,
-          "description": "Shear sonic slowness, in \u00b5s/ft."
-        },
-        {
-          "name": "GR",
-          "type": "DOUBLE",
-          "not_null": false,
-          "default_value": null,
-          "primary_key": false,
-          "comment": null,
-          "description": "Natural gamma ray, in API units."
-        },
-        {
-          "name": "NBGRCFM",
-          "type": "DOUBLE",
-          "not_null": false,
-          "default_value": null,
-          "primary_key": false,
-          "comment": null,
-          "description": "Natural gamma ray measured near the bit while drilling, in API units."
-        },
-        {
-          "name": "NPHI",
-          "type": "DOUBLE",
-          "not_null": false,
-          "default_value": null,
-          "primary_key": false,
-          "comment": null,
-          "description": "Neutron porosity, as a fraction (v/v)."
-        },
-        {
           "name": "PEF",
           "type": "DOUBLE",
           "not_null": false,
@@ -597,24 +651,6 @@
           "description": "Deep resistivity, in ohm\u00b7m."
         },
         {
-          "name": "RHOB",
-          "type": "DOUBLE",
-          "not_null": false,
-          "default_value": null,
-          "primary_key": false,
-          "comment": null,
-          "description": "Bulk density, in g/cm\u00b3."
-        },
-        {
-          "name": "RM",
-          "type": "DOUBLE",
-          "not_null": false,
-          "default_value": null,
-          "primary_key": false,
-          "comment": null,
-          "description": "Medium resistivity, in ohm\u00b7m."
-        },
-        {
           "name": "ROP",
           "type": "DOUBLE",
           "not_null": false,
@@ -622,15 +658,6 @@
           "primary_key": false,
           "comment": null,
           "description": "Rate of penetration while drilling, in m/h."
-        },
-        {
-          "name": "ROP5_RM",
-          "type": "DOUBLE",
-          "not_null": false,
-          "default_value": null,
-          "primary_key": false,
-          "comment": null,
-          "description": "Rate of penetration while drilling, a second recording; the source gives no unit."
         },
         {
           "name": "RPCEHM",
@@ -651,94 +678,22 @@
           "description": "Propagation resistivity while drilling, from the phase shift of the low-frequency signal, in ohm\u00b7m."
         },
         {
-          "name": "RS",
+          "name": "RM",
           "type": "DOUBLE",
           "not_null": false,
           "default_value": null,
           "primary_key": false,
           "comment": null,
-          "description": "Shallow resistivity, in ohm\u00b7m."
+          "description": "Medium resistivity, in ohm\u00b7m."
         },
         {
-          "name": "RT",
+          "name": "DT",
           "type": "DOUBLE",
           "not_null": false,
           "default_value": null,
           "primary_key": false,
           "comment": null,
-          "description": "True formation resistivity, as the interpreter selected it, in ohm\u00b7m."
-        },
-        {
-          "name": "BADDATA_FLAG",
-          "type": "DOUBLE",
-          "not_null": false,
-          "default_value": null,
-          "primary_key": false,
-          "comment": null,
-          "description": "Interpreted flag: 1 where the interpreter judged the log data unreliable, 0 elsewhere."
-        },
-        {
-          "name": "BVW",
-          "type": "DOUBLE",
-          "not_null": false,
-          "default_value": null,
-          "primary_key": false,
-          "comment": null,
-          "description": "Bulk volume of water: porosity times water saturation, as a fraction of rock volume (v/v)."
-        },
-        {
-          "name": "CARB_FLAG",
-          "type": "DOUBLE",
-          "not_null": false,
-          "default_value": null,
-          "primary_key": false,
-          "comment": null,
-          "description": "Lithology flag: 1 where the interpretation marks carbonate, 0 elsewhere."
-        },
-        {
-          "name": "COAL_FLAG",
-          "type": "DOUBLE",
-          "not_null": false,
-          "default_value": null,
-          "primary_key": false,
-          "comment": null,
-          "description": "Lithology flag: 1 where the interpretation marks coal, 0 elsewhere."
-        },
-        {
-          "name": "KLOGH",
-          "type": "DOUBLE",
-          "not_null": false,
-          "default_value": null,
-          "primary_key": false,
-          "comment": null,
-          "description": "Horizontal permeability computed from the logs, in millidarcy (mD)."
-        },
-        {
-          "name": "PHIF",
-          "type": "DOUBLE",
-          "not_null": false,
-          "default_value": null,
-          "primary_key": false,
-          "comment": null,
-          "description": "Final effective porosity from the interpretation, as a fraction (v/v)."
-        },
-        {
-          "name": "SAND_FLAG",
-          "type": "DOUBLE",
-          "not_null": false,
-          "default_value": null,
-          "primary_key": false,
-          "comment": null,
-          "description": "Lithology flag: 1 where the interpretation marks sand, 0 elsewhere."
-        },
-        {
-          "name": "SW",
-          "type": "DOUBLE",
-          "not_null": false,
-          "default_value": null,
-          "primary_key": false,
-          "comment": null,
-          "description": "Water saturation from the interpretation, as a fraction of pore volume (v/v)."
+          "description": "Compressional sonic slowness, in \u00b5s/ft."
         },
         {
           "name": "VCARB",
@@ -750,13 +705,58 @@
           "description": "Volume of carbonate minerals (calcite, dolomite, siderite), as a fraction (v/v)."
         },
         {
-          "name": "VSH",
+          "name": "CARB_FLAG",
           "type": "DOUBLE",
           "not_null": false,
           "default_value": null,
           "primary_key": false,
           "comment": null,
-          "description": "Shale volume, as a fraction (v/v)."
+          "description": "Lithology flag: 1 where the interpretation marks carbonate, 0 elsewhere."
+        },
+        {
+          "name": "DTS",
+          "type": "DOUBLE",
+          "not_null": false,
+          "default_value": null,
+          "primary_key": false,
+          "comment": null,
+          "description": "Shear sonic slowness, in \u00b5s/ft."
+        },
+        {
+          "name": "NBGRCFM",
+          "type": "DOUBLE",
+          "not_null": false,
+          "default_value": null,
+          "primary_key": false,
+          "comment": null,
+          "description": "Natural gamma ray measured near the bit while drilling, in API units."
+        },
+        {
+          "name": "BADDATA_FLAG",
+          "type": "DOUBLE",
+          "not_null": false,
+          "default_value": null,
+          "primary_key": false,
+          "comment": null,
+          "description": "Interpreted flag: 1 where the interpreter judged the log data unreliable, 0 elsewhere."
+        },
+        {
+          "name": "ROP5_RM",
+          "type": "DOUBLE",
+          "not_null": false,
+          "default_value": null,
+          "primary_key": false,
+          "comment": null,
+          "description": "Rate of penetration while drilling, a second recording; the source gives no unit."
+        },
+        {
+          "name": "RS",
+          "type": "DOUBLE",
+          "not_null": false,
+          "default_value": null,
+          "primary_key": false,
+          "comment": null,
+          "description": "Shallow resistivity, in ohm\u00b7m."
         }
       ],
       "foreign_keys": [
