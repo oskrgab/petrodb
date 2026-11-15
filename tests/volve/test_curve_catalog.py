@@ -1,7 +1,7 @@
 """The Volve log pipeline writes the Curve catalog, ``log_curves.parquet``, beside the table.
 
 Runs the entry point end to end against the fixture raw directory of synthetic
-LAS files (``log_fixtures``) and queries the catalog it writes.
+LAS and DLIS files (``log_fixtures``) and queries the catalog it writes.
 """
 
 from __future__ import annotations
@@ -24,6 +24,8 @@ CATALOG = "log_curves.parquet"
 
 INPUT_FILE = "Well_logs_pr_WELL/{}/05.PETROPHYSICAL INTERPRETATION/WLC_PETRO_COMPUTED_INPUT_1.LAS"
 OUTPUT_FILE = "Well_logs_pr_WELL/{}/05.PETROPHYSICAL INTERPRETATION/WLC_PETRO_COMPUTED_OUTPUT_1.LAS"
+DLIS_INPUT_FILE = INPUT_FILE.removesuffix("LAS") + "DLIS"
+DLIS_OUTPUT_FILE = OUTPUT_FILE.removesuffix("LAS") + "DLIS"
 
 
 @pytest.fixture
@@ -60,15 +62,48 @@ def _pair_rows(code: int, source: str, folder: str) -> list[tuple]:
     ]  # fmt: skip
 
 
+def _dlis_pair_rows(code: int, source: str, folder: str) -> list[tuple]:
+    """The two catalog rows of each plain DLIS fixture pair: GR in, SW out, at 2540 m."""
+    return [
+        (TABLE, code, source, "GR", "input", "gAPI", "API", 2540.0, 2540.1524, 2,
+         DLIS_INPUT_FILE.format(folder)),
+        (TABLE, code, source, "SW", "interpreted", "v/v", "v/v_decimal", 2540.1524, 2540.1524,
+         1, DLIS_OUTPUT_FILE.format(folder)),
+    ]  # fmt: skip
+
+
 def test_the_catalog_has_one_row_per_source_wellbore_and_curve_with_data(built: Path) -> None:
     rows = _rows(built, "SELECT * FROM {t}")
     f1, t2, top = "15_9-F-1", "15_9-F-11 T2", "15_9-F-11"
     assert rows == [
+        *_dlis_pair_rows(5351, "15/9-F-14", "15_9-F-14"),
         # 15/9-F-12 (5599): KLOGH from the output file, not the geomodel export.
         (TABLE, 5599, "15/9-F-12", "GR", "input", "gAPI", "API", 3102.102, 3102.4068, 3,
          INPUT_FILE.format("15_9-F-12")),
         (TABLE, 5599, "15/9-F-12", "KLOGH", "interpreted", "mD", "mD", 3102.102, 3102.4068, 3,
          OUTPUT_FILE.format("15_9-F-12")),
+        *_dlis_pair_rows(5693, "15/9-F-4", "15_9-F-4"),
+        *_dlis_pair_rows(5769, "15/9-F-5", "15_9-F-5"),
+        *_dlis_pair_rows(5785, "15/9-F-15 A", "15_9-F-15 A"),
+        *_dlis_pair_rows(5794, "15/9-F-15 C", "15_9-F-15 C"),
+        # 15/9-F-15 B indexes depth in millimetres.
+        (TABLE, 6046, "15/9-F-15 B", "GR", "input", "gAPI", "GAPI", 3500.0, 3500.152, 2,
+         DLIS_INPUT_FILE.format("15_9-F-15 B")),
+        (TABLE, 6046, "15/9-F-15 B", "SW", "interpreted", "v/v", "V/V", 3500.152, 3500.152, 1,
+         DLIS_OUTPUT_FILE.format("15_9-F-15 B")),
+        # 15/9-F-10: the padded output adds no samples; RHOB is in both files,
+        # so it is an Input curve named after the input file and its spelling.
+        (TABLE, 6099, "15/9-F-10", "GR", "input", "gAPI", "GAPI", 4850.13, 4850.4348, 3,
+         DLIS_INPUT_FILE.format("15_9-F-10")),
+        (TABLE, 6099, "15/9-F-10", "PHIF", "interpreted", "v/v", "V/V", 4850.13, 4850.4348, 3,
+         DLIS_OUTPUT_FILE.format("15_9-F-10")),
+        (TABLE, 6099, "15/9-F-10", "RHOB", "input", "g/cm³", "G/CC", 4850.13, 4850.2824, 2,
+         DLIS_INPUT_FILE.format("15_9-F-10")),
+        # 15/9-F-15: the all-NULL samples at the top of the input are gone.
+        (TABLE, 6184, "15/9-F-15", "GR", "input", "gAPI", "GAPI", 2540.0, 2540.0, 1,
+         DLIS_INPUT_FILE.format("15_9-F-15")),
+        (TABLE, 6184, "15/9-F-15", "SW", "interpreted", "v/v", "V/V", 2540.0, 2540.0, 1,
+         DLIS_OUTPUT_FILE.format("15_9-F-15")),
         # The top-hole section and the Technical sidetrack share 15/9-F-11's code.
         # The top-hole section's ROP has one sample; its all-sentinel 200.2 m is gone.
         (TABLE, 7078, "15/9-F-11", "GR", "input", "gAPI", "API", 200.0, 200.1, 2,

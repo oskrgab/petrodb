@@ -218,8 +218,10 @@ COLUMN_DESCRIPTIONS = {
             "`source_wellbore` for one of its sources."
         ),
         "depth_md": (
-            "Measured depth along the wellbore, rounded to four "
-            "decimals so that equality joins are stable. The depth reference "
+            "Measured depth along the wellbore, in metres, rounded to four "
+            "decimals so that equality joins are stable. Source files that "
+            "index depth in tenths of an inch or in millimetres are converted "
+            "to metres before rounding. The depth reference "
             "is the one the source file uses; it is not normalised."
         ),
         "BVW": "Bulk volume of water: porosity times water saturation, as a fraction of rock volume.",
@@ -227,20 +229,24 @@ COLUMN_DESCRIPTIONS = {
         "GR": "Natural gamma ray.",
         "KLOGH": "Horizontal permeability computed from the logs.",
         "NPHI": "Neutron porosity, as a fraction.",
-        "PHIF": "Final effective porosity from the interpretation, as a fraction.",
         "RHOB": "Bulk density.",
         "RT": "True formation resistivity, as the interpreter selected it.",
         "SAND_FLAG": "Lithology flag: 1 where the interpretation marks sand, 0 elsewhere.",
-        "SW": "Water saturation from the interpretation, as a fraction of pore volume.",
         "VSH": "Shale volume, as a fraction.",
+        "PHIF": "Final effective porosity from the interpretation, as a fraction.",
+        "RD": "Deep resistivity.",
+        "SW": "Water saturation from the interpretation, as a fraction of pore volume.",
+        "DRHO": "Density correction applied to the bulk density.",
+        "CALI": "Caliper: measured borehole diameter.",
+        "CARB_FLAG": "Lithology flag: 1 where the interpretation marks carbonate, 0 elsewhere.",
+        "DT": "Compressional sonic slowness.",
+        "PEF": "Photoelectric factor.",
+        "RS": "Shallow resistivity.",
         "ABDCQF01": "Bulk density from quadrant 1 of an azimuthal density measurement while drilling.",
         "ABDCQF02": "Bulk density from quadrant 2 of an azimuthal density measurement while drilling.",
         "ABDCQF03": "Bulk density from quadrant 3 of an azimuthal density measurement while drilling.",
         "ABDCQF04": "Bulk density from quadrant 4 of an azimuthal density measurement while drilling.",
         "BS": "Bit size: nominal diameter of the drilled hole.",
-        "CALI": "Caliper: measured borehole diameter.",
-        "DRHO": "Density correction applied to the bulk density.",
-        "PEF": "Photoelectric factor.",
         "RACEHM": (
             "Propagation resistivity while drilling, from the attenuation of "
             "the high-frequency signal."
@@ -249,7 +255,6 @@ COLUMN_DESCRIPTIONS = {
             "Propagation resistivity while drilling, from the attenuation of "
             "the low-frequency signal."
         ),
-        "RD": "Deep resistivity.",
         "ROP": "Rate of penetration while drilling.",
         "RPCEHM": (
             "Propagation resistivity while drilling, from the phase shift of "
@@ -260,18 +265,32 @@ COLUMN_DESCRIPTIONS = {
             "the low-frequency signal."
         ),
         "RM": "Medium resistivity.",
-        "DT": "Compressional sonic slowness.",
-        "CARB_FLAG": "Lithology flag: 1 where the interpretation marks carbonate, 0 elsewhere.",
-        "VCARB": "Volume of carbonate minerals (calcite, dolomite, siderite), as a fraction.",
         "DTS": "Shear sonic slowness.",
+        "VCARB": "Volume of carbonate minerals (calcite, dolomite, siderite), as a fraction.",
+        "DRHU": (
+            "Density correction applied to `ROBU`, the bulk density from the "
+            "top of the borehole, measured while drilling."
+        ),
         "NBGRCFM": "Natural gamma ray measured near the bit while drilling.",
+        "ROBU": (
+            "Bulk density from the top of the borehole, measured while "
+            "drilling by a rotating density tool."
+        ),
+        "ROBB": (
+            "Bulk density from the bottom of the borehole, measured while "
+            "drilling by a rotating density tool."
+        ),
         "BADDATA_FLAG": "Interpreted flag: 1 where the interpreter judged the log data unreliable, 0 elsewhere.",
+        "DRHB": (
+            "Density correction applied to `ROBB`, the bulk density from the "
+            "bottom of the borehole, measured while drilling."
+        ),
+        "PHID": "Porosity computed from the bulk density, as a fraction.",
         "ROP5_RM": (
             "Rate of penetration while drilling, a second recording. Its file "
             "leaves the unit unknown; its values lie in the range `ROP` has "
             "in the other wellbores, so it is documented in the same unit."
         ),
-        "RS": "Shallow resistivity.",
     },
     "log_curves": {
         "table_name": (

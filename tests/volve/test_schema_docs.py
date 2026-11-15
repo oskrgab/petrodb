@@ -108,21 +108,25 @@ def test_petrophysical_interpretation_documents_its_key_and_every_curve(exported
         ("depth_md", "DOUBLE", True, True),
     ]
     curves = columns[3:]
-    # Every Curve the LAS sources carry, named with the source mnemonic,
-    # in the order the pipeline writes them from the real raw files: by how
-    # many Wellbores carry the Curve (11 in all 9, 14 in 8, then 7, 6, 5, 4,
-    # 3 and 1), ties by mnemonic.
+    # Every Curve the LAS and DLIS sources carry, named with the source
+    # mnemonic, in the order the pipeline writes them from the real raw files:
+    # by how many of the 17 Wellbores carry the Curve (9 in all 17, then 16,
+    # 15, 13, 12, 9, 8, 7, 6, 5, 3, 2 and 1), ties by mnemonic.
     assert [name for name, *_ in curves] == [
-        "BVW", "COAL_FLAG", "GR", "KLOGH", "NPHI", "PHIF", "RHOB", "RT",
-        "SAND_FLAG", "SW", "VSH",
-        "ABDCQF01", "ABDCQF02", "ABDCQF03", "ABDCQF04", "BS", "CALI", "DRHO",
-        "PEF", "RACEHM", "RACELM", "RD", "ROP", "RPCEHM", "RPCELM",
+        "BVW", "COAL_FLAG", "GR", "KLOGH", "NPHI", "RHOB", "RT", "SAND_FLAG", "VSH",
+        "PHIF", "RD", "SW",
+        "DRHO",
+        "CALI", "CARB_FLAG", "DT",
+        "PEF",
+        "RS",
+        "ABDCQF01", "ABDCQF02", "ABDCQF03", "ABDCQF04", "BS", "RACEHM", "RACELM",
+        "ROP", "RPCEHM", "RPCELM",
         "RM",
-        "DT",
-        "CARB_FLAG", "VCARB",
         "DTS",
-        "NBGRCFM",
-        "BADDATA_FLAG", "ROP5_RM", "RS",
+        "VCARB",
+        "DRHU", "NBGRCFM", "ROBU",
+        "ROBB",
+        "BADDATA_FLAG", "DRHB", "PHID", "ROP5_RM",
     ]  # fmt: skip
     assert {(type_, not_null, pk) for _, type_, not_null, pk in curves} == {
         ("DOUBLE", False, False)
@@ -157,7 +161,7 @@ def test_every_curve_has_one_unit_in_schema_json_and_schema_md(exported: Path) -
         **{name: "g/cm³" for name in ("ABDCQF01", "ABDCQF02", "ABDCQF03", "ABDCQF04")},
         "BS": "in",
         "CALI": "in",
-        "DRHO": "g/cm³",
+        **{name: "g/cm³" for name in ("DRHB", "DRHO", "DRHU", "ROBB", "ROBU")},
         "DT": "µs/ft",
         "DTS": "µs/ft",
         "GR": "gAPI",
@@ -169,7 +173,7 @@ def test_every_curve_has_one_unit_in_schema_json_and_schema_md(exported: Path) -
         "ROP": "m/h",
         "ROP5_RM": "m/h",
         **{name: "unitless" for name in ("BADDATA_FLAG", "CARB_FLAG", "COAL_FLAG", "SAND_FLAG")},
-        **{name: "v/v" for name in ("BVW", "PHIF", "SW", "VCARB", "VSH")},
+        **{name: "v/v" for name in ("BVW", "PHID", "PHIF", "SW", "VCARB", "VSH")},
         "KLOGH": "mD",
     }  # fmt: skip
     markdown = (exported / "schema.md").read_text()

@@ -1,7 +1,7 @@
-"""The Volve log pipeline builds ``petrophysical_interpretation.parquet`` from LAS pairs.
+"""The Volve log pipeline builds ``petrophysical_interpretation.parquet`` from LAS and DLIS pairs.
 
 Runs the entry point end to end against a fixture raw directory of synthetic
-LAS files (``log_fixtures``) and queries the Parquet it writes. The output
+LAS and DLIS files (``log_fixtures``) and queries the Parquet it writes. The output
 directory holds the committed ``wells.parquet`` and a ``schema.json`` that
 declares the fixture's columns with the committed declarations.
 """
@@ -20,17 +20,20 @@ import pytest
 from scripts.export.volve_logs import schema_check, validator
 from scripts.run_pipeline import volve_logs
 from scripts.transform.volve_logs.interpretation_builder import CurveDisagreementError
-from scripts.transform.volve_logs.las_reader import LasSourceError
+from scripts.transform.volve_logs.sources import SourceFileError
 from scripts.transform.volve_logs.units import UnitMismatchError, UnitSpellingError
 from tests.volve.log_fixtures import (
+    DLIS_WELLBORES,
     FIXTURE_COLUMNS,
     SENTINEL,
     TECHNICAL_SIDETRACK,
     TOP_HOLE,
     WELLBORES,
     build_raw_tree,
+    dlis_pair_paths,
     fixture_schema,
     pair_paths,
+    write_dlis,
     write_las,
     write_schema,
 )
@@ -113,15 +116,25 @@ def test_the_table_holds_every_source_each_with_its_npd_wellbore_code(built: Pat
         ("15/9-F-1 A", 7224, 2),
         ("15/9-F-1 B", 7264, 2),
         ("15/9-F-1 C", 7405, 2),
+        ("15/9-F-10", 6099, 3),
         ("15/9-F-11", 7078, 2),
         ("15/9-F-11 A", 7079, 2),
         ("15/9-F-11 B", 7080, 2),
         ("15/9-F-11 T2", 7078, 4),
         ("15/9-F-12", 5599, 3),
+        ("15/9-F-14", 5351, 2),
+        ("15/9-F-15", 6184, 1),
+        ("15/9-F-15 A", 5785, 2),
+        ("15/9-F-15 B", 6046, 2),
+        ("15/9-F-15 C", 5794, 2),
         ("15/9-F-15 D", 7289, 2),
+        ("15/9-F-4", 5693, 2),
+        ("15/9-F-5", 5769, 2),
     ]
     assert sorted(source for source, _, _ in rows) == sorted(
-        [s for s, _ in WELLBORES.values()] + [TECHNICAL_SIDETRACK[1], TOP_HOLE[1]]
+        [s for s, _ in WELLBORES.values()]
+        + [s for s, _ in DLIS_WELLBORES.values()]
+        + [TECHNICAL_SIDETRACK[1], TOP_HOLE[1]]
     )
 
 
@@ -237,7 +250,7 @@ def test_one_command_builds_the_table(raw: Path, out: Path) -> None:
         check=True,
         capture_output=True,
     )
-    assert _rows(out / TABLE, "SELECT count(*) FROM {t}") == [(26,)]
+    assert _rows(out / TABLE, "SELECT count(*) FROM {t}") == [(42,)]
 
 
 # --- failure paths through the entry point --------------------------------
@@ -273,7 +286,7 @@ def test_an_output_file_beside_the_input_only_top_hole_section_stops_the_build(
     raw: Path, out: Path
 ) -> None:
     write_las(pair_paths(raw, TOP_HOLE[0])[1], [200.0], {"PHIF": ("v/v", [0.1])})
-    with pytest.raises(LasSourceError, match=r"15/9-F-11 is mapped as input-only"):
+    with pytest.raises(SourceFileError, match=r"15/9-F-11 is mapped as input-only"):
         volve_logs.run(raw_dir=raw, output_dir=out)
     assert not (out / TABLE).exists()
 
@@ -480,3 +493,96 @@ def test_the_built_parquet_is_gitignored() -> None:
             ["git", "check-ignore", "--quiet", f"parquet/volve/{name}"], cwd=REPO_ROOT
         )
         assert ignored.returncode == 0, name
+
+
+# --- DLIS pairs -------------------------------------------------------------
+
+
+def test_a_dlis_pair_joins_input_and_interpreted_curves_at_depths_in_metres(
+    built: Path,
+) -> None:
+    # 15/9-F-10's index is in tenths of an inch: 1909500 is 4850.13 m. Its
+    # output pads the Wellbore from 0 m with all-NULL samples, which are dropped;
+    # RHOB is in both files and equal.
+    rows = _rows(
+        built,
+        "SELECT npd_wellbore_code, depth_md, GR, RHOB, PHIF FROM {t} "
+        "WHERE source_wellbore = '15/9-F-10' ORDER BY depth_md",
+    )
+    assert rows == [
+        (6099, 4850.13, 80.5, 2.31, 0.21),
+        (6099, 4850.2824, 81.5, 2.32, 0.22),
+        (6099, 4850.4348, 82.5, None, 0.23),
+    ]
+
+
+def test_a_dlis_depth_index_in_millimetres_is_converted_to_metres(built: Path) -> None:
+    rows = _rows(
+        built,
+        "SELECT depth_md, GR, SW FROM {t} WHERE source_wellbore = '15/9-F-15 B' ORDER BY depth_md",
+    )
+    assert rows == [(3500.0, 60.0, None), (3500.152, 61.0, 0.7)]
+
+
+def test_padded_all_null_samples_are_dropped_and_not_counted(built: Path) -> None:
+    # 15/9-F-15's input starts at 0 m with two all-NULL samples; 1000000
+    # tenths of an inch is 2540 m. The build passing means the row-count check
+    # compared against the one non-empty sample.
+    rows = _rows(
+        built, "SELECT depth_md, GR, SW FROM {t} WHERE source_wellbore = '15/9-F-15'"
+    )
+    assert rows == [(2540.0, 70.0, 0.8)]
+
+
+def test_no_row_has_every_curve_null_for_any_source(built: Path) -> None:
+    curves = [
+        name
+        for name, *_ in _rows(built, "SELECT column_name FROM (DESCRIBE SELECT * FROM {t})")[3:]
+    ]
+    empty = _rows(
+        built,
+        "SELECT source_wellbore, depth_md FROM {t} WHERE "
+        + " AND ".join(f"{c} IS NULL" for c in curves),
+    )
+    assert empty == []
+
+
+def test_a_shared_mnemonic_that_disagrees_in_a_dlis_pair_stops_the_build(
+    raw: Path, out: Path
+) -> None:
+    write_dlis(
+        dlis_pair_paths(raw, "15_9-F-10")[1],
+        [1909500, 1909560],
+        {"RHOB": ("G/C3", [2.31, 2.35])},
+    )
+    with pytest.raises(CurveDisagreementError, match=r"15/9-F-10\b.*RHOB.*4850\.2824"):
+        volve_logs.run(raw_dir=raw, output_dir=out)
+    assert not (out / TABLE).exists()
+
+
+def test_an_unrecognised_unit_spelling_in_a_dlis_file_stops_the_build(
+    raw: Path, out: Path
+) -> None:
+    write_dlis(dlis_pair_paths(raw, "15_9-F-4")[0], [1000000], {"GR": ("furlongs", [80.0])})
+    with pytest.raises(
+        UnitSpellingError, match=r"15_9-F-4/.*WLC_PETRO_COMPUTED_INPUT_1\.DLIS.*GR.*'furlongs'"
+    ):
+        volve_logs.run(raw_dir=raw, output_dir=out)
+
+
+def test_a_dlis_depth_index_in_another_unit_stops_the_build(raw: Path, out: Path) -> None:
+    write_dlis(
+        dlis_pair_paths(raw, "15_9-F-4")[0], [1000], {"GR": ("API", [80.0])}, index_unit="ft"
+    )
+    with pytest.raises(SourceFileError, match=r"15_9-F-4/.*depth index is in 'ft'"):
+        volve_logs.run(raw_dir=raw, output_dir=out)
+
+
+def test_a_dlis_file_with_two_frames_stops_the_build(raw: Path, out: Path) -> None:
+    # Every Volve interpretation file holds one frame; a second would need a
+    # reviewed choice of which to read.
+    write_dlis(
+        dlis_pair_paths(raw, "15_9-F-5")[1], [1000060], {"SW": ("V/V", [0.9])}, frames=2
+    )
+    with pytest.raises(SourceFileError, match=r"15_9-F-5/.*2 frame\(s\)"):
+        volve_logs.run(raw_dir=raw, output_dir=out)
