@@ -131,7 +131,7 @@ def test_lookups_are_written_beside_the_glances(monkeypatch: pytest.MonkeyPatch)
     [
         # Facts about the committed data, checked by hand against the parquet.
         ("argentina", "85,417 wells, 2006–2025"),
-        ("volve", "27 wells, 2007–2016"),
+        ("volve", "7 wells, 2007–2016"),
         ("force_2020", "108 wells"),
     ],
 )
