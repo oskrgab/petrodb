@@ -14,6 +14,12 @@ but holds different values, so the two are never merged.
 Each source's interpretation is either a LAS pair or a DLIS pair; the two
 formats hold the same kind of files under the same names, bar the extension.
 
+The 15/9-19 sources (15/9-19 A, the Technical sidetrack 15/9-19 BT2 and
+15/9-19 SR) have a single LAS interpretation file each
+(``SingleFileSource``), holding Input curves and Interpreted curves together;
+the Curve catalog's committed list says which is which
+(``curve_catalog.SINGLE_FILE_CURVE_KINDS``).
+
 Paths are relative to a local raw directory, a plain download of the Raw repo
 ``oskrgab/petrodb-raw-volve`` (see ``data/raw/README.md``).
 """
@@ -29,6 +35,11 @@ INPUT_FILE = "WLC_PETRO_COMPUTED_INPUT_1"
 OUTPUT_FILE = "WLC_PETRO_COMPUTED_OUTPUT_1"
 LAS = "LAS"
 DLIS = "DLIS"
+
+
+def _interpretation_file(raw_dir: Path, folder: str, name: str) -> Path:
+    """``name`` within the petrophysical interpretation folder of ``folder``."""
+    return Path(raw_dir) / LOG_TREE / folder / INTERPRETATION_FOLDER / name
 
 
 class SourceFileError(Exception):
@@ -52,7 +63,7 @@ class LogSource:
     file_format: str = LAS
 
     def _path(self, raw_dir: Path, name: str) -> Path:
-        return Path(raw_dir) / LOG_TREE / self.folder / INTERPRETATION_FOLDER / name
+        return _interpretation_file(raw_dir, self.folder, name)
 
     def input_path(self, raw_dir: Path) -> Path:
         return self._path(raw_dir, f"{INPUT_FILE}.{self.file_format}")
@@ -63,6 +74,20 @@ class LogSource:
     def unread_output_path(self, raw_dir: Path) -> Path:
         """Where the output file would be, whether or not this source has one."""
         return self._path(raw_dir, f"{OUTPUT_FILE}.{self.file_format}")
+
+
+@dataclass(frozen=True)
+class SingleFileSource:
+    """The one LAS interpretation file of a ``source_wellbore``, Input and
+    Interpreted curves together, at ``file`` within its interpretation folder."""
+
+    folder: str
+    file: str
+    source_wellbore: str
+    npd_wellbore_code: int
+
+    def path(self, raw_dir: Path) -> Path:
+        return _interpretation_file(raw_dir, self.folder, self.file)
 
 
 # The sources whose interpretation is LAS, one folder each. Only the
@@ -100,6 +125,17 @@ DLIS_SOURCES: tuple[LogSource, ...] = tuple(
 
 SOURCES: tuple[LogSource, ...] = LAS_SOURCES + DLIS_SOURCES
 
+# The 15/9-19 sources, one LAS file each. Only the CPI file is read: not the earlier
+# interpretation beside it (``first interpretation/``, in other formats), nor
+# the geomodel permeability export. 15/9-19 BT2 is a Technical sidetrack: its
+# rows take the code of 15/9-19 B (3251). The folder ``15_9-19 S&SR`` is named
+# for both 15/9-19 S and SR, but holds 15/9-19 SR data only (2105).
+SINGLE_FILE_SOURCES: tuple[SingleFileSource, ...] = (
+    SingleFileSource("15_9-19 A", "CPI/15_9-19_A_CPI.las", "15/9-19 A", 3145),
+    SingleFileSource("15_9-19 B&BT2", "CPI/15_9-19_BT2_CPI.las", "15/9-19 BT2", 3251),
+    SingleFileSource("15_9-19 S&SR", "CPI/15_9-19_SR_CPI.las", "15/9-19 SR", 2105),
+)
+
 
 def raw_files() -> tuple[str, ...]:
     """Every file the pipeline reads, as a path within the Raw repo.
@@ -111,9 +147,11 @@ def raw_files() -> tuple[str, ...]:
     there.
     """
     root = Path()  # an empty root leaves each path relative to the raw directory
-    return tuple(
-        path.as_posix()
+    pairs = (
+        path
         for source in SOURCES
         for path in (source.input_path(root), source.output_path(root))
         if path is not None
     )
+    singles = (source.path(root) for source in SINGLE_FILE_SOURCES)
+    return tuple(path.as_posix() for path in (*pairs, *singles))

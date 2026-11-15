@@ -110,23 +110,27 @@ def test_petrophysical_interpretation_documents_its_key_and_every_curve(exported
     curves = columns[3:]
     # Every Curve the LAS and DLIS sources carry, named with the source
     # mnemonic, in the order the pipeline writes them from the real raw files:
-    # by how many of the 17 Wellbores carry the Curve (9 in all 17, then 16,
-    # 15, 13, 12, 9, 8, 7, 6, 5, 3, 2 and 1), ties by mnemonic.
+    # by how many of the 20 Wellbores carry the Curve (3 in 20, then 19, 17,
+    # 16, 15, 14, 13, 12, 9, 8, 7, 6, 5, 3, 2 and 1), ties by mnemonic.
     assert [name for name, *_ in curves] == [
-        "BVW", "COAL_FLAG", "GR", "KLOGH", "NPHI", "RHOB", "RT", "SAND_FLAG", "VSH",
-        "PHIF", "RD", "SW",
-        "DRHO",
-        "CALI", "CARB_FLAG", "DT",
+        "KLOGH", "SAND_FLAG", "VSH",
+        "BVW", "COAL_FLAG", "PHIF", "SW",
+        "GR", "NPHI", "RHOB", "RT",
+        "RD",
+        "CARB_FLAG", "DRHO",
+        "DT",
+        "CALI",
         "PEF",
-        "RS",
-        "ABDCQF01", "ABDCQF02", "ABDCQF03", "ABDCQF04", "BS", "RACEHM", "RACELM",
+        "BS", "RS",
+        "ABDCQF01", "ABDCQF02", "ABDCQF03", "ABDCQF04", "RACEHM", "RACELM",
         "ROP", "RPCEHM", "RPCELM",
         "RM",
         "DTS",
         "VCARB",
         "DRHU", "NBGRCFM", "ROBU",
-        "ROBB",
-        "BADDATA_FLAG", "DRHB", "PHID", "ROP5_RM",
+        "KLOGV", "RHOFL", "RHOMA", "ROBB", "RW", "TEMP",
+        "BADDATA_FLAG", "BWV", "DELTA", "DRHB", "GRMAX", "GRMIN", "J",
+        "KLHC_INT", "M", "N", "PERF_FLAG", "PHID", "PORD", "ROP5_RM", "SWIRR",
     ]  # fmt: skip
     assert {(type_, not_null, pk) for _, type_, not_null, pk in curves} == {
         ("DOUBLE", False, False)
@@ -165,16 +169,22 @@ def test_every_curve_has_one_unit_in_schema_json_and_schema_md(exported: Path) -
         "DT": "µs/ft",
         "DTS": "µs/ft",
         "GR": "gAPI",
+        "GRMAX": "gAPI",
+        "GRMIN": "gAPI",
         "NBGRCFM": "gAPI",
         "NPHI": "v/v",
         "PEF": "b/e",
-        **{name: "ohm·m" for name in ("RACEHM", "RACELM", "RD", "RM", "RPCEHM", "RPCELM", "RS", "RT")},
+        **{name: "ohm·m" for name in ("RACEHM", "RACELM", "RD", "RM", "RPCEHM", "RPCELM", "RS", "RT", "RW")},
         "RHOB": "g/cm³",
+        "RHOFL": "g/cm³",
+        "RHOMA": "g/cm³",
         "ROP": "m/h",
         "ROP5_RM": "m/h",
-        **{name: "unitless" for name in ("BADDATA_FLAG", "CARB_FLAG", "COAL_FLAG", "SAND_FLAG")},
-        **{name: "v/v" for name in ("BVW", "PHID", "PHIF", "SW", "VCARB", "VSH")},
-        "KLOGH": "mD",
+        **{name: "unitless" for name in ("BADDATA_FLAG", "CARB_FLAG", "COAL_FLAG", "PERF_FLAG", "SAND_FLAG")},
+        **{name: "unitless" for name in ("J", "M", "N")},
+        **{name: "v/v" for name in ("BVW", "BWV", "DELTA", "PHID", "PHIF", "PORD", "SW", "SWIRR", "VCARB", "VSH")},
+        **{name: "mD" for name in ("KLHC_INT", "KLOGH", "KLOGV")},
+        "TEMP": "°C",
     }  # fmt: skip
     markdown = (exported / "schema.md").read_text()
     section = markdown[markdown.index("### `petrophysical_interpretation`") :].split("\n---\n", 1)[0]

@@ -10,7 +10,7 @@ to the unit already documented for its column.
 - ``SPELLINGS``: what a source spelling means, whatever the mnemonic.
 - ``MNEMONIC_SPELLINGS``: what a spelling means for one mnemonic only. It is
   read first. It holds the spellings that do not name a unit on their own
-  (``UNKNOWN``), or that name another unit than the column's (``V/V`` on a
+  (``UNKNOWN``, or a blank), or that name another unit than the column's (``V/V`` on a
   flag, ``MD`` on a permeability), where the values show which unit the file
   means.
 
@@ -38,6 +38,7 @@ OHM_M = "ohm·m"
 M_H = "m/h"
 MILLIDARCY = "mD"
 UNITLESS = "unitless"
+DEG_C = "°C"
 
 CURVE_UNITS: dict[str, str] = {
     "ABDCQF01": G_CM3,
@@ -79,12 +80,30 @@ CURVE_UNITS: dict[str, str] = {
     "SW": FRACTION,
     "VCARB": FRACTION,
     "VSH": FRACTION,
+    # Only the 15/9-19 interpretation files carry these.
+    "BWV": FRACTION,
+    "DELTA": FRACTION,
+    "GRMAX": GAPI,
+    "GRMIN": GAPI,
+    "J": UNITLESS,
+    "KLHC_INT": MILLIDARCY,
+    "KLOGV": MILLIDARCY,
+    "M": UNITLESS,
+    "N": UNITLESS,
+    "PERF_FLAG": UNITLESS,
+    "PORD": FRACTION,
+    "RHOFL": G_CM3,
+    "RHOMA": G_CM3,
+    "RW": OHM_M,
+    "SWIRR": FRACTION,
+    "TEMP": DEG_C,
 }
 
 SPELLINGS: dict[str, str] = {
     "g/cm3": G_CM3,
     "G/CC": G_CM3,
     "G/C3": G_CM3,
+    "G/CM3": G_CM3,
     "inches": INCH,
     "IN": INCH,
     "us/ft": US_FT,
@@ -103,13 +122,17 @@ SPELLINGS: dict[str, str] = {
     "mD": MILLIDARCY,
     "unitless": UNITLESS,
     "UNITLESS": UNITLESS,
+    "DEGC": DEG_C,
 }
 
 MNEMONIC_SPELLINGS: dict[tuple[str, str], str] = {
     # 15/9-F-1 B writes its carbonate flag as a fraction; its values are 0 and 1.
     ("CARB_FLAG", "V/V"): UNITLESS,
-    # 15/9-F-1 and several DLIS files write the permeability unit in capitals.
+    # 15/9-F-1, several DLIS files and the 15/9-19 files write the
+    # permeability unit in capitals.
     ("KLOGH", "MD"): MILLIDARCY,
+    ("KLOGV", "MD"): MILLIDARCY,
+    ("KLHC_INT", "MD"): MILLIDARCY,
     # Files that leave the unit unknown. The values show the unit: the
     # resistivities lie in the range the same Curves have in ohm·m in the
     # other files, the second rate of penetration (15/9-F-12 only) in the
@@ -124,6 +147,17 @@ MNEMONIC_SPELLINGS: dict[tuple[str, str], str] = {
     ("CARB_FLAG", "UNKNOWN"): UNITLESS,
     ("COAL_FLAG", "UNKNOWN"): UNITLESS,
     ("SAND_FLAG", "UNKNOWN"): UNITLESS,
+    # The 15/9-19 files leave some units blank. The Leverett J-function and
+    # the saturation exponent are dimensionless; the irreducible water
+    # saturation is a fraction, and so is BWV in 15/9-19 SR (its values lie
+    # between 0 and 0.35, the range of the file's porosity). 15/9-19 SR's
+    # sonic lies in the range DT has in µs/ft in the other Wellbores (median
+    # about 75).
+    ("J", ""): UNITLESS,
+    ("N", ""): UNITLESS,
+    ("SWIRR", ""): FRACTION,
+    ("BWV", ""): FRACTION,
+    ("DT", ""): US_FT,
 }
 
 

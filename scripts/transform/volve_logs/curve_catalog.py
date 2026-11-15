@@ -7,7 +7,9 @@ Technical sidetrack, over which depths, and where each came from. Two steps:
   ``source_wellbore`` came from: the file (as a path within the Raw repo),
   whether it is an Input curve or an Interpreted curve, and the file's unit
   spelling. The first file that carries a mnemonic names it, so a Curve in
-  both files of a pair is an Input curve and names the input file;
+  both files of a pair is an Input curve and names the input file. A single
+  interpretation file holds both kinds of Curve: the committed list
+  ``SINGLE_FILE_CURVE_KINDS`` says which is which;
 - ``build`` then reads each Curve's first and last depth with data and its
   count of non-null samples from the built table itself. A Curve entirely
   NULL for a ``source_wellbore`` has no row.
@@ -33,6 +35,23 @@ INPUT = "input"
 INTERPRETED = "interpreted"
 
 _SOURCES = "curve_sources"
+
+# What each Curve of a single interpretation file is (the 15/9-19
+# sources). A Curve the interpretation took as measured is an Input curve,
+# as in the input files of a pair: the bit size and the sonic. Everything
+# else it computed or set, its parameters included (matrix and fluid density,
+# formation-water resistivity, temperature, the gamma-ray end points, the
+# saturation and cementation exponents), is an Interpreted curve.
+_SINGLE_FILE_INPUT_CURVES = ("BS", "DT")
+_SINGLE_FILE_INTERPRETED_CURVES = (
+    "BVW", "BWV", "CARB_FLAG", "COAL_FLAG", "DELTA", "GRMAX", "GRMIN", "J",
+    "KLHC_INT", "KLOGH", "KLOGV", "M", "N", "PERF_FLAG", "PHIF", "PORD",
+    "RHOFL", "RHOMA", "RW", "SAND_FLAG", "SW", "SWIRR", "TEMP", "VSH",
+)  # fmt: skip
+SINGLE_FILE_CURVE_KINDS: dict[str, str] = {
+    **dict.fromkeys(_SINGLE_FILE_INPUT_CURVES, INPUT),
+    **dict.fromkeys(_SINGLE_FILE_INTERPRETED_CURVES, INTERPRETED),
+}
 
 
 def create(con: duckdb.DuckDBPyConnection) -> None:

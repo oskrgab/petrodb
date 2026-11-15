@@ -37,8 +37,9 @@ def test_raw_files_are_paths_within_the_raw_repo() -> None:
     files = volve_logs.raw_files()
 
     # Input and output LAS files of nine sources, the input file alone of the
-    # 15/9-F-11 top-hole section, and input and output DLIS files of eight.
-    assert len(files) == 35
+    # 15/9-F-11 top-hole section, input and output DLIS files of eight, and
+    # the single file of each 15/9-19 source.
+    assert len(files) == 38
     assert len(set(files)) == len(files)
     assert (
         "Well_logs_pr_WELL/15_9-F-1 A/05.PETROPHYSICAL INTERPRETATION/"
@@ -51,6 +52,9 @@ def test_raw_files_are_paths_within_the_raw_repo() -> None:
     assert (
         "Well_logs_pr_WELL/15_9-F-15 A/05.PETROPHYSICAL INTERPRETATION/"
         "WLC_PETRO_COMPUTED_OUTPUT_1.DLIS"
+    ) in files
+    assert (
+        "Well_logs_pr_WELL/15_9-19 B&BT2/05.PETROPHYSICAL INTERPRETATION/CPI/15_9-19_BT2_CPI.las"
     ) in files
     for name in files:
         assert not Path(name).is_absolute()

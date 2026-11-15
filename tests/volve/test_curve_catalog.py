@@ -15,7 +15,12 @@ import pytest
 
 from scripts.export.volve_logs import catalog_check, validator
 from scripts.run_pipeline import volve_logs
-from tests.volve.log_fixtures import build_raw_tree, fixture_schema, pair_paths, write_schema
+from tests.volve.log_fixtures import (
+    build_raw_tree,
+    fixture_schema,
+    pair_paths,
+    write_schema,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 WELLS = REPO_ROOT / "parquet" / "volve" / "wells.parquet"
@@ -75,7 +80,26 @@ def _dlis_pair_rows(code: int, source: str, folder: str) -> list[tuple]:
 def test_the_catalog_has_one_row_per_source_wellbore_and_curve_with_data(built: Path) -> None:
     rows = _rows(built, "SELECT * FROM {t}")
     f1, t2, top = "15_9-F-1", "15_9-F-11 T2", "15_9-F-11"
+    a, bt2, sr = (
+        "Well_logs_pr_WELL/15_9-19 A/05.PETROPHYSICAL INTERPRETATION/CPI/15_9-19_A_CPI.las",
+        "Well_logs_pr_WELL/15_9-19 B&BT2/05.PETROPHYSICAL INTERPRETATION/CPI/15_9-19_BT2_CPI.las",
+        "Well_logs_pr_WELL/15_9-19 S&SR/05.PETROPHYSICAL INTERPRETATION/CPI/15_9-19_SR_CPI.las",
+    )
     assert rows == [
+        # The 15/9-19 sources: one file holds both kinds of Curve, and the
+        # committed list classifies them. BT2 takes 15/9-19 B's code.
+        (TABLE, 2105, "15/9-19 SR", "DT", "input", "µs/ft", "", 3549.7008, 3549.8532, 2, sr),
+        (TABLE, 2105, "15/9-19 SR", "SW", "interpreted", "v/v", "V/V", 3549.7008, 3549.7008, 1,
+         sr),
+        (TABLE, 3145, "15/9-19 A", "BS", "input", "in", "IN", 3666.5916, 3666.744, 2, a),
+        (TABLE, 3145, "15/9-19 A", "PHIF", "interpreted", "v/v", "V/V", 3666.5916, 3666.5916, 1,
+         a),
+        (TABLE, 3145, "15/9-19 A", "TEMP", "interpreted", "°C", "DEGC", 3666.5916, 3666.744, 2,
+         a),
+        (TABLE, 3251, "15/9-19 BT2", "KLOGV", "interpreted", "mD", "MD", 3768.09, 3768.2424, 2,
+         bt2),
+        (TABLE, 3251, "15/9-19 BT2", "PHIF", "interpreted", "v/v", "V/V", 3768.09, 3768.2424, 2,
+         bt2),
         *_dlis_pair_rows(5351, "15/9-F-14", "15_9-F-14"),
         # 15/9-F-12 (5599): KLOGH from the output file, not the geomodel export.
         (TABLE, 5599, "15/9-F-12", "GR", "input", "gAPI", "API", 3102.102, 3102.4068, 3,

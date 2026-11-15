@@ -5,9 +5,10 @@ DLIS with ``dliswriter``; no real log file and no network is needed. The tree
 holds, under the upstream folder names, one LAS pair for each of the eight
 Wellbores the petrophysical interpretation reads as LAS pairs, the LAS pair of
 the Technical sidetrack 15/9-F-11 T2, the input file of the 15/9-F-11 top-hole
-section, and one DLIS pair for each of the eight Wellbores read as DLIS
-pairs. Beside them sits a geomodel permeability export the build must not
-read.
+section, one DLIS pair for each of the eight Wellbores read as DLIS pairs, and
+the single LAS interpretation file of each 15/9-19 source, which holds Input
+curves and Interpreted curves together. Beside them sits a geomodel
+permeability export the build must not read.
 """
 
 from __future__ import annotations
@@ -57,6 +58,15 @@ DLIS_WELLBORES = {
     "15_9-F-15 A": ("15/9-F-15 A", 5785),
     "15_9-F-15 B": ("15/9-F-15 B", 6046),
     "15_9-F-15 C": ("15/9-F-15 C", 5794),
+}
+
+# The 15/9-19 sources: one LAS interpretation file each, in a CPI folder.
+# Upstream folder -> (file, operator's name, npd_wellbore_code). 15/9-19 BT2
+# is a Technical sidetrack: its rows take the code of 15/9-19 B.
+SINGLE_FILES = {
+    "15_9-19 A": ("15_9-19_A_CPI.las", "15/9-19 A", 3145),
+    "15_9-19 B&BT2": ("15_9-19_BT2_CPI.las", "15/9-19 BT2", 3251),
+    "15_9-19 S&SR": ("15_9-19_SR_CPI.las", "15/9-19 SR", 2105),
 }
 
 Curves = dict[str, tuple[str, list[float]]]  # mnemonic -> (unit, values)
@@ -123,6 +133,10 @@ def pair_paths(raw: Path, folder: str, extension: str = "LAS") -> tuple[Path, Pa
     )
 
 
+def single_file_path(raw: Path, folder: str) -> Path:
+    return raw / "Well_logs_pr_WELL" / folder / INTERPRETATION / "CPI" / SINGLE_FILES[folder][0]
+
+
 def dlis_pair_paths(raw: Path, folder: str) -> tuple[Path, Path]:
     return pair_paths(raw, folder, "DLIS")
 
@@ -141,6 +155,11 @@ def build_raw_tree(raw: Path) -> Path:
 
     15/9-F-12 has depths in feet steps written with float noise, and a
     geomodel permeability export whose KLOGH must not be read.
+
+    15/9-19 A's single file holds the Input curve BS beside the Interpreted
+    curves PHIF and TEMP, in spellings only these files use (``IN``,
+    ``DEGC``), and an all-sentinel last row. 15/9-19 SR's DT has a blank
+    unit spelling.
     """
     write_las(
         pair_paths(raw, "15_9-F-1")[0],
@@ -202,6 +221,26 @@ def build_raw_tree(raw: Path) -> Path:
         },
     )
     build_dlis_pairs(raw)
+    write_las(
+        single_file_path(raw, "15_9-19 A"),
+        [3666.5916, 3666.744, 3666.8964],
+        {
+            "BS": ("IN", [8.5, 8.5, SENTINEL]),
+            "PHIF": ("V/V", [0.2, SENTINEL, SENTINEL]),
+            "TEMP": ("DEGC", [112.7, 112.8, SENTINEL]),
+        },
+        well="NO_15/9-19_A",
+    )
+    write_las(
+        single_file_path(raw, "15_9-19 B&BT2"),
+        [3768.09, 3768.2424],
+        {"PHIF": ("V/V", [0.25, 0.26]), "KLOGV": ("MD", [100.0, 200.0])},
+    )
+    write_las(
+        single_file_path(raw, "15_9-19 S&SR"),
+        [3549.7008, 3549.8532],
+        {"DT": ("", [75.0, 76.0]), "SW": ("V/V", [1.0, SENTINEL])},
+    )
     return raw
 
 
@@ -260,14 +299,16 @@ def build_dlis_pairs(raw: Path) -> None:
         write_dlis(dlis_pair_paths(raw, folder)[1], [1000060], {"SW": ("v/v_decimal", [0.9])})
 
 
-# GR: all 17 Wellbores; SW: the six plain LAS pairs and seven DLIS pairs;
-# PHIF: 15/9-F-1, 15/9-F-11 and 15/9-F-10; RHOB: 15/9-F-1 and 15/9-F-10; the
-# rest one each (CARB_FLAG 15/9-F-10), by mnemonic. A Wellbore counts once: VSH is in both files of
-# 15/9-F-1, RHOB in both files of 15/9-F-10, GR in both 15/9-F-11 sources
-# (the Technical sidetrack and the top-hole section).
+# GR: all 17 Wellbores; SW: the six plain LAS pairs, seven DLIS pairs and
+# 15/9-19 SR; PHIF: 15/9-F-1, 15/9-F-11, 15/9-F-10, 15/9-19 A and 15/9-19 B;
+# RHOB: 15/9-F-1 and 15/9-F-10; the rest one each (CARB_FLAG 15/9-F-10), by
+# mnemonic. A Wellbore counts once: VSH is in both files of 15/9-F-1, RHOB in
+# both files of 15/9-F-10, GR in both 15/9-F-11 sources (the Technical
+# sidetrack and the top-hole section).
 FIXTURE_COLUMNS = [
     "npd_wellbore_code", "source_wellbore", "depth_md",
-    "GR", "SW", "PHIF", "RHOB", "CARB_FLAG", "COAL_FLAG", "KLOGH", "ROP", "VSH",
+    "GR", "SW", "PHIF", "RHOB",
+    "BS", "CARB_FLAG", "COAL_FLAG", "DT", "KLOGH", "KLOGV", "ROP", "TEMP", "VSH",
 ]  # fmt: skip
 
 

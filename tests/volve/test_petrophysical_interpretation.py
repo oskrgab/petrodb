@@ -19,13 +19,17 @@ import pytest
 
 from scripts.export.volve_logs import schema_check, validator
 from scripts.run_pipeline import volve_logs
-from scripts.transform.volve_logs.interpretation_builder import CurveDisagreementError
+from scripts.transform.volve_logs.interpretation_builder import (
+    CurveDisagreementError,
+    UnclassifiedCurveError,
+)
 from scripts.transform.volve_logs.sources import SourceFileError
 from scripts.transform.volve_logs.units import UnitMismatchError, UnitSpellingError
 from tests.volve.log_fixtures import (
     DLIS_WELLBORES,
     FIXTURE_COLUMNS,
     SENTINEL,
+    SINGLE_FILES,
     TECHNICAL_SIDETRACK,
     TOP_HOLE,
     WELLBORES,
@@ -33,6 +37,7 @@ from tests.volve.log_fixtures import (
     dlis_pair_paths,
     fixture_schema,
     pair_paths,
+    single_file_path,
     write_dlis,
     write_las,
     write_schema,
@@ -112,6 +117,9 @@ def test_the_table_holds_every_source_each_with_its_npd_wellbore_code(built: Pat
         "SELECT source_wellbore, npd_wellbore_code, count(*) FROM {t} GROUP BY ALL ORDER BY 1",
     )
     assert rows == [
+        ("15/9-19 A", 3145, 2),
+        ("15/9-19 BT2", 3251, 2),
+        ("15/9-19 SR", 2105, 2),
         ("15/9-F-1", 7223, 5),
         ("15/9-F-1 A", 7224, 2),
         ("15/9-F-1 B", 7264, 2),
@@ -135,6 +143,7 @@ def test_the_table_holds_every_source_each_with_its_npd_wellbore_code(built: Pat
         [s for s, _ in WELLBORES.values()]
         + [s for s, _ in DLIS_WELLBORES.values()]
         + [TECHNICAL_SIDETRACK[1], TOP_HOLE[1]]
+        + [s for _, s, _ in SINGLE_FILES.values()]
     )
 
 
@@ -187,6 +196,39 @@ def test_the_top_hole_section_and_the_technical_sidetrack_are_not_merged_where_t
     ]
 
 
+def test_a_single_interpretation_file_gives_its_input_and_interpreted_curves_one_row_per_depth(
+    built: Path,
+) -> None:
+    rows = _rows(
+        built,
+        "SELECT npd_wellbore_code, depth_md, BS, PHIF, TEMP FROM {t} "
+        "WHERE source_wellbore = '15/9-19 A' ORDER BY depth_md",
+    )
+    # 3666.8964 m holds only sentinels, so it is dropped.
+    assert rows == [(3145, 3666.5916, 8.5, 0.2, 112.7), (3145, 3666.744, 8.5, None, 112.8)]
+
+
+def test_15_9_19_bt2_is_a_technical_sidetrack_of_15_9_19_b(built: Path) -> None:
+    rows = _rows(
+        built,
+        "SELECT npd_wellbore_code, depth_md, PHIF, KLOGV FROM {t} "
+        "WHERE source_wellbore = '15/9-19 BT2' ORDER BY depth_md",
+    )
+    # 3251 is 15/9-19 B in the register; BT2 has no code of its own.
+    assert rows == [(3251, 3768.09, 0.25, 100.0), (3251, 3768.2424, 0.26, 200.0)]
+
+
+def test_curves_only_the_15_9_19_sources_carry_are_null_for_every_other_source(
+    built: Path,
+) -> None:
+    rows = _rows(
+        built,
+        "SELECT DISTINCT source_wellbore FROM {t} "
+        "WHERE TEMP IS NOT NULL OR KLOGV IS NOT NULL ORDER BY ALL",
+    )
+    assert rows == [("15/9-19 A",), ("15/9-19 BT2",)]
+
+
 def test_rows_are_sorted_by_wellbore_then_depth(built: Path) -> None:
     keys = _rows(built, "SELECT npd_wellbore_code, source_wellbore, depth_md FROM {t}")
     assert keys == sorted(keys)
@@ -202,8 +244,9 @@ def test_columns_are_the_key_then_the_source_mnemonics_unchanged_all_double(buil
     ]
     curves = dict(columns[3:])
     assert set(curves) == {
-        "GR", "RHOB", "ROP", "VSH", "PHIF", "CARB_FLAG", "COAL_FLAG", "SW", "KLOGH"
-    }
+        "GR", "RHOB", "ROP", "VSH", "PHIF", "CARB_FLAG", "COAL_FLAG", "SW", "KLOGH",
+        "BS", "TEMP", "KLOGV", "DT",
+    }  # fmt: skip
     assert set(curves.values()) == {"DOUBLE"}
 
 
@@ -219,7 +262,7 @@ def test_the_table_is_one_row_group(built: Path) -> None:
 
 
 def test_no_sentinel_remains(built: Path) -> None:
-    curves = ["GR", "RHOB", "ROP", "VSH", "PHIF", "CARB_FLAG", "COAL_FLAG", "SW", "KLOGH"]
+    curves = FIXTURE_COLUMNS[3:]
     hits = _rows(built, "SELECT count(*) FROM {t} WHERE " + " OR ".join(f"{c} = {SENTINEL}" for c in curves))
     assert hits == [(0,)]
 
@@ -243,6 +286,18 @@ def test_the_real_raw_files_build_to_the_committed_schema(tmp_path: Path) -> Non
         shutil.copy(SCHEMA.parent / name, tmp_path / name)
     built = volve_logs.run(output_dir=tmp_path)
     assert _rows(built, "SELECT num_row_groups FROM parquet_file_metadata({t})") == [(1,)]
+    # The sixteen Curves only the 15/9-19 files carry are NULL everywhere else.
+    only_15_9_19 = [
+        "BWV", "DELTA", "GRMAX", "GRMIN", "J", "KLHC_INT", "KLOGV", "M", "N",
+        "PERF_FLAG", "PORD", "RHOFL", "RHOMA", "RW", "SWIRR", "TEMP",
+    ]  # fmt: skip
+    carriers = _rows(
+        built,
+        "SELECT DISTINCT source_wellbore FROM {t} WHERE "
+        + " OR ".join(f"{c} IS NOT NULL" for c in only_15_9_19)
+        + " ORDER BY ALL",
+    )
+    assert carriers == [("15/9-19 A",), ("15/9-19 BT2",), ("15/9-19 SR",)]
 
 
 def test_one_command_builds_the_table(raw: Path, out: Path) -> None:
@@ -252,7 +307,7 @@ def test_one_command_builds_the_table(raw: Path, out: Path) -> None:
         check=True,
         capture_output=True,
     )
-    assert _rows(out / TABLE, "SELECT count(*) FROM {t}") == [(42,)]
+    assert _rows(out / TABLE, "SELECT count(*) FROM {t}") == [(48,)]
 
 
 # --- failure paths through the entry point --------------------------------
@@ -279,6 +334,23 @@ def test_an_unrecognised_unit_spelling_stops_the_build(raw: Path, out: Path) -> 
         UnitSpellingError,
         match=r"15_9-F-1 A/05\.PETROPHYSICAL INTERPRETATION/WLC_PETRO_COMPUTED_INPUT_1\.LAS"
         r".*GR.*'furlongs'",
+    ):
+        volve_logs.run(raw_dir=raw, output_dir=out)
+    assert not (out / TABLE).exists()
+
+
+def test_a_single_file_mnemonic_with_no_curve_kind_stops_the_build(
+    raw: Path, out: Path
+) -> None:
+    # A single file holds both kinds of Curve; only the committed list says
+    # which is which, so a mnemonic it does not list cannot be classified.
+    write_las(
+        single_file_path(raw, "15_9-19 S&SR"),
+        [3549.7008],
+        {"GR": ("API", [80.0])},
+    )
+    with pytest.raises(
+        UnclassifiedCurveError, match=r"15_9-19_SR_CPI\.las.*GR"
     ):
         volve_logs.run(raw_dir=raw, output_dir=out)
     assert not (out / TABLE).exists()
