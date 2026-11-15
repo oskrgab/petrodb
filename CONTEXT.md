@@ -12,15 +12,19 @@ _Avoid_: "partitioned table" (only some multi-parquet tables are Hive-partitione
 
 **Manifest** (`_files.json`):
 A JSON array of every member file's path, relative to a multi-parquet table's directory root. Exists because DuckDB `httpfs` cannot glob or list a static HTTP server. One per multi-parquet table.
-_Avoid_: "catalog" — the 3W `instances.parquet` is a catalog (a queryable table of metadata rows), a different thing.
+_Avoid_: "catalog" — a catalog is a queryable table of metadata rows (the 3W Instance catalog, the Volve Curve catalog), a different thing.
 
 **Lake**:
 A read-only DuckLake published alongside the parquet tree that registers the published tables in place, so a DuckDB consumer can `ATTACH` one URL instead of resolving manifests. A convenience entry point, not the contract: the parquet URLs and manifests stay authoritative.
-_Avoid_: "catalog" (reserved for the 3W Instance catalog), "lakehouse", "database".
+_Avoid_: "catalog" (reserved for queryable metadata tables: the 3W Instance catalog, the Volve Curve catalog), "lakehouse", "database".
 
 **Dataset**:
 One public source republished by PetroDB as a self-contained set of tables with its own schema documents, licence and attribution. There are four: Volve, FORCE 2020, Argentina production, Petrobras 3W.
 _Avoid_: "database" (nothing is served by a database), "repository" (the site was once titled "PetroData Repository"; the name is PetroDB).
+
+**Raw repo**:
+A Hugging Face dataset repo holding one Dataset's upstream source files unmodified, laid out as upstream lays them out. One per Dataset. A pipeline reads it at a pinned commit and publishes the tables it builds to the Dataset; the Raw repo itself is never queried by consumers.
+_Avoid_: "mirror" (a Raw repo may be filled by scraping or by hand, not only by copying a host), "raw dataset" (the Dataset is the published tables).
 
 **Landing**:
 The public website that presents the Datasets: what each one holds, how to query it, its Glances and its files. Carries no data bytes.
@@ -29,6 +33,36 @@ _Avoid_: "website", "docs site", "portal".
 **Glance**:
 A small precomputed finding about one Dataset, shown on the Landing as a chart or figure together with the query that produces it. Its purpose is to show what is in the data and how to ask for it, not to be an analysis.
 _Avoid_: "insight", "dashboard", "KPI", "preview" (a preview shows raw rows; a Glance shows a result).
+
+### Volve dataset
+
+**Wellbore** (Volve sense, `npd_wellbore_code`):
+One drilled path registered by the Norwegian Offshore Directorate, identified by the integer the register assigns it. The unit of identity for every Volve table. One well holds several: `15/9-F-1`, `15/9-F-1 A`, `15/9-F-1 B` and `15/9-F-1 C` are four Wellbores drilled from one slot. The `wells` table holds one row per Wellbore and keeps its published name.
+_Avoid_: "well" for a single Wellbore, the operator's wellbore names (`F-4 AH`, `F-11 H`) as identity; they are labels.
+
+**Technical sidetrack**:
+A re-drilled section of a Wellbore that the register does not count as a Wellbore of its own (`15/9-F-11 T2`, `15/9-19 BT2`). It has no `npd_wellbore_code`: its data belongs to the parent Wellbore and keeps the operator's name as a label.
+_Avoid_: "wellbore" for a Technical sidetrack, bare "sidetrack" (the lettered sidetracks `A`, `B`, `C` are Wellbores).
+
+**Curve**:
+One quantity sampled against depth along a Wellbore, named by its source mnemonic (`GR`, `RHOB`, `PHIF`).
+_Avoid_: "log" for a single Curve, "channel", "trace".
+
+**Input curve**:
+A Curve the operator's petrophysical interpretation took as input: a measurement as the interpreter curated it, renamed to a standard mnemonic and sometimes edited.
+_Avoid_: "measured curve", "raw curve" (some are edited or derived).
+
+**Interpreted curve**:
+A Curve the petrophysical interpretation computed: porosity, water saturation, shale volume, permeability, lithology flags.
+_Avoid_: "output curve", "computed curve".
+
+**Log type**:
+One upstream category of well-log data: petrophysical interpretation, composite, formation pressure, production logs and so on. Each Log type is published as its own table spanning every Wellbore that has it.
+_Avoid_: "log folder" (the upstream numbering is not part of the model), "log set".
+
+**Curve catalog**:
+A queryable table with one row per Curve per Wellbore or Technical sidetrack, across every Log type: where the Curve has data and how the source recorded it. The place a consumer discovers which Curves exist before reading any samples. A catalog in the same sense as the 3W Instance catalog.
+_Avoid_: "curve index", "curve list", "manifest" (a Manifest lists files, not Curves).
 
 ### Argentina production dataset
 
@@ -67,6 +101,9 @@ The upstream parquet file backing a single Instance. Filenames encode provenance
 
 ## Relationships
 
+- A **Wellbore** (Volve) is the parent of its production rows, its **Curves** and zero or more **Technical sidetracks**.
+- A **Curve** belongs to one **Wellbore**, or to one **Technical sidetrack** of it, and to one **Log type**. Within the petrophysical interpretation it is either an **Input curve** or an **Interpreted curve**.
+- The **Curve catalog** has one row per **Curve**; a **Raw repo** holds the source files every **Curve** was read from.
 - A **Well** (`idpozo`) is the unit of identity for both the master table and the production time-series.
 - **Formprod** is a static attribute of a **Well** — recorded once in the master, never repeated in monthly rows.
 - A **Well** (3W sense, `well_id`) is the parent of zero-or-more **Instances** (only when `well_kind = real`).
@@ -78,6 +115,7 @@ The upstream parquet file backing a single Instance. Filenames encode provenance
 
 - "well" was used to refer to both the physical wellbore and the producing-formation-specific record — resolved: in the Argentina dataset a **Well** = `idpozo` = wellbore × formprod. Use "physical wellbore" if the bore-only concept is needed.
 - "Well" is overloaded across datasets — resolved by scope: Argentina **Well** = `idpozo`; Petrobras 3W **Well** = anonymized offshore wellbore `well_id`. Always qualify with the dataset name when the context is mixed.
+- The Volve `wells` table is named for wells but holds **Wellbores** — resolved: the unit is the **Wellbore** (`npd_wellbore_code`); the table name stays because its URL is published.
 - "Event" is overloaded — resolved: in the Argentina dataset an **Event** is a row in `well_events.parquet` marking an operational-state transition; in the Petrobras 3W dataset an **Event class** is an anomaly category referenced by an Instance and by every Observation. Different concepts, different tables.
 
 ## Multi-parquet table convention
