@@ -4,6 +4,7 @@
   "holds": "Daily and monthly production for every well in Equinor's Volve field, from first oil to shutdown.",
   "grain": "well per day",
   "ready": true,
+  "generated_tables": ["petrophysical_interpretation", "log_curves"],
   "petroviz": {
     "label": "Open the production dashboard",
     "url": "https://petroviz.ocortez.com/production"

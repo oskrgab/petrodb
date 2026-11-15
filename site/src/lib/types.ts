@@ -115,6 +115,11 @@ export interface Table {
   description: string;
   columns: Column[];
   references: string[];
+  /**
+   * False when this build has no file for the table: one built in CI that is
+   * not on disk here. Its schema is shown; its size, rows and address are not.
+   */
+  listed: boolean;
   kind: "single" | "multi";
   path?: string;
   manifest?: string;

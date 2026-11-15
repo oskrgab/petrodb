@@ -10,6 +10,7 @@ as the runner does, with a stub ``hf`` on ``PATH``.
 from __future__ import annotations
 
 import fnmatch
+import json
 import os
 import re
 import shutil
@@ -141,6 +142,16 @@ def test_every_log_table_is_gitignored_and_listed_for_the_cache() -> None:
     ]
 
     assert sorted(ignored) == sorted(_log_tables())
+
+
+def test_the_landing_lists_every_log_table_from_disk() -> None:
+    # The site build lists the CI-built tables from disk (generated_tables);
+    # one missing there would render without its rows, size and address.
+    meta = json.loads((REPO_ROOT / "site" / "data" / "volve" / "dataset.json").read_text())
+
+    assert sorted(f"parquet/volve/{name}.parquet" for name in meta["generated_tables"]) == sorted(
+        _log_tables()
+    )
 
 
 def test_changing_the_pin_or_a_pipeline_source_triggers_the_workflow() -> None:

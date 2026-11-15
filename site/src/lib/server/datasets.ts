@@ -18,7 +18,7 @@ import type {
   Upstream,
 } from "$lib/types";
 import { highlight } from "./highlight";
-import { listTree, type TreeTable } from "./tree";
+import { listDataset, type TreeTable } from "./tree";
 
 /**
  * The canonical data base: the Hugging Face `main` revision. Glances are written
@@ -65,6 +65,8 @@ interface DatasetMeta {
   ready: boolean;
   /** The tree is gitignored and built in CI rather than committed (Petrobras 3W). */
   generated?: boolean;
+  /** Tables built in CI beside committed ones (the Volve log tables), listed from disk. */
+  generated_tables?: string[];
   petroviz: DatasetSummary["petroviz"];
   licence: DatasetSummary["licence"];
   about?: string[];
@@ -99,11 +101,15 @@ interface RawGlance {
 
 /**
  * A committed Dataset's listing is written by the Glances command. A Dataset
- * whose tree is built in CI (`"generated": true`) is listed from disk at build time.
+ * whose tree is built in CI (`"generated": true`) is listed from disk at build
+ * time, and so are the tables a committed Dataset has built in CI
+ * (`generated_tables`), when they are on disk: the deploy builds or restores
+ * them before the site build.
  */
 function listFiles(id: string): TreeTable[] | null {
   if (!listings.has(id)) {
-    listings.set(id, readJson<TreeTable[]>(resolve(DATA_ROOT, id, "files.json")) ?? listTree(resolve(PARQUET_ROOT, id)));
+    const committed = readJson<TreeTable[]>(resolve(DATA_ROOT, id, "files.json"));
+    listings.set(id, listDataset(resolve(PARQUET_ROOT, id), committed, readMeta(id).generated_tables ?? []));
   }
   return listings.get(id) ?? null;
 }
@@ -251,6 +257,7 @@ export function loadTables(id: string): Table[] {
       references: (t.foreign_keys ?? []).map(
         (fk: any) => `${fk.column} → ${fk.references_table}.${fk.references_column}`,
       ),
+      listed: Boolean(file),
       kind: file?.kind ?? "single",
       path: file?.path,
       manifest: file?.manifest,

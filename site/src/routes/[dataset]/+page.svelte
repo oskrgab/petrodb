@@ -33,8 +33,10 @@
     { id: "licence", label: "Source and licence" },
   ];
 
-  const totalRows = $derived(tables.reduce((sum, t) => sum + t.rows, 0));
-  const totalBytes = $derived(tables.reduce((sum, t) => sum + t.bytes, 0));
+  // A table with no file in this build (built in CI, not on disk) has no size to add.
+  const listedTables = $derived(tables.filter((t) => t.listed));
+  const totalRows = $derived(listedTables.reduce((sum, t) => sum + t.rows, 0));
+  const totalBytes = $derived(listedTables.reduce((sum, t) => sum + t.bytes, 0));
   const docs = ["schema.md", "schema.json", "schema.sql"];
   // A table with more parts than this opens with its parts listed and a search box.
   const SEARCH_FROM = 24;
@@ -81,7 +83,7 @@
         <div><dt class="fine">One row per</dt><dd>{summary.grain}</dd></div>
         <div><dt class="fine">Covers</dt><dd>{summary.covers}</dd></div>
         <div><dt class="fine">Rows</dt><dd class="num">{approx(totalRows)}</dd></div>
-        <div><dt class="fine">Size</dt><dd class="num">{bytes(totalBytes)} in {tables.length} {tables.length === 1 ? "table" : "tables"}</dd></div>
+        <div><dt class="fine">Size</dt><dd class="num">{bytes(totalBytes)} in {listedTables.length} {listedTables.length === 1 ? "table" : "tables"}</dd></div>
         {#if upstream}
           <div>
             <dt class="fine">Upstream release</dt>
@@ -160,7 +162,7 @@
         <details>
           <summary>
             <code class="tname">{t.name}</code>
-            <span class="fine num">{count(t.rows)} rows, {t.columns.length} columns</span>
+            <span class="fine num">{t.listed ? `${count(t.rows)} rows, ` : ""}{t.columns.length} columns</span>
           </summary>
           <div class="tbody">
             <p>{@html t.description}</p>
@@ -197,7 +199,7 @@
         Use these addresses in a query, or download the files. They are served from Hugging Face.
       </p>
       <ul class="files">
-        {#each tables as t (t.name)}
+        {#each listedTables as t (t.name)}
           {#if t.kind === "single"}
             <li>
               <a href={`${dataBase}/${t.path}`}><code>{t.path}</code></a>

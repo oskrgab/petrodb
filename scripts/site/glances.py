@@ -705,17 +705,30 @@ def _parquet_rows(path: Path) -> int:
     ).fetchone()[0]
 
 
+def generated_tables(dataset: str) -> list[str]:
+    """The tables of a committed Dataset that are gitignored and built in CI
+    (``generated_tables`` in its ``dataset.json``): the Volve log tables."""
+    meta = json.loads((OUT_ROOT / dataset / "dataset.json").read_text())
+    return meta.get("generated_tables", [])
+
+
 def list_files(dataset: str) -> list[dict[str, Any]] | None:
     """Describe a committed Dataset's tables: sizes, row counts, member files.
 
     A directory holding a Manifest is one Multi-parquet table; any other
-    ``*.parquet`` at the Dataset root is a single-file table.
+    ``*.parquet`` at the Dataset root is a single-file table. A table built in
+    CI (``generated_tables``) is left out even when a local build left it on
+    disk: the site lists it from disk at build time, so the committed listing
+    is the same with or without it.
     """
     root = PARQUET_ROOT / dataset
     if not root.is_dir():
         return None
+    skipped = set(generated_tables(dataset))
     tables: list[dict[str, Any]] = []
     for path in sorted(root.glob("*.parquet")):
+        if path.stem in skipped:
+            continue
         tables.append({
             "name": path.stem, "kind": "single", "path": path.name,
             "bytes": path.stat().st_size, "rows": _parquet_rows(path),
