@@ -6,7 +6,8 @@ failure raises ``PrePublishCheckError`` and stops the build:
 - the key ``(source_wellbore, depth_md)`` is unique;
 - every ``npd_wellbore_code`` exists in ``wells``;
 - ``depth_md`` strictly increases, in file order, within each ``source_wellbore``;
-- each ``source_wellbore`` has as many rows as its source has non-empty depth samples;
+- each ``source_wellbore`` has as many rows as its source has non-empty depth samples
+  (where a Curve other than a flag has a value);
 - no sentinel value ``-999.25`` remains in a Curve column;
 - the file is a single row group;
 - the columns are in the order ``layout`` declares.
