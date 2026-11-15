@@ -75,15 +75,18 @@ checks the table against the committed `parquet/volve/wells.parquet`, so it
 writes beside it. Another raw or output directory goes as arguments:
 `uv run python -m scripts.run_pipeline.volve_logs RAW_DIR OUTPUT_DIR`.
 
-So far it reads the LAS input and output pairs of eight Wellbores, from
+So far it reads the LAS input and output pairs of eight Wellbores and of the
+Technical sidetrack 15/9-F-11 T2, and the input file of the 15/9-F-11
+top-hole section, which has no output file, from
 `Well_logs_pr_WELL/<wellbore>/05.PETROPHYSICAL INTERPRETATION/`. The folder
-names the Wellbore, through the mapping in
-`scripts/transform/volve_logs/sources.py`. Each Curve's unit spelling must be
-one the unit table in `scripts/transform/volve_logs/units.py` maps to the
-unit documented for its column; the build stops on any other, naming the
-file, the mnemonic and the spelling, and a new spelling is added there by
-review. The table is checked before it is moved into place; a failed check
-leaves no new file.
+names the source, through the mapping in
+`scripts/transform/volve_logs/sources.py`: the Technical sidetrack's rows take the
+`npd_wellbore_code` of its parent, 15/9-F-11, and keep `15/9-F-11 T2` in
+`source_wellbore`. Each Curve's unit spelling must be one the unit table in
+`scripts/transform/volve_logs/units.py` maps to the unit documented for its
+column; the build stops on any other, naming the file, the mnemonic and the
+spelling, and a new spelling is added there by review. The table is checked
+before it is moved into place; a failed check leaves no new file.
 
 ### Fill the Raw repo (maintainer)
 

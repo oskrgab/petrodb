@@ -17,9 +17,12 @@ import pytest
 from scripts.export.volve_logs import validator
 from scripts.run_pipeline import volve_logs
 from scripts.transform.volve_logs.interpretation_builder import CurveDisagreementError
+from scripts.transform.volve_logs.las_reader import LasSourceError
 from scripts.transform.volve_logs.units import UnitMismatchError, UnitSpellingError
 from tests.volve.log_fixtures import (
     SENTINEL,
+    TECHNICAL_SIDETRACK,
+    TOP_HOLE,
     WELLBORES,
     build_raw_tree,
     pair_paths,
@@ -92,7 +95,7 @@ def test_two_spellings_of_one_unit_make_one_column_with_the_values_unchanged(
     ]
 
 
-def test_the_table_holds_the_eight_wellbores_each_with_its_npd_wellbore_code(built: Path) -> None:
+def test_the_table_holds_every_source_each_with_its_npd_wellbore_code(built: Path) -> None:
     rows = _rows(
         built,
         "SELECT source_wellbore, npd_wellbore_code, count(*) FROM {t} GROUP BY ALL ORDER BY 1",
@@ -102,12 +105,65 @@ def test_the_table_holds_the_eight_wellbores_each_with_its_npd_wellbore_code(bui
         ("15/9-F-1 A", 7224, 2),
         ("15/9-F-1 B", 7264, 2),
         ("15/9-F-1 C", 7405, 2),
+        ("15/9-F-11", 7078, 2),
         ("15/9-F-11 A", 7079, 2),
         ("15/9-F-11 B", 7080, 2),
+        ("15/9-F-11 T2", 7078, 4),
         ("15/9-F-12", 5599, 3),
         ("15/9-F-15 D", 7289, 2),
     ]
-    assert sorted(source for source, _, _ in rows) == sorted(s for s, _ in WELLBORES.values())
+    assert sorted(source for source, _, _ in rows) == sorted(
+        [s for s, _ in WELLBORES.values()] + [TECHNICAL_SIDETRACK[1], TOP_HOLE[1]]
+    )
+
+
+def test_a_technical_sidetrack_takes_its_parent_wellbores_code_and_keeps_its_name(
+    built: Path,
+) -> None:
+    rows = _rows(
+        built,
+        "SELECT npd_wellbore_code, depth_md, GR, PHIF FROM {t} "
+        "WHERE source_wellbore = '15/9-F-11 T2' ORDER BY depth_md",
+    )
+    # 7078 is 15/9-F-11 in the register; T2 has no code of its own.
+    assert rows == [
+        (7078, 200.0, 40.0, None),
+        (7078, 200.1, 41.0, None),
+        (7078, 200.2, 42.0, None),
+        (7078, 4000.0, 43.0, 0.2),
+    ]
+
+
+def test_the_input_only_top_hole_section_is_its_own_source_with_no_interpreted_curve(
+    built: Path,
+) -> None:
+    rows = _rows(
+        built,
+        "SELECT npd_wellbore_code, depth_md, GR, ROP, PHIF, SW, KLOGH, COAL_FLAG FROM {t} "
+        "WHERE source_wellbore = '15/9-F-11' ORDER BY depth_md",
+    )
+    # 200.2 m holds only sentinels, so it is dropped.
+    assert rows == [
+        (7078, 200.0, 30.0, 12.0, None, None, None, None),
+        (7078, 200.1, 31.0, None, None, None, None, None),
+    ]
+
+
+def test_the_top_hole_section_and_the_technical_sidetrack_are_not_merged_where_they_overlap(
+    built: Path,
+) -> None:
+    rows = _rows(
+        built,
+        "SELECT source_wellbore, depth_md, GR FROM {t} "
+        "WHERE npd_wellbore_code = 7078 AND depth_md < 1000 ORDER BY ALL",
+    )
+    assert rows == [
+        ("15/9-F-11", 200.0, 30.0),
+        ("15/9-F-11", 200.1, 31.0),
+        ("15/9-F-11 T2", 200.0, 40.0),
+        ("15/9-F-11 T2", 200.1, 41.0),
+        ("15/9-F-11 T2", 200.2, 42.0),
+    ]
 
 
 def test_rows_are_sorted_by_wellbore_then_depth(built: Path) -> None:
@@ -124,12 +180,12 @@ def test_columns_are_the_key_then_the_source_mnemonics_unchanged_all_double(buil
         ("depth_md", "DOUBLE"),
     ]
     curves = dict(columns[3:])
-    assert set(curves) == {"GR", "RHOB", "VSH", "PHIF", "COAL_FLAG", "SW", "KLOGH"}
+    assert set(curves) == {"GR", "RHOB", "ROP", "VSH", "PHIF", "COAL_FLAG", "SW", "KLOGH"}
     assert set(curves.values()) == {"DOUBLE"}
 
 
 def test_no_sentinel_remains(built: Path) -> None:
-    curves = ["GR", "RHOB", "VSH", "PHIF", "COAL_FLAG", "SW", "KLOGH"]
+    curves = ["GR", "RHOB", "ROP", "VSH", "PHIF", "COAL_FLAG", "SW", "KLOGH"]
     hits = _rows(built, "SELECT count(*) FROM {t} WHERE " + " OR ".join(f"{c} = {SENTINEL}" for c in curves))
     assert hits == [(0,)]
 
@@ -150,7 +206,7 @@ def test_one_command_builds_the_table(raw: Path, out: Path) -> None:
         check=True,
         capture_output=True,
     )
-    assert _rows(out / TABLE, "SELECT count(*) FROM {t}") == [(20,)]
+    assert _rows(out / TABLE, "SELECT count(*) FROM {t}") == [(26,)]
 
 
 # --- failure paths through the entry point --------------------------------
@@ -178,6 +234,15 @@ def test_an_unrecognised_unit_spelling_stops_the_build(raw: Path, out: Path) -> 
         match=r"15_9-F-1 A/05\.PETROPHYSICAL INTERPRETATION/WLC_PETRO_COMPUTED_INPUT_1\.LAS"
         r".*GR.*'furlongs'",
     ):
+        volve_logs.run(raw_dir=raw, output_dir=out)
+    assert not (out / TABLE).exists()
+
+
+def test_an_output_file_beside_the_input_only_top_hole_section_stops_the_build(
+    raw: Path, out: Path
+) -> None:
+    write_las(pair_paths(raw, TOP_HOLE[0])[1], [200.0], {"PHIF": ("v/v", [0.1])})
+    with pytest.raises(LasSourceError, match=r"15/9-F-11 is mapped as input-only"):
         volve_logs.run(raw_dir=raw, output_dir=out)
     assert not (out / TABLE).exists()
 

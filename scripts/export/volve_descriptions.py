@@ -183,10 +183,23 @@ COLUMN_DESCRIPTIONS = {
         # is not listed here, so every published column is described. Units
         # are not repeated here: each column's one unit comes from the unit
         # table (scripts/transform/volve_logs/units.py).
-        "npd_wellbore_code": "Wellbore the row belongs to. Joins to `wells`.",
+        "npd_wellbore_code": (
+            "Wellbore the row belongs to. Joins to `wells`. For a Technical "
+            "sidetrack, the code of its parent Wellbore."
+        ),
         "source_wellbore": (
             "The operator's name for the logged wellbore, such as "
-            "`15/9-F-1 A`, taken from the folder the source files sit in."
+            "`15/9-F-1 A`, taken from the folder the source files sit in. "
+            "Usually the name of the Wellbore in `npd_wellbore_code`. A "
+            "Technical sidetrack, such as `15/9-F-11 T2`, is a re-drilled "
+            "section the register does not count as a Wellbore: its rows "
+            "carry the `npd_wellbore_code` of its parent Wellbore "
+            "(`15/9-F-11`) and keep the Technical sidetrack's name here. The "
+            "15/9-F-11 top-hole section is "
+            "`15/9-F-11`: it has Input curves only, and it overlaps the "
+            "depths of `15/9-F-11 T2` with different values. Filter on "
+            "`npd_wellbore_code` for everything logged under a Wellbore, on "
+            "`source_wellbore` for one of its sources."
         ),
         "depth_md": (
             "Measured depth along the wellbore, rounded to four "

@@ -1,10 +1,11 @@
-"""Join each Wellbore's LAS pair into the ``petrophysical_interpretation`` table.
+"""Join each source's LAS files into the ``petrophysical_interpretation`` table.
 
 The input and output files of a pair share a depth grid, so they are joined on
 ``depth_md`` (rounded to four decimals): Input curves and Interpreted curves
 side by side, one row per depth sample, at the source depths. A mnemonic in
 both files becomes one column, and the build fails if the two files disagree
-on it at any depth they share. Rows where every Curve is NULL are dropped.
+on it at any depth they share. A source with an input file only has every
+Interpreted curve NULL. Rows where every Curve is NULL are dropped.
 
 Every Curve column is DOUBLE and named with the source mnemonic verbatim, in
 the order ``volve_descriptions`` lists them; a mnemonic it does not list fails
@@ -24,8 +25,8 @@ import pyarrow.compute as pc
 
 from scripts.export.volve_descriptions import COLUMN_DESCRIPTIONS
 from scripts.transform.volve_logs import units
-from scripts.transform.volve_logs.las_reader import DEPTH_COLUMN, read_las
-from scripts.transform.volve_logs.sources import LAS_PAIRS, LasPair
+from scripts.transform.volve_logs.las_reader import DEPTH_COLUMN, LasSourceError, read_las
+from scripts.transform.volve_logs.sources import LAS_SOURCES, LasSource
 from scripts.transform.volve_logs.sql import identifier as _q
 
 TABLE = "petrophysical_interpretation"
@@ -60,20 +61,38 @@ def _non_empty_depths(table: pa.Table) -> set[float]:
     return set(depths[has_value].tolist())
 
 
+def _read_output(source: LasSource, raw_dir: Path) -> pa.Table:
+    """The output file, or a table with no samples for a source with none.
+
+    An output file beside an input-only source means the mapping is out of
+    date, so it stops the build rather than being ignored.
+    """
+    path = source.output_path(raw_dir)
+    if path is None:
+        unexpected = source.unread_output_path(raw_dir)
+        if unexpected.exists():
+            raise LasSourceError(
+                f"{source.source_wellbore} is mapped as input-only, "
+                f"but has an output file: {unexpected}"
+            )
+        return pa.table({DEPTH_COLUMN: pa.array([], pa.float64())})
+    return read_las(path)
+
+
 def build(con: duckdb.DuckDBPyConnection, raw_dir: Path) -> dict[str, int]:
-    """Create ``petrophysical_interpretation`` in ``con`` from the LAS pairs under ``raw_dir``.
+    """Create ``petrophysical_interpretation`` in ``con`` from the LAS sources under ``raw_dir``.
 
     Returns the number of non-empty depth samples each ``source_wellbore`` has
     in its source files, counted from the files themselves, for the
     pre-publish row-count check.
     """
-    pairs = [
-        (pair, read_las(pair.input_path(raw_dir)), read_las(pair.output_path(raw_dir)))
-        for pair in LAS_PAIRS
+    read = [
+        (source, read_las(source.input_path(raw_dir)), _read_output(source, raw_dir))
+        for source in LAS_SOURCES
     ]
     present = {
         name
-        for _, input_table, output_table in pairs
+        for _, input_table, output_table in read
         for name in _curves(input_table) + _curves(output_table)
     }
     undocumented = sorted(present - set(DOCUMENTED_CURVES))
@@ -81,9 +100,9 @@ def build(con: duckdb.DuckDBPyConnection, raw_dir: Path) -> dict[str, int]:
         raise UndocumentedCurveError(
             f"Curve(s) with no description in volve_descriptions: {', '.join(undocumented)}"
         )
-    for pair, input_table, output_table in pairs:
-        units.check(pair.input_path(raw_dir), input_table)
-        units.check(pair.output_path(raw_dir), output_table)
+    for source, input_table, output_table in read:
+        units.check(source.input_path(raw_dir), input_table)
+        units.check(source.output_path(raw_dir), output_table)
     curves = [name for name in DOCUMENTED_CURVES if name in present]
 
     con.execute(
@@ -94,17 +113,17 @@ def build(con: duckdb.DuckDBPyConnection, raw_dir: Path) -> dict[str, int]:
         + ")"
     )
     expected_rows = {}
-    for pair, input_table, output_table in pairs:
-        _insert_pair(con, pair, input_table, output_table)
-        expected_rows[pair.source_wellbore] = len(
+    for source, input_table, output_table in read:
+        _insert_source(con, source, input_table, output_table)
+        expected_rows[source.source_wellbore] = len(
             _non_empty_depths(input_table) | _non_empty_depths(output_table)
         )
     return expected_rows
 
 
-def _insert_pair(
+def _insert_source(
     con: duckdb.DuckDBPyConnection,
-    pair: LasPair,
+    source: LasSource,
     input_table: pa.Table,
     output_table: pa.Table,
 ) -> None:
@@ -131,7 +150,7 @@ def _insert_pair(
         if disagreement:
             depth, input_value, output_value = disagreement
             raise CurveDisagreementError(
-                f"{pair.source_wellbore}: Curve {name} differs between the input "
+                f"{source.source_wellbore}: Curve {name} differs between the input "
                 f"and the output file at depth {depth} m "
                 f"(input {input_value}, output {output_value})"
             )
@@ -152,5 +171,5 @@ def _insert_pair(
         + "".join(f", {column}" for column in selected)
         + f" FROM las_input i FULL OUTER JOIN las_output o ON i.{DEPTH_COLUMN} = o.{DEPTH_COLUMN} "
         f"WHERE {any_value}",
-        {"npd": pair.npd_wellbore_code, "source": pair.source_wellbore},
+        {"npd": source.npd_wellbore_code, "source": source.source_wellbore},
     )
