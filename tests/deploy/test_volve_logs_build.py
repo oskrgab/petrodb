@@ -82,16 +82,20 @@ def _log_tables() -> list[str]:
 
 
 def _pipeline_sources() -> list[str]:
-    """The repo files of every Volve module the pipeline imports, repo-relative."""
+    """The repo file of every module the pipeline imports, repo-relative.
+
+    Every module, not only the Volve ones: importing a package runs its
+    ``__init__``, which may import siblings (``scripts.export`` imports the
+    production export), and a change to any of them can change the build.
+    """
     out = subprocess.run(
         [
             sys.executable,
             "-c",
             "import sys, scripts.run_pipeline.volve_logs\n"
             "for m in list(sys.modules.values()):\n"
-            "    f = getattr(m, '__file__', None) or ''\n"
-            "    if m.__name__.startswith('scripts.') and 'volve' in m.__name__:\n"
-            "        print(f)",
+            "    if m.__name__ == 'scripts' or m.__name__.startswith('scripts.'):\n"
+            "        print(m.__file__)",
         ],
         cwd=REPO_ROOT,
         check=True,
@@ -114,6 +118,7 @@ def test_cache_is_keyed_on_the_pin_and_every_pipeline_source() -> None:
     assert PIN_FILE in globs
     sources = _pipeline_sources()
     assert "scripts/transform/volve_logs/sources.py" in sources
+    assert "scripts/export/parquet_export.py" in sources
     assert [s for s in sources if not _covered(s, globs)] == []
 
 
