@@ -61,6 +61,26 @@ hf download oskrgab/petrodb-raw-volve --repo-type dataset \
   --include "Well_logs_pr_WELL/*/05.PETROPHYSICAL INTERPRETATION/*" --include "register/*"
 ```
 
+### Build the log tables
+
+From the repo root, once `data/raw/volve/` is downloaded:
+
+```bash
+uv run python -m scripts.run_pipeline.volve_logs
+```
+
+It reads `data/raw/volve/` and writes
+`parquet/volve/petrophysical_interpretation.parquet`, which is gitignored. It
+checks the table against the committed `parquet/volve/wells.parquet`, so it
+writes beside it. Another raw or output directory goes as arguments:
+`uv run python -m scripts.run_pipeline.volve_logs RAW_DIR OUTPUT_DIR`.
+
+So far it reads the LAS input and output pairs of eight Wellbores, from
+`Well_logs_pr_WELL/<wellbore>/05.PETROPHYSICAL INTERPRETATION/`. The folder
+names the Wellbore, through the mapping in
+`scripts/transform/volve_logs/sources.py`. The table is checked before it is
+moved into place; a failed check leaves no new file.
+
 ### Fill the Raw repo (maintainer)
 
 The commands that fill the Raw repo live in `scripts/raw_repo/volve/`.

@@ -12,6 +12,11 @@ it in multiple formats:
 These files help consumers of the parquet files understand the data structure
 and relationships without needing access to the original database.
 
+The log tables are not in the SQLite database: their Parquet is built from
+raw log files by the Volve log pipeline (``scripts.run_pipeline.volve_logs``).
+Their definitions are added to the reflected metadata by ``add_log_tables``,
+one column per Curve described in ``volve_descriptions``.
+
 SQLite keeps no column comments, so table and column descriptions cannot be
 reflected. They come from ``volve_descriptions``; the export fails if a
 reflected column has no description or a description names a column that
@@ -25,10 +30,20 @@ Run from the repo root::
 import json
 from pathlib import Path
 
-from sqlalchemy import MetaData, create_engine, Table
+from sqlalchemy import (
+    DOUBLE,
+    INTEGER,
+    TEXT,
+    Column,
+    ForeignKey,
+    MetaData,
+    Table,
+    create_engine,
+)
 from sqlalchemy.schema import CreateTable, CreateIndex
 
 from scripts.export.volve_descriptions import COLUMN_DESCRIPTIONS, TABLE_DESCRIPTIONS
+from scripts.transform.volve_logs.interpretation_builder import DOCUMENTED_CURVES
 from scripts.transform.constants import DATABASE_PATH
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -56,6 +71,23 @@ def reflect_schema(engine) -> MetaData:
     metadata = MetaData()
     metadata.reflect(bind=engine)
     return metadata
+
+
+def add_log_tables(metadata: MetaData) -> None:
+    """Add the log tables, which the SQLite database does not hold, to ``metadata``."""
+    Table(
+        "petrophysical_interpretation",
+        metadata,
+        Column(
+            "npd_wellbore_code",
+            INTEGER,
+            ForeignKey("wells.npd_wellbore_code"),
+            nullable=False,
+        ),
+        Column("source_wellbore", TEXT, primary_key=True),
+        Column("depth_md", DOUBLE, primary_key=True),
+        *(Column(name, DOUBLE) for name in DOCUMENTED_CURVES),
+    )
 
 
 def get_table_info(table: Table) -> list[dict]:
@@ -234,6 +266,7 @@ def export_all_schemas(output_dir: Path = SCHEMA_OUTPUT_DIR):
     print("Reflecting database schema...")
     metadata = reflect_schema(engine)
     print(f"  → Found {len(metadata.tables)} tables")
+    add_log_tables(metadata)
     check_descriptions(
         {name: [c.name for c in t.columns] for name, t in metadata.tables.items()},
         COLUMN_DESCRIPTIONS,

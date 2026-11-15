@@ -242,3 +242,8 @@ parquet/petrobras_3w/
 # Local raw directories: plain downloads of the Raw repos (ADR-0011).
 # Only data/raw/README.md and the pins (*.pin) are committed.
 /data/raw/*/
+
+# Volve log tables: built from the Raw repo by scripts/run_pipeline/volve_logs,
+# never committed (ADR-0011). The rest of parquet/volve/ stays tracked.
+/parquet/volve/petrophysical_interpretation.parquet
+/parquet/volve/.petrophysical_interpretation.parquet.pending

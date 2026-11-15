@@ -45,6 +45,51 @@ CREATE TABLE monthly_production (
 ;
 
 
+CREATE TABLE petrophysical_interpretation (
+	npd_wellbore_code INTEGER NOT NULL, 
+	source_wellbore TEXT NOT NULL, 
+	depth_md DOUBLE NOT NULL, 
+	"ABDCQF01" DOUBLE, 
+	"ABDCQF02" DOUBLE, 
+	"ABDCQF03" DOUBLE, 
+	"ABDCQF04" DOUBLE, 
+	"BS" DOUBLE, 
+	"CALI" DOUBLE, 
+	"DRHO" DOUBLE, 
+	"DT" DOUBLE, 
+	"DTS" DOUBLE, 
+	"GR" DOUBLE, 
+	"NBGRCFM" DOUBLE, 
+	"NPHI" DOUBLE, 
+	"PEF" DOUBLE, 
+	"RACEHM" DOUBLE, 
+	"RACELM" DOUBLE, 
+	"RD" DOUBLE, 
+	"RHOB" DOUBLE, 
+	"RM" DOUBLE, 
+	"ROP" DOUBLE, 
+	"ROP5_RM" DOUBLE, 
+	"RPCEHM" DOUBLE, 
+	"RPCELM" DOUBLE, 
+	"RS" DOUBLE, 
+	"RT" DOUBLE, 
+	"BADDATA_FLAG" DOUBLE, 
+	"BVW" DOUBLE, 
+	"CARB_FLAG" DOUBLE, 
+	"COAL_FLAG" DOUBLE, 
+	"KLOGH" DOUBLE, 
+	"PHIF" DOUBLE, 
+	"SAND_FLAG" DOUBLE, 
+	"SW" DOUBLE, 
+	"VCARB" DOUBLE, 
+	"VSH" DOUBLE, 
+	PRIMARY KEY (source_wellbore, depth_md), 
+	FOREIGN KEY(npd_wellbore_code) REFERENCES wells (npd_wellbore_code)
+)
+
+;
+
+
 CREATE TABLE wells (
 	npd_wellbore_code INTEGER NOT NULL, 
 	wellbore_code TEXT, 

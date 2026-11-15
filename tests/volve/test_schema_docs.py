@@ -41,7 +41,12 @@ def exported(tmp_path_factory: pytest.TempPathFactory) -> Path:
 
 def test_every_column_has_a_description_in_schema_json(exported: Path) -> None:
     schema = json.loads((exported / "schema.json").read_text())
-    assert set(schema["tables"]) == {"wells", "daily_production", "monthly_production"}
+    assert set(schema["tables"]) == {
+        "wells",
+        "daily_production",
+        "monthly_production",
+        "petrophysical_interpretation",
+    }
     for table, meta in schema["tables"].items():
         assert meta["description"], table
         for column in meta["columns"]:
@@ -89,6 +94,37 @@ def test_wells_documents_every_column_with_its_nullability(exported: Path) -> No
             line for line in wells_ddl.splitlines() if line.strip().startswith(f"{name} ")
         )
         assert ("NOT NULL" not in line) == is_nullable, line
+
+
+def test_petrophysical_interpretation_documents_its_key_and_every_curve(exported: Path) -> None:
+    table = json.loads((exported / "schema.json").read_text())["tables"][
+        "petrophysical_interpretation"
+    ]
+    columns = [(c["name"], c["type"], c["not_null"], c["primary_key"]) for c in table["columns"]]
+    assert columns[:3] == [
+        ("npd_wellbore_code", "INTEGER", True, False),
+        ("source_wellbore", "TEXT", True, True),
+        ("depth_md", "DOUBLE", True, True),
+    ]
+    curves = columns[3:]
+    # Every Curve the eight LAS pairs carry, named with the source mnemonic.
+    assert [name for name, *_ in curves] == [
+        "ABDCQF01", "ABDCQF02", "ABDCQF03", "ABDCQF04", "BS", "CALI", "DRHO",
+        "DT", "DTS", "GR", "NBGRCFM", "NPHI", "PEF", "RACEHM", "RACELM", "RD",
+        "RHOB", "RM", "ROP", "ROP5_RM", "RPCEHM", "RPCELM", "RS", "RT",
+        "BADDATA_FLAG", "BVW", "CARB_FLAG", "COAL_FLAG", "KLOGH", "PHIF",
+        "SAND_FLAG", "SW", "VCARB", "VSH",
+    ]  # fmt: skip
+    assert {(type_, not_null, pk) for _, type_, not_null, pk in curves} == {
+        ("DOUBLE", False, False)
+    }
+    assert table["foreign_keys"] == [
+        {
+            "column": "npd_wellbore_code",
+            "references_table": "wells",
+            "references_column": "npd_wellbore_code",
+        }
+    ]
 
 
 def _wells_section(exported: Path) -> str:
