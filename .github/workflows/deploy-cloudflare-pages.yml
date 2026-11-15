@@ -67,6 +67,15 @@ jobs:
       # bases; the catalog must reference the host+revision where its own
       # bytes are reachable. Points at the HF resolve bases (ADR-0005).
       BASE_URL: ${{ github.ref_name == 'main' && vars.BASE_URL_MAIN || vars.BASE_URL_STAGE }}
+      # The host the Landing is published at, checked by the verify step
+      # against the `canonical` the built home page names (issue #47). A
+      # committed literal, deliberately: it MUST equal the host written in the
+      # site's page sources (`site/src/routes/+page.svelte`), and the guard
+      # compares these two independently maintained copies. Derived from the
+      # build output, or read by the site build (its PUBLIC_ prefix would let
+      # SvelteKit inline it), it would agree with whatever the build says and
+      # validate nothing.
+      PUBLIC_LANDING_URL: https://petrodb.ocortez.com
       # Umami's website id, inlined into the Landing build; unset, no tracker
       # loads. The tracker counts the production hostnames only, so a `stage`
       # build carries it without reporting. Branch previews and deploy.sh
@@ -188,10 +197,87 @@ jobs:
       # must carry no parquet and no `_files.json` (ADR-0005). Fails if the built
       # Landing or the HF dataset card still names the dev Caddy host or the
       # *other* branch's resolve base.
+      #
+      # The same step is the Landing host guard (issue #47): the tree must have
+      # `index.html` at its root, and every `canonical` and `og:url` in that
+      # page must name PUBLIC_LANDING_URL's scheme and host. This
+      # catches a tree staged one directory deep, or a page that claims a host
+      # it is not published at. Every check reports before the step fails.
+      # Branch previews (deploy-landing-preview.yml) do not run this part: they
+      # are served from `<branch>.<project>.pages.dev` by design, so the tree
+      # is not published at the host its pages name, and main/stage run the
+      # guard before anything reaches the Landing host.
       - name: Verify no off-branch data host in the built output
         env:
           OTHER_BASE: ${{ github.ref_name == 'main' && vars.BASE_URL_STAGE || vars.BASE_URL_MAIN }}
-        run: python3 -m scripts.deploy.check_deploy_tree site/build hf/README.md
+        run: |
+          status=0
+          python3 -m scripts.deploy.check_deploy_tree site/build hf/README.md || status=1
+
+          fail() { echo "::error::Landing host guard: $1"; status=1; }
+          # scheme://host of a URL, lowercased; empty if it has no scheme.
+          origin() {
+            if [[ $1 =~ ^([A-Za-z][A-Za-z0-9+.-]*://[^/?#]+) ]]; then
+              echo "${BASH_REMATCH[1],,}"
+            fi
+          }
+          # Every tag in $page matching ERE $1, ignoring case, one per line;
+          # the page's line breaks are folded first, so a tag may span lines.
+          tags_of() {
+            tr '\r\n\t' '   ' <"$page" | { grep -oiE "$1" || true; }
+          }
+          # The value of attribute $2 in tag $1, quoted or not; empty if none.
+          value_of() (
+            shopt -s nocasematch
+            re="[[:space:]]$2[[:space:]]*=[[:space:]]*(\"[^\"]*\"|'[^']*'|[^\"'[:space:]>]+)"
+            if [[ $1 =~ $re ]]; then
+              value=${BASH_REMATCH[1]}
+              value=${value#[\"\']}
+              echo "${value%[\"\']}"
+            fi
+          )
+          # Every tag matching ERE $2 must carry attribute $3 naming the
+          # Landing host; one it cannot read fails too. $1 names the tag in
+          # messages. Leaves the number of tags seen in $count.
+          check_tags() {
+            count=0
+            while IFS= read -r tag; do
+              count=$((count + 1))
+              url=$(value_of "$tag" "$3")
+              if [[ -z $url ]]; then
+                fail "$1 tag has no readable $3: $tag"
+              elif [[ -n $want && $(origin "$url") != "$want" ]]; then
+                fail "$1 names $url, not PUBLIC_LANDING_URL $landing"
+              fi
+            done < <(tags_of "$2")
+          }
+
+          tree=site/build
+          page=$tree/index.html
+          landing=${PUBLIC_LANDING_URL:-}
+          want=$(origin "$landing")
+          if [[ -z $landing ]]; then
+            fail "PUBLIC_LANDING_URL is empty or unset; set it in the deploy job env"
+          elif [[ -z $want ]]; then
+            fail "PUBLIC_LANDING_URL is not an absolute URL: '$landing'"
+          fi
+          if [[ ! -f $page ]]; then
+            found=$({ find "$tree" -name index.html -printf '%P\n' 2>/dev/null || true; } \
+              | sort | head -n 3 | paste -sd ' ' || true)
+            fail "no index.html at the root of $tree (index.html found at: ${found:-nowhere})"
+          else
+            is="[[:space:]]*=[[:space:]]*[\"']?"
+            ends="([\"'[:space:]/][^>]*)?>"
+            check_tags canonical "<link[^>]*[[:space:]]rel${is}canonical${ends}" href
+            if [[ $count -eq 0 ]]; then
+              fail "no canonical link in $page"
+            fi
+            check_tags og:url "<meta[^>]*[[:space:]](property|name)${is}og:url${ends}" content
+          fi
+          if [[ $status -eq 0 ]]; then
+            echo "OK: $page names the Landing host $want"
+          fi
+          exit "$status"
 
       - name: Deploy to Cloudflare Pages
         uses: cloudflare/wrangler-action@v3
@@ -202,3 +288,56 @@ jobs:
             pages deploy site/build/
             --project-name=${{ vars.CLOUDFLARE_PAGES_PROJECT }}
             --branch=${{ github.ref_name }}
+
+      # Public URL guard (issue #48): poll the public Landing URL until it
+      # answers 200 with the home page, and fail the job if it never does.
+      # The verify step above checks the tree; only this one can see a
+      # detached Pages custom domain or a broken DNS record.
+      #
+      # Limits, recorded rather than solved:
+      #   - `main` only. A `stage` push deploys to a branch preview URL, not
+      #     the custom domain, so there is no custom domain to poll; its tree
+      #     is covered by the verify step alone.
+      #   - Soft 404s. The host answers unmatched paths with the home page and
+      #     status 200, so a status code alone proves only that something
+      #     answered. This step therefore also requires LANDING_MARKER in the
+      #     body. Do not add a status-only check of a deeper path (a schema
+      #     doc, say): it passes even when that file is missing.
+      #
+      # Last on purpose: it depends on infrastructure outside the repo and can
+      # flake, and by now the HF upload and the Pages deploy have finished.
+      - name: Verify the Landing serves at its public URL
+        if: github.ref_name == 'main'
+        env:
+          # The home page's <title>, from site/src/routes/+page.svelte; a test
+          # fails if the two drift apart.
+          LANDING_MARKER: '<title>PetroDB: open petroleum datasets in Parquet</title>'
+          POLL_ATTEMPTS: 6
+          POLL_DELAY_SECONDS: 10
+        run: |
+          url=${PUBLIC_LANDING_URL:-}
+          if [[ -z $url ]]; then
+            echo "::error::Public URL guard: PUBLIC_LANDING_URL is empty or unset"
+            exit 1
+          fi
+          body=$(mktemp)
+          code=000
+          matched=no
+          for ((attempt = 1; attempt <= POLL_ATTEMPTS; attempt++)); do
+            # No -L: the Landing serves its root directly (ADR-0007), so a
+            # redirect there is a hosting change this guard should surface.
+            # curl prints 000 when nothing answered (DNS, TLS, connection),
+            # and then writes no body: empty it so the last one cannot match.
+            : >"$body"
+            code=$(curl -sS --max-time 15 -o "$body" -w '%{http_code}' "$url") || true
+            matched=no
+            if grep -qF -- "$LANDING_MARKER" "$body"; then matched=yes; fi
+            if [[ $code == 200 && $matched == yes ]]; then
+              echo "OK: $url serves the Landing (attempt $attempt of $POLL_ATTEMPTS)"
+              exit 0
+            fi
+            echo "Attempt $attempt of $POLL_ATTEMPTS: status $code, home page marker found: $matched"
+            if ((attempt < POLL_ATTEMPTS)); then sleep "$POLL_DELAY_SECONDS"; fi
+          done
+          echo "::error::Public URL guard: $url did not serve the Landing after $POLL_ATTEMPTS attempts (last status $code, home page marker found: $matched)"
+          exit 1
