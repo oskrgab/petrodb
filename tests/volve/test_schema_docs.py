@@ -107,19 +107,20 @@ def test_petrophysical_interpretation_documents_its_key_and_every_curve(exported
         ("depth_md", "DOUBLE", True, True),
     ]
     curves = columns[3:]
-    # Every Curve the eight LAS pairs carry, named with the source mnemonic,
+    # Every Curve the LAS sources carry, named with the source mnemonic,
     # in the order the pipeline writes them from the real raw files: by how
-    # many Wellbores carry the Curve (11 in all 8, 14 in 7, then 6, 5, 4, 3
-    # and 1), ties by mnemonic.
+    # many Wellbores carry the Curve (11 in all 9, 14 in 8, then 7, 6, 5, 4,
+    # 3 and 1), ties by mnemonic.
     assert [name for name, *_ in curves] == [
         "BVW", "COAL_FLAG", "GR", "KLOGH", "NPHI", "PHIF", "RHOB", "RT",
         "SAND_FLAG", "SW", "VSH",
         "ABDCQF01", "ABDCQF02", "ABDCQF03", "ABDCQF04", "BS", "CALI", "DRHO",
         "PEF", "RACEHM", "RACELM", "RD", "ROP", "RPCEHM", "RPCELM",
         "RM",
-        "DT", "VCARB",
-        "CARB_FLAG",
-        "DTS", "NBGRCFM",
+        "DT",
+        "CARB_FLAG", "VCARB",
+        "DTS",
+        "NBGRCFM",
         "BADDATA_FLAG", "ROP5_RM", "RS",
     ]  # fmt: skip
     assert {(type_, not_null, pk) for _, type_, not_null, pk in curves} == {
@@ -141,6 +142,15 @@ def test_petrophysical_interpretation_states_its_layout(exported: Path) -> None:
     assert "single row group" in description
     assert "descending order of how many wellbores carry them, ties by mnemonic" in description
     assert description in (exported / "schema.md").read_text()
+
+
+def test_source_wellbore_explains_technical_sidetracks_and_their_parent(exported: Path) -> None:
+    described = _md_descriptions((exported / "schema.md").read_text())
+    source = described["petrophysical_interpretation"]["source_wellbore"]
+    assert "Technical sidetrack" in source
+    assert "`15/9-F-11 T2`" in source
+    assert "parent" in source
+    assert "top-hole" in source
 
 
 def _wells_section(exported: Path) -> str:
