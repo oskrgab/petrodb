@@ -65,8 +65,8 @@
     "text": "Production data from the <a href=\"https://www.equinor.com/energy/volve-data-sharing\">Volve data village</a>, which Equinor released in 2018 together with the field's subsurface and operations data. PetroDB uses the daily and monthly sheets of <code>Volve production data.xlsx</code>."
   },
   "licence": {
-    "name": "CC BY-NC-SA 4.0",
-    "url": "https://creativecommons.org/licenses/by-nc-sa/4.0/",
-    "note": "Non-commercial use only. Credit Equinor, and share anything you build from the data under the same licence."
+    "name": "Equinor Open Data Licence",
+    "url": "https://cdn.equinor.com/files/h61q9gi9/global/de6532f6134b9a953f6c41bac47a0c055a3712d3.pdf",
+    "note": "It is based on CC BY 4.0: you may use the data for commercial and non-commercial purposes, share it and adapt it, but the data itself may not be sold. Credit Equinor and the former Volve licence partners (ExxonMobil Exploration & Production Norway AS and Bayerngas Norge AS), and link to the licence."
   }
 }
