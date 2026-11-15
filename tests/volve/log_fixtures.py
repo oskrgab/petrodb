@@ -12,6 +12,7 @@ read.
 
 from __future__ import annotations
 
+import json
 import logging
 import warnings
 from pathlib import Path
@@ -25,6 +26,7 @@ from dliswriter import DLISFile
 logging.getLogger("dliswriter").setLevel(logging.ERROR)
 
 SENTINEL = -999.25
+SCHEMA = Path(__file__).resolve().parents[2] / "parquet" / "volve" / "schema.json"
 INTERPRETATION = "05.PETROPHYSICAL INTERPRETATION"
 
 # Upstream folder -> (operator's name, npd_wellbore_code), as the register has them.
@@ -253,3 +255,31 @@ def build_dlis_pairs(raw: Path) -> None:
             continue
         write_dlis(dlis_pair_paths(raw, folder)[0], [1000000, 1000060], {"GR": ("API", [80.0, 81.0])})
         write_dlis(dlis_pair_paths(raw, folder)[1], [1000060], {"SW": ("v/v_decimal", [0.9])})
+
+
+# GR: all 17 Wellbores; SW: the six plain LAS pairs and seven DLIS pairs;
+# PHIF: 15/9-F-1, 15/9-F-11 and 15/9-F-10; RHOB: 15/9-F-1 and 15/9-F-10; the
+# rest one each, by mnemonic. A Wellbore counts once: VSH is in both files of
+# 15/9-F-1, RHOB in both files of 15/9-F-10, GR in both 15/9-F-11 sources
+# (the Technical sidetrack and the top-hole section).
+FIXTURE_COLUMNS = [
+    "npd_wellbore_code", "source_wellbore", "depth_md",
+    "GR", "SW", "PHIF", "RHOB", "COAL_FLAG", "KLOGH", "ROP", "VSH",
+]  # fmt: skip
+
+
+def write_schema(path: Path, columns: list[dict]) -> None:
+    path.write_text(
+        json.dumps({"tables": {"petrophysical_interpretation": {"columns": columns}}})
+    )
+
+
+def fixture_schema() -> list[dict]:
+    """The committed declarations of the fixture's columns, in the fixture's order.
+
+    The schema.json a fixture build is checked against: the committed one
+    declares Curves the fixture does not carry.
+    """
+    committed = json.loads(SCHEMA.read_text())["tables"]["petrophysical_interpretation"]
+    by_name = {c["name"]: c for c in committed["columns"]}
+    return [by_name[name] for name in FIXTURE_COLUMNS]

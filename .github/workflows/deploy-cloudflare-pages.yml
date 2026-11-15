@@ -100,6 +100,7 @@ jobs:
       # A test keeps this list equal to the log tables in .gitignore.
       VOLVE_LOG_TABLES: |
         parquet/volve/petrophysical_interpretation.parquet
+        parquet/volve/log_curves.parquet
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4

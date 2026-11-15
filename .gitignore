@@ -247,3 +247,5 @@ parquet/petrobras_3w/
 # never committed (ADR-0011). The rest of parquet/volve/ stays tracked.
 /parquet/volve/petrophysical_interpretation.parquet
 /parquet/volve/.petrophysical_interpretation.parquet.pending
+/parquet/volve/log_curves.parquet
+/parquet/volve/.log_curves.parquet.pending

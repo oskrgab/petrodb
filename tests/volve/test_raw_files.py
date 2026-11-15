@@ -15,7 +15,7 @@ from pathlib import Path
 import duckdb
 
 from scripts.run_pipeline import volve_logs
-from tests.volve.log_fixtures import build_raw_tree
+from tests.volve.log_fixtures import build_raw_tree, fixture_schema, write_schema
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 WELLS = REPO_ROOT / "parquet" / "volve" / "wells.parquet"
@@ -25,6 +25,7 @@ TABLE = "petrophysical_interpretation.parquet"
 def _output_dir(path: Path) -> Path:
     path.mkdir()
     shutil.copy(WELLS, path / "wells.parquet")
+    write_schema(path / "schema.json", fixture_schema())
     return path
 
 

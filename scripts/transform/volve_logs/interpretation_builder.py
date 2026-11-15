@@ -7,11 +7,11 @@ both files becomes one column, and the build fails if the two files disagree
 on it at any depth they share. A source with an input file only has every
 Interpreted curve NULL. Rows where every Curve is NULL are dropped.
 
-Every Curve column is DOUBLE and named with the source mnemonic verbatim, in
-the order ``volve_descriptions`` lists them; a mnemonic it does not list fails
-the build, so every published column is documented. Each file's unit
-spellings must mean the unit documented for the column (``units``); values
-are not converted.
+Every Curve column is DOUBLE and named with the source mnemonic verbatim; a
+mnemonic ``volve_descriptions`` does not list fails the build, so every
+published column is documented. Each file's unit spellings must mean the unit
+documented for the column (``units``); values are not converted. The published
+column order is the writer's (``scripts.export.volve_logs.layout``).
 """
 
 from __future__ import annotations
@@ -24,7 +24,7 @@ import pyarrow as pa
 import pyarrow.compute as pc
 
 from scripts.export.volve_descriptions import COLUMN_DESCRIPTIONS
-from scripts.transform.volve_logs import units
+from scripts.transform.volve_logs import curve_catalog, units
 from scripts.transform.volve_logs.dlis_reader import read_dlis
 from scripts.transform.volve_logs.las_reader import DEPTH_COLUMN, read_las
 from scripts.transform.volve_logs.sources import DLIS, LAS, SOURCES, LogSource, SourceFileError
@@ -86,7 +86,9 @@ def _read_output(source: LogSource, raw_dir: Path) -> pa.Table:
 def build(con: duckdb.DuckDBPyConnection, raw_dir: Path) -> dict[str, int]:
     """Create ``petrophysical_interpretation`` in ``con`` from the sources under ``raw_dir``.
 
-    Returns the number of non-empty depth samples each ``source_wellbore`` has
+    Each Curve's source file is recorded for the Curve catalog
+    (``curve_catalog``). Returns the number of non-empty depth samples each
+    ``source_wellbore`` has
     in its source files, counted from the files themselves, for the
     pre-publish row-count check.
     """
@@ -120,13 +122,31 @@ def build(con: duckdb.DuckDBPyConnection, raw_dir: Path) -> dict[str, int]:
         + "".join(f", {_q(c)} DOUBLE" for c in curves)
         + ")"
     )
+    curve_catalog.create(con)
     expected_rows = {}
     for source, input_table, output_table in read:
         _insert_source(con, source, input_table, output_table)
+        _record_curve_sources(con, source, input_table, output_table)
         expected_rows[source.source_wellbore] = len(
             _non_empty_depths(input_table) | _non_empty_depths(output_table)
         )
     return expected_rows
+
+
+def _record_curve_sources(
+    con: duckdb.DuckDBPyConnection,
+    source: LogSource,
+    input_table: pa.Table,
+    output_table: pa.Table,
+) -> None:
+    """Note each Curve's file for the Curve catalog: the input file first, so a
+    mnemonic in both files is an Input curve named after the input file."""
+    in_raw_repo = Path()  # an empty root gives each path within the Raw repo
+    files = [(curve_catalog.INPUT, source.input_path(in_raw_repo), input_table)]
+    output_path = source.output_path(in_raw_repo)
+    if output_path is not None:
+        files.append((curve_catalog.INTERPRETED, output_path, output_table))
+    curve_catalog.record(con, TABLE, source.source_wellbore, files)
 
 
 def _insert_source(
