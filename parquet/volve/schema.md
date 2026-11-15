@@ -42,6 +42,32 @@ Daily measurements per wellbore, from Equinor's daily production report: hours o
 
 ---
 
+### `log_curves`
+
+The Curve catalog: one row per log table, logged wellbore and Curve that has data there. Read it first to learn which Curves a wellbore has, over which depths, and which raw file each came from, before reading any samples. One row per `(table_name, source_wellbore, mnemonic)`; a Curve that is empty for a wellbore has no row. Its depth range and sample count are those of the table it describes. Built with the log tables from the raw log files; the Parquet is not in git.
+
+**Columns:**
+
+| Column | Type | Unit | Nullable | Primary Key | Description |
+|--------|------|------|----------|-------------|-------------|
+| `table_name` | TEXT | — | No | ✓ | The log table the Curve is a column of, such as `petrophysical_interpretation`. |
+| `npd_wellbore_code` | INTEGER | — | No |  | Wellbore the Curve was logged in. Joins to `wells`. For a Technical sidetrack, the code of its parent Wellbore. |
+| `source_wellbore` | TEXT | — | No | ✓ | The operator's name for the logged wellbore, as in the log table's `source_wellbore`: a Wellbore, a Technical sidetrack such as `15/9-F-11 T2`, or the 15/9-F-11 top-hole section. |
+| `mnemonic` | TEXT | — | No | ✓ | The Curve's source mnemonic: the name of its column in the log table. |
+| `curve_kind` | TEXT | — | No |  | `input` for an Input curve, a measurement the petrophysical interpretation took as input; `interpreted` for an Interpreted curve it computed. A Curve in both the input and the output file is an Input curve. |
+| `unit` | TEXT | — | No |  | The one unit documented for the Curve's column, as the schema documents write it. |
+| `source_unit` | TEXT | — | No |  | The unit as the source file spells it, such as `V/V` or `UNKNOWN`. The values are not converted: every spelling the build accepts means the documented unit. |
+| `first_depth_md` | DOUBLE | m | No |  | Shallowest measured depth at which the Curve has a sample. |
+| `last_depth_md` | DOUBLE | m | No |  | Deepest measured depth at which the Curve has a sample. |
+| `sample_count` | INTEGER | — | No |  | Number of depth samples at which the Curve has a value. |
+| `source_file` | TEXT | — | No |  | Path of the file the Curve was read from, within the Raw repo `oskrgab/petrodb-raw-volve`. A Curve in both files of a pair names the input file. |
+
+**Foreign Keys:**
+
+- `npd_wellbore_code` → `wells.npd_wellbore_code`
+
+---
+
 ### `monthly_production`
 
 Monthly volumes per wellbore, from Equinor's monthly production report. One row per `(date, npd_wellbore_code)`, where `date` is the first day of the month. Volumes are in standard cubic metres (Sm³).
@@ -154,6 +180,7 @@ One row per wellbore the public wellbore register of the Norwegian Offshore Dire
 
 ```
 daily_production.npd_wellbore_code → wells.npd_wellbore_code
+log_curves.npd_wellbore_code → wells.npd_wellbore_code
 monthly_production.npd_wellbore_code → wells.npd_wellbore_code
 petrophysical_interpretation.npd_wellbore_code → wells.npd_wellbore_code
 wells.parent_npd_wellbore_code → wells.npd_wellbore_code

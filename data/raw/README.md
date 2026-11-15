@@ -73,9 +73,11 @@ uv run python -m scripts.run_pipeline.volve_logs
 ```
 
 It reads `data/raw/volve/` and writes
-`parquet/volve/petrophysical_interpretation.parquet`, which is gitignored. It
-checks the table against the committed `parquet/volve/wells.parquet`, so it
-writes beside it. Another raw or output directory goes as arguments:
+`parquet/volve/petrophysical_interpretation.parquet` and its Curve catalog,
+`parquet/volve/log_curves.parquet`, both gitignored. It checks both against
+the committed `parquet/volve/wells.parquet`, so it writes beside it, and
+checks that the catalog agrees with the table: one row per Curve with data
+for each `source_wellbore`, with the table's depth range and sample count. Another raw or output directory goes as arguments:
 `uv run python -m scripts.run_pipeline.volve_logs RAW_DIR OUTPUT_DIR`.
 
 So far it reads the LAS input and output pairs of eight Wellbores and of the
@@ -88,8 +90,8 @@ names the source, through the mapping in
 `source_wellbore`. Each Curve's unit spelling must be one the unit table in
 `scripts/transform/volve_logs/units.py` maps to the unit documented for its
 column; the build stops on any other, naming the file, the mnemonic and the
-spelling, and a new spelling is added there by review. The table is checked
-before it is moved into place; a failed check leaves no new file.
+spelling, and a new spelling is added there by review. Both files are checked
+before either is moved into place; a failed check leaves no new file.
 
 ### In CI
 

@@ -15,7 +15,7 @@ from pathlib import Path
 import duckdb
 
 from scripts.export.volve_logs import parquet_writer
-from scripts.transform.volve_logs import interpretation_builder
+from scripts.transform.volve_logs import curve_catalog, interpretation_builder
 from scripts.transform.volve_logs.sources import raw_files
 
 __all__ = ["OUTPUT_DIR", "RAW_DIR", "raw_files", "run"]
@@ -26,10 +26,12 @@ OUTPUT_DIR = REPO_ROOT / "parquet" / "volve"
 
 
 def run(raw_dir: Path = RAW_DIR, output_dir: Path = OUTPUT_DIR) -> Path:
-    """Build ``petrophysical_interpretation.parquet`` in ``output_dir``; return its path."""
+    """Build ``petrophysical_interpretation.parquet`` and its Curve catalog
+    ``log_curves.parquet`` in ``output_dir``; return the table's path."""
     output_dir = Path(output_dir)
     with duckdb.connect() as con:
         expected_rows = interpretation_builder.build(con, Path(raw_dir))
+        curve_catalog.build(con, interpretation_builder.TABLE)
         return parquet_writer.write(
             con, output_dir, output_dir / "wells.parquet", expected_rows
         )

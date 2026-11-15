@@ -29,6 +29,25 @@ CREATE TABLE daily_production (
 ;
 
 
+CREATE TABLE log_curves (
+	table_name TEXT NOT NULL, 
+	npd_wellbore_code INTEGER NOT NULL, 
+	source_wellbore TEXT NOT NULL, 
+	mnemonic TEXT NOT NULL, 
+	curve_kind TEXT NOT NULL, 
+	unit TEXT NOT NULL, 
+	source_unit TEXT NOT NULL, 
+	first_depth_md DOUBLE NOT NULL, 
+	last_depth_md DOUBLE NOT NULL, 
+	sample_count INTEGER NOT NULL, 
+	source_file TEXT NOT NULL, 
+	PRIMARY KEY (table_name, source_wellbore, mnemonic), 
+	FOREIGN KEY(npd_wellbore_code) REFERENCES wells (npd_wellbore_code)
+)
+
+;
+
+
 CREATE TABLE monthly_production (
 	date DATE NOT NULL, 
 	npd_wellbore_code INTEGER NOT NULL, 
