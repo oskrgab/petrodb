@@ -10,7 +10,7 @@ The Volve well logs have no such upstream. The operator distributes them through
 
 ## Decision
 
-Each Dataset may have a **Raw repo**: a public Hugging Face dataset repo, named `petrodb-raw-<dataset>` under the same namespace as the published Dataset (ADR-0009), holding that Dataset's upstream source files unmodified and laid out as upstream lays them out. A pipeline reads its Raw repo at a pinned commit recorded in this repo, builds the tables in CI, and uploads the Parquet to the published Dataset. The Parquet is never committed.
+Each Dataset may have a **Raw repo**: a public Hugging Face dataset repo, named `petrodb-raw-<dataset>` under the same namespace as the published Dataset (ADR-0009), holding that Dataset's upstream source files with their bytes unmodified and laid out as upstream lays them out, except for adjustments to the layout that its README records. A pipeline reads its Raw repo at a pinned commit recorded in this repo, builds the tables in CI, and uploads the Parquet to the published Dataset. The Parquet is never committed.
 
 This repo holds everything except the bytes: the pipelines, the workflows, the script that fills each Raw repo, the pin, and the schema documents. A local build reads a gitignored directory that is a plain download of the Raw repo, so a local run and a CI run read the same tree.
 
@@ -31,5 +31,5 @@ The first Raw repo is `oskrgab/petrodb-raw-volve`, filled by hand once because i
 - Schema documents stay committed for CI-built tables. The build fails when its output does not match them, because nothing else would catch the drift.
 - A Raw repo republishes upstream files, so it carries its own licence note and attribution, and raw file headers are published as they are.
 - Hugging Face gives public repos storage on a best-effort basis. The Volve log tree is 16 GB; the full Volve release is 66 GB and may need a storage grant or a paid plan.
-- CI downloads only the files a pipeline reads, with a read token, since anonymous downloads are rate-limited per IP.
+- CI downloads only the files a pipeline reads, with the `HF_TOKEN` secret the upload already uses, since anonymous downloads are rate-limited per IP.
 - Issue #45 (scheduled Argentina refresh, published to Hugging Face only) is the same pattern with a scripted upstream, and should adopt a Raw repo when it is built.

@@ -15,7 +15,9 @@ tags:
 # PetroDB Raw: Volve
 
 The raw source files behind the Volve well-log tables of
-[PetroDB](https://petrodb.ocortez.com/), kept as upstream lays them out.
+[PetroDB](https://petrodb.ocortez.com/), their bytes unmodified and laid out
+as upstream lays them out, apart from the adjustments listed under
+[Changes from upstream](#changes-from-upstream).
 
 This is a **Raw repo**: it holds upstream files, not tables. The PetroDB
 pipeline reads it at a pinned commit, builds Parquet tables from it and
