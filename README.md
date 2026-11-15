@@ -189,13 +189,15 @@ parquet/                      # the data tree: parquet files + schema documents
 
 ## Acknowledgments
 
-- **Equinor** - Volve field dataset
+- **Equinor** and the former Volve licence partners (ExxonMobil Exploration & Production Norway AS and Bayerngas Norge AS) - Volve field dataset
 - **FORCE (Norwegian Oil and Gas Association)** and **Xeek** - FORCE 2020 ML Competition dataset
-
-Both datasets are provided for research and educational purposes.
 
 ## License
 
 See original license terms:
-- Volve: https://cdn.equinor.com/files/h61q9gi9/global/de6532f6134b9a953f6c41bac47a0c055a3712d3.pdf
+- Volve: Equinor Open Data Licence,
+  https://cdn.equinor.com/files/h61q9gi9/global/de6532f6134b9a953f6c41bac47a0c055a3712d3.pdf.
+  Based on CC BY 4.0: the data may be shared and adapted, for commercial use too, but may not be
+  sold. Credit Equinor and the former Volve licence partners and link to the licence; see
+  [`LICENSE-VOLVE-DATA.md`](LICENSE-VOLVE-DATA.md).
 - FORCE 2020: https://xeek.ai/challenges/force-well-logs

@@ -30,3 +30,17 @@ live at **https://petrodb.ocortez.com/**.
 - `stage` — pre-production validation branch
 
 See ADR-0005 in the project repository for the hosting rationale.
+
+## Licences
+
+Each Dataset keeps the licence of its source:
+
+- `volve/`: **Equinor Open Data Licence**
+  (<https://cdn.equinor.com/files/h61q9gi9/global/de6532f6134b9a953f6c41bac47a0c055a3712d3.pdf>).
+  It is based on CC BY 4.0: you may use the data for commercial and
+  non-commercial purposes, share it and adapt it, but the data itself may not
+  be sold. Credit Equinor and the former Volve licence partners (ExxonMobil
+  Exploration & Production Norway AS and Bayerngas Norge AS), and link to the
+  licence.
+- `force_2020/`, `argentina/`, `petrobras_3w/`: CC BY 4.0, with the attribution
+  each Dataset's page on the landing gives.

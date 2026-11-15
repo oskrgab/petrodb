@@ -1,112 +1,117 @@
-# Volve Dataset License
+# Volve Dataset Licence
 
-This project uses production data from the **Volve field dataset** released by Equinor.
+This project republishes data from the **Volve field dataset** (the Volve data
+village), which Equinor and the former Volve licence partners released for
+research, study and development.
 
-## About the Volve Dataset
+## Licence
 
-The Volve field dataset contains comprehensive production and operational data from the Volve field in the North Sea (2007-2016). Equinor released this dataset to support research, education, and technology development.
+The Volve data is licensed under the **Equinor Open Data Licence**, published as
+the Volve *Terms and Conditions for Use of License to Data*:
 
-## Data Processing
+**[Equinor Open Data Licence: terms and conditions for the Volve data](https://cdn.equinor.com/files/h61q9gi9/global/de6532f6134b9a953f6c41bac47a0c055a3712d3.pdf)**
 
-The original Volve dataset provides production data in Excel format. For this project, the data has been **transformed into a structured SQLite database** with the following characteristics:
+Equinor's [Volve data sharing page](https://www.equinor.com/energy/volve-data-sharing)
+grants the dataset under this licence. It replaced the earlier Creative Commons
+non-commercial terms and applies to all the Volve data, including the copies in
+this repository.
+
+The licence is based on CC BY 4.0, with two changes that it states itself:
+
+- The licensed material may not be sold.
+- The licence covers all data in the dataset, whether or not it is by law
+  covered by copyright.
+
+It is not a Creative Commons licence, so do not describe the Volve data or
+anything built from it as CC BY.
+
+### Summary, in the licence's own words
+
+The licence opens with a human-readable summary, which is not a substitute for
+the licence itself:
+
+You are free to:
+
+- Download and use the Licensed Material for non-commercial and commercial purposes
+- Create, produce and reproduce Adapted Material
+- Share the Licensed Material and/or the Adapted Material
+
+Under the following terms:
+
+- You may not sell the Licensed Material.
+- You must give Equinor and the Volve license partners credit, and provide a
+  link to these terms and conditions, as well as a copyright notice if applicable
+- You may not share Adapted Material under a license that prevents recipients
+  from complying with these terms and conditions
+- You shall not use the Licensed Material in a manner that appears misleading
+  nor present the Licensed Material in a distorted or incorrect manner.
+
+The licence also forbids using the names or trademarks of Equinor and the former
+Volve licence partners to support, recommend or market your use of the data.
+
+## Attribution
+
+The licence asks you to credit Equinor **and** the former Volve licence
+partners, which it names as:
+
+- ExxonMobil Exploration & Production Norway AS
+- Bayerngas Norge AS
+
+(or their successors or permitted assignees), and to link to the licence text.
+When you use or share this project's Volve data, include a notice such as:
+
+> Contains data from the Volve field dataset, made available by Equinor and the
+> former Volve licence partners (ExxonMobil Exploration & Production Norway AS
+> and Bayerngas Norge AS) under the Equinor Open Data Licence:
+> https://cdn.equinor.com/files/h61q9gi9/global/de6532f6134b9a953f6c41bac47a0c055a3712d3.pdf
+
+For academic citations:
+
+```
+Equinor and the former Volve licence partners (2018). Volve field dataset.
+Available at: https://www.equinor.com/energy/volve-data-sharing
+Licence: Equinor Open Data Licence,
+https://cdn.equinor.com/files/h61q9gi9/global/de6532f6134b9a953f6c41bac47a0c055a3712d3.pdf
+```
+
+## Data processing
+
+The original Volve dataset provides production data in Excel format. This
+project transforms it into a structured SQLite database and exports it as
+Parquet files:
 
 - **Star schema design** with dimension and fact tables
 - **Referential integrity** with proper foreign key relationships
 - **Data validation** and quality checks
 - **Parquet exports** for high-performance analytics
 
-This transformation creates a queryable database suitable for SQL learning, data engineering education, and analytical applications.
+## Scope
 
-## License Terms
+### What the licence covers
 
-The original Volve dataset is released by Equinor under specific license terms.
+- **Source data files** in `data/production/`
+- **Generated database** in `database/volve.db`
+- **Parquet exports** in `parquet/volve/`
+- **Any other data** derived from the Volve dataset
 
-### Official License Document
+### What it does not cover
 
-The complete terms and conditions for the Volve data license are available here:
+- **Software code** in this repository
+- **Documentation files** written for this project
+- **ETL scripts and transformation logic**
 
-**[Equinor HRS Terms and Conditions for Licence to Data - Volve](https://www.equinor.com/content/dam/statoil/documents/what-we-do/Equinor-HRS-Terms-and-conditions-for-licence-to-data-Volve.pdf)**
-
-### Key License Characteristics
-
-- **License Type**: Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC BY-NC-SA 4.0)
-- **Source**: Equinor Data Portal - Volve Dataset
-- **Permitted Use**: Research, education, and non-commercial purposes
-- **Requirement**: Attribution to Equinor required
-
-### What This Means
-
-✅ **You CAN**:
-- Use the data for educational purposes
-- Use the data for research and academic work
-- Create derivative works (like this database)
-- Share the data and derivatives under the same license
-
-❌ **You CANNOT**:
-- Use the data for commercial purposes without permission
-- Remove attribution to Equinor
-- Apply more restrictive license terms to derivatives
-
-## Attribution
-
-When using this project or the data it contains, provide appropriate credit to Equinor:
-
-> "This project uses data from the Volve field dataset released by Equinor under CC BY-NC-SA 4.0 license."
-
-For academic citations:
-```
-Equinor (2018). Volve field dataset.
-Available at: https://data.equinor.com/dataset/Volve
-License: CC BY-NC-SA 4.0
-```
-
-## Scope of This License
-
-### What This License Covers
-
-- ✅ **Source data files** in `data/production/`
-- ✅ **Generated database** in `database/volve.db`
-- ✅ **Parquet exports** in `parquet/`
-- ✅ **Any derivative data** created from the Volve dataset
-
-### What This License Does NOT Cover
-
-- ❌ **Software code** in this repository (licensed separately - see main LICENSE file if present)
-- ❌ **Documentation files** created specifically for this project
-- ❌ **ETL scripts and transformation logic** (project-specific code)
-
-**Important**: The Volve dataset license applies specifically to the **data content**, not to the software implementation. Users are free to use their own datasets with this codebase for commercial applications.
-
-## Compliance Requirements
-
-If you use this project:
-
-1. **Acknowledge Equinor** as the source of the original dataset
-2. **Include license notice** when distributing the data or derivatives
-3. **Respect non-commercial terms** - do not use for commercial purposes without proper licensing
-4. **Share derivatives** under the same CC BY-NC-SA 4.0 license
-5. **Review the full terms** in the official PDF document linked above
-
-## Commercial Use
-
-For commercial applications:
-- Contact Equinor for commercial licensing options
-- Alternatively, use this codebase with your own licensed datasets
-- The software/code can be licensed independently from the Volve data
+The Volve licence applies to the **data content**, not to the software. You
+may use this codebase with your own datasets.
 
 ## References
 
-- **Equinor Data Village**: https://www.equinor.com/energy/volve-data-sharing
-- **Volve Dataset Portal**: https://data.equinor.com/dataset/Volve
-- **Official License PDF**: https://www.equinor.com/content/dam/statoil/documents/what-we-do/Equinor-HRS-Terms-and-conditions-for-licence-to-data-Volve.pdf
-- **CC BY-NC-SA 4.0 License**: https://creativecommons.org/licenses/by-nc-sa/4.0/
-
-## Questions?
-
-For questions about the Volve dataset license, contact Equinor directly through their data portal or licensing team.
+- **Licence text**: https://cdn.equinor.com/files/h61q9gi9/global/de6532f6134b9a953f6c41bac47a0c055a3712d3.pdf
+- **Volve data sharing page**: https://www.equinor.com/energy/volve-data-sharing
 
 ---
 
-**Last Updated**: January 2026
+**Last Updated**: November 2026
 
-**Disclaimer**: This document summarizes the Volve dataset license for convenience. The official terms in the Equinor PDF document take precedence in case of any discrepancies.
+**Disclaimer**: This document summarises the Volve licence for convenience. The
+official terms and conditions linked above take precedence in case of any
+discrepancy.
