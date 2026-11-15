@@ -17,6 +17,7 @@ import pytest
 from scripts.export.volve_logs import validator
 from scripts.run_pipeline import volve_logs
 from scripts.transform.volve_logs.interpretation_builder import CurveDisagreementError
+from scripts.transform.volve_logs.units import UnitMismatchError, UnitSpellingError
 from tests.volve.log_fixtures import (
     SENTINEL,
     WELLBORES,
@@ -65,6 +66,29 @@ def test_one_row_per_depth_with_input_and_interpreted_curves_side_by_side(built:
         (1000.3, 60.0, 2.33, 0.6, 0.22, 1.0),
         (1000.4, 70.0, 2.34, None, 0.23, 0.0),
         (1000.5, None, None, None, 0.24, 0.0),
+    ]
+
+
+def test_two_spellings_of_one_unit_make_one_column_with_the_values_unchanged(
+    raw: Path, out: Path
+) -> None:
+    # 15/9-F-1 spells VSH's fraction v/v in the input file and V/V in the
+    # output file; 15/9-F-1 A spells GR's API units API and its SW v/v_decimal.
+    write_las(pair_paths(raw, "15_9-F-1 A")[1], [2000.1], {"SW": ("v/v_decimal", [0.9])})
+    volve_logs.run(raw_dir=raw, output_dir=out)
+    rows = _rows(
+        out / TABLE,
+        "SELECT source_wellbore, depth_md, VSH, SW FROM {t} "
+        "WHERE source_wellbore IN ('15/9-F-1', '15/9-F-1 A') ORDER BY ALL",
+    )
+    assert rows == [
+        ("15/9-F-1", 1000.1, None, None),
+        ("15/9-F-1", 1000.2, 0.5, None),
+        ("15/9-F-1", 1000.3, 0.6, None),
+        ("15/9-F-1", 1000.4, None, None),
+        ("15/9-F-1", 1000.5, None, None),
+        ("15/9-F-1 A", 2000.0, None, None),
+        ("15/9-F-1 A", 2000.1, None, 0.9),
     ]
 
 
@@ -141,6 +165,43 @@ def test_a_shared_mnemonic_that_disagrees_stops_the_build(raw: Path, out: Path) 
     with pytest.raises(CurveDisagreementError, match=r"15/9-F-1\b.*VSH.*1000\.3"):
         volve_logs.run(raw_dir=raw, output_dir=out)
     assert not (out / TABLE).exists()
+
+
+def test_an_unrecognised_unit_spelling_stops_the_build(raw: Path, out: Path) -> None:
+    write_las(
+        pair_paths(raw, "15_9-F-1 A")[0],
+        [2000.0, 2000.1],
+        {"GR": ("furlongs", [80.0, 81.0])},
+    )
+    with pytest.raises(
+        UnitSpellingError,
+        match=r"15_9-F-1 A/05\.PETROPHYSICAL INTERPRETATION/WLC_PETRO_COMPUTED_INPUT_1\.LAS"
+        r".*GR.*'furlongs'",
+    ):
+        volve_logs.run(raw_dir=raw, output_dir=out)
+    assert not (out / TABLE).exists()
+
+
+def test_a_spelling_of_another_unit_than_the_columns_stops_the_build(
+    raw: Path, out: Path
+) -> None:
+    # g/cm3 is a known spelling, but of a density, and VSH is a fraction.
+    write_las(pair_paths(raw, "15_9-F-1 A")[1], [2000.1], {"VSH": ("g/cm3", [0.4])})
+    with pytest.raises(
+        UnitMismatchError,
+        match=r"15_9-F-1 A/.*WLC_PETRO_COMPUTED_OUTPUT_1\.LAS.*VSH.*'g/cm3'.*'g/cm³'.*'v/v'",
+    ):
+        volve_logs.run(raw_dir=raw, output_dir=out)
+    assert not (out / TABLE).exists()
+
+
+def test_a_spelling_known_for_one_mnemonic_only_stops_the_build_on_another(
+    raw: Path, out: Path
+) -> None:
+    # UNKNOWN is accepted for RD, whose values show ohm·m, never in general.
+    write_las(pair_paths(raw, "15_9-F-1 A")[0], [2000.0], {"GR": ("UNKNOWN", [80.0])})
+    with pytest.raises(UnitSpellingError, match=r"GR.*'UNKNOWN'"):
+        volve_logs.run(raw_dir=raw, output_dir=out)
 
 
 def test_a_wellbore_missing_from_wells_stops_the_build(raw: Path, out: Path) -> None:

@@ -78,8 +78,12 @@ writes beside it. Another raw or output directory goes as arguments:
 So far it reads the LAS input and output pairs of eight Wellbores, from
 `Well_logs_pr_WELL/<wellbore>/05.PETROPHYSICAL INTERPRETATION/`. The folder
 names the Wellbore, through the mapping in
-`scripts/transform/volve_logs/sources.py`. The table is checked before it is
-moved into place; a failed check leaves no new file.
+`scripts/transform/volve_logs/sources.py`. Each Curve's unit spelling must be
+one the unit table in `scripts/transform/volve_logs/units.py` maps to the
+unit documented for its column; the build stops on any other, naming the
+file, the mnemonic and the spelling, and a new spelling is added there by
+review. The table is checked before it is moved into place; a failed check
+leaves no new file.
 
 ### Fill the Raw repo (maintainer)
 
