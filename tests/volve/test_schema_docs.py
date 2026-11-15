@@ -107,7 +107,7 @@ def test_petrophysical_interpretation_documents_its_key_and_every_curve(exported
         ("depth_md", "DOUBLE", True, True),
     ]
     curves = columns[3:]
-    # Every Curve the eight LAS pairs carry, named with the source mnemonic.
+    # Every Curve the LAS sources carry, named with the source mnemonic.
     assert [name for name, *_ in curves] == [
         "ABDCQF01", "ABDCQF02", "ABDCQF03", "ABDCQF04", "BS", "CALI", "DRHO",
         "DT", "DTS", "GR", "NBGRCFM", "NPHI", "PEF", "RACEHM", "RACELM", "RD",
@@ -125,6 +125,15 @@ def test_petrophysical_interpretation_documents_its_key_and_every_curve(exported
             "references_column": "npd_wellbore_code",
         }
     ]
+
+
+def test_source_wellbore_explains_technical_sidetracks_and_their_parent(exported: Path) -> None:
+    described = _md_descriptions((exported / "schema.md").read_text())
+    source = described["petrophysical_interpretation"]["source_wellbore"]
+    assert "Technical sidetrack" in source
+    assert "`15/9-F-11 T2`" in source
+    assert "parent" in source
+    assert "top-hole" in source
 
 
 def _wells_section(exported: Path) -> str:

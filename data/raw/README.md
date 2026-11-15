@@ -78,10 +78,14 @@ checks the table against the committed `parquet/volve/wells.parquet`, so it
 writes beside it. Another raw or output directory goes as arguments:
 `uv run python -m scripts.run_pipeline.volve_logs RAW_DIR OUTPUT_DIR`.
 
-So far it reads the LAS input and output pairs of eight Wellbores, from
+So far it reads the LAS input and output pairs of eight Wellbores and of the
+Technical sidetrack 15/9-F-11 T2, and the input file of the 15/9-F-11
+top-hole section, which has no output file, from
 `Well_logs_pr_WELL/<wellbore>/05.PETROPHYSICAL INTERPRETATION/`. The folder
-names the Wellbore, through the mapping in
-`scripts/transform/volve_logs/sources.py`. The table is checked before it is
+names the source, through the mapping in
+`scripts/transform/volve_logs/sources.py`: the Technical sidetrack's rows take the
+`npd_wellbore_code` of its parent, 15/9-F-11, and keep `15/9-F-11 T2` in
+`source_wellbore`. The table is checked before it is
 moved into place; a failed check leaves no new file.
 
 ### In CI
