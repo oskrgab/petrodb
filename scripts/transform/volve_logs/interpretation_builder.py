@@ -23,9 +23,9 @@ import pyarrow as pa
 import pyarrow.compute as pc
 
 from scripts.export.volve_descriptions import COLUMN_DESCRIPTIONS
+from scripts.transform.volve_logs import units
 from scripts.transform.volve_logs.las_reader import DEPTH_COLUMN, read_las
 from scripts.transform.volve_logs.sources import LAS_PAIRS, LasPair
-from scripts.transform.volve_logs import units
 from scripts.transform.volve_logs.sql import identifier as _q
 
 TABLE = "petrophysical_interpretation"

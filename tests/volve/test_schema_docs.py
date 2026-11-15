@@ -164,6 +164,11 @@ def test_every_curve_has_one_unit_in_schema_json_and_schema_md(exported: Path) -
     assert md_units == {name: unit or "—" for name, unit in units.items()}
 
 
+def test_a_documented_curve_without_a_unit_is_an_error() -> None:
+    with pytest.raises(ValueError, match="RHOB: no documented unit"):
+        export_schema.check_curve_units(("GR", "RHOB"), {"GR": "gAPI"})
+
+
 def test_tables_without_units_keep_their_document_layout(exported: Path) -> None:
     schema = json.loads((exported / "schema.json").read_text())["tables"]
     for table in ("wells", "daily_production", "monthly_production"):

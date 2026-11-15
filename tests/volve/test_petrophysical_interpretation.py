@@ -182,6 +182,14 @@ def test_an_unrecognised_unit_spelling_stops_the_build(raw: Path, out: Path) -> 
     assert not (out / TABLE).exists()
 
 
+def test_a_blank_unit_spelling_stops_the_build(raw: Path, out: Path) -> None:
+    # A blank unit says nothing about the values; only a reviewed entry in the
+    # unit table, for one mnemonic, could accept it.
+    write_las(pair_paths(raw, "15_9-F-1 A")[0], [2000.0], {"GR": ("", [80.0])})
+    with pytest.raises(UnitSpellingError, match=r"GR.*spelling ''"):
+        volve_logs.run(raw_dir=raw, output_dir=out)
+
+
 def test_a_spelling_of_another_unit_than_the_columns_stops_the_build(
     raw: Path, out: Path
 ) -> None:

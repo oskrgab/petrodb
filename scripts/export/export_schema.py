@@ -77,10 +77,10 @@ def check_descriptions(
         raise ValueError("column descriptions: " + "; ".join(problems))
 
 
-def check_curve_units() -> None:
+def check_curve_units(curves: tuple[str, ...], units: dict[str, str]) -> None:
     """Fail unless every documented Curve, and only those, has a documented unit."""
-    problems = [f"{c}: no documented unit" for c in DOCUMENTED_CURVES if c not in CURVE_UNITS]
-    problems += [f"{c}: unit for a Curve with no description" for c in CURVE_UNITS if c not in DOCUMENTED_CURVES]
+    problems = [f"{c}: no documented unit" for c in curves if c not in units]
+    problems += [f"{c}: unit for a Curve with no description" for c in units if c not in curves]
     if problems:
         raise ValueError("Curve units: " + "; ".join(problems))
 
@@ -222,12 +222,10 @@ def export_schema_markdown(metadata: MetaData, output_path: Path):
         columns = get_table_info(table)
         content += "**Columns:**\n\n"
         has_units = table_name in TABLE_UNITS
-        if has_units:
-            content += "| Column | Type | Unit | Nullable | Primary Key | Description |\n"
-            content += "|--------|------|------|----------|-------------|-------------|\n"
-        else:
-            content += "| Column | Type | Nullable | Primary Key | Description |\n"
-            content += "|--------|------|----------|-------------|-------------|\n"
+        headers = ["Column", "Type", *(["Unit"] if has_units else []),
+                   "Nullable", "Primary Key", "Description"]
+        content += "| " + " | ".join(headers) + " |\n"
+        content += "|" + "|".join("-" * (len(h) + 2) for h in headers) + "|\n"
 
         for col in columns:
             nullable = "Yes" if not col["not_null"] else "No"
@@ -295,7 +293,7 @@ def export_all_schemas(output_dir: Path = SCHEMA_OUTPUT_DIR):
     metadata = reflect_schema(engine)
     print(f"  → Found {len(metadata.tables)} tables")
     add_log_tables(metadata)
-    check_curve_units()
+    check_curve_units(DOCUMENTED_CURVES, CURVE_UNITS)
     check_descriptions(
         {name: [c.name for c in t.columns] for name, t in metadata.tables.items()},
         COLUMN_DESCRIPTIONS,

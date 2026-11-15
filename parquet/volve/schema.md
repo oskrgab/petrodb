@@ -72,7 +72,7 @@ Monthly volumes per wellbore, from Equinor's monthly production report. One row 
 
 ### `petrophysical_interpretation`
 
-Well-log Curves of Equinor's petrophysical interpretation, one row per depth sample of each logged wellbore: the Input curves the interpretation took (gamma ray, density, neutron, sonic, resistivity) and the Interpreted curves it computed (porosity, water saturation, shale volume, permeability, lithology flags) side by side. One row per `(source_wellbore, depth_md)`. Each Curve column is named with the source mnemonic and is empty where the wellbore has no sample. Each Curve has one unit, given in the Unit column: the source files spell it several ways, and the values are kept as the source gives them, never converted. Samples are at the source depths; nothing is resampled. Built from the raw log files; the Parquet is not in git.
+Well-log Curves of Equinor's petrophysical interpretation, one row per depth sample of each logged wellbore: the Input curves the interpretation took (gamma ray, density, neutron, sonic, resistivity) and the Interpreted curves it computed (porosity, water saturation, shale volume, permeability, lithology flags) side by side. One row per `(source_wellbore, depth_md)`. Each Curve column is named with the source mnemonic and is empty where the wellbore has no sample. Each Curve has one documented unit, stated with the column: the source files spell it several ways, and the values are kept as the source gives them, never converted. Samples are at the source depths; nothing is resampled. Built from the raw log files; the Parquet is not in git.
 
 **Columns:**
 
