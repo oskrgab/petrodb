@@ -204,4 +204,5 @@ See original license terms:
 - Volve `wells` table, register columns: contains data under the Norwegian Licence for Open
   Government Data (NLOD), https://data.norge.no/nlod/en, distributed by the Norwegian Offshore
   Directorate.
-- FORCE 2020: https://xeek.ai/challenges/force-well-logs
+- FORCE 2020: CC BY 4.0, https://creativecommons.org/licenses/by/4.0/; source:
+  https://github.com/bolgebrygg/Force-2020-Machine-Learning-competition.
